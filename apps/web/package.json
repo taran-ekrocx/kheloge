@@ -1,0 +1,36 @@
+{
+  "name": "@kheloge/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev -H 10.0.0.2 -p 3035",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@cloudflare/kumo": "^1.18.0",
+    "@hookform/resolvers": "^3.3.4",
+    "@kheloge/shared": "*",
+    "@tanstack/react-query": "^5.32.0",
+    "axios": "^1.6.0",
+    "clsx": "^2.1.0",
+    "dayjs": "^1.11.0",
+    "lucide-react": "^0.365.0",
+    "next": "^14.2.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "react-hook-form": "^7.51.0",
+    "recharts": "^2.12.0",
+    "tailwind-merge": "^2.2.2",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.2",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "postcss": "^8.4.0",
+    "tailwindcss": "^4.2.2",
+    "typescript": "^5.4.0"
+  }
+}

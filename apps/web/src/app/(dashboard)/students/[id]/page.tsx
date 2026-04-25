@@ -1,0 +1,319 @@
+'use client';
+
+import { useRef, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api';
+import { useVenue } from '@/hooks/useVenue';
+import { useParams } from 'next/navigation';
+import { ArrowLeft, User, Calendar, CreditCard, Camera, FileText, Download } from 'lucide-react';
+import Link from 'next/link';
+import dayjs from 'dayjs';
+
+type Tab = 'profile' | 'attendance' | 'payments';
+
+async function downloadPdf(url: string, filename: string) {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('kheloge_access_token') : '';
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+  const resp = await fetch(`${apiUrl}${url}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!resp.ok) return;
+  const blob = await resp.blob();
+  const objUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = objUrl;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(objUrl);
+}
+
+export default function StudentDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const { venueId } = useVenue();
+  const queryClient = useQueryClient();
+  const [tab, setTab] = useState<Tab>('profile');
+  const [photoLoading, setPhotoLoading] = useState(false);
+  const [idCardLoading, setIdCardLoading] = useState(false);
+  const [invoiceLoading, setInvoiceLoading] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  const { data: student, isLoading } = useQuery({
+    queryKey: ['student', id],
+    queryFn: () => api.get(`/venues/${venueId}/students/${id}`).then((r) => r.data),
+    enabled: !!venueId && !!id,
+  });
+
+  const { data: attendanceStats } = useQuery({
+    queryKey: ['attendance-stats', id],
+    queryFn: () => api.get(`/attendance/students/${id}/stats`).then((r) => r.data),
+    enabled: tab === 'attendance' && !!id,
+  });
+
+  const { data: invoices = [] } = useQuery({
+    queryKey: ['invoices', id],
+    queryFn: () => api.get(`/payments/students/${id}/invoices`).then((r) => r.data),
+    enabled: tab === 'payments' && !!id,
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (data: Record<string, string>) => api.patch(`/venues/${venueId}/students/${id}`, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['student', id] }),
+  });
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !venueId) return;
+    setPhotoLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      await api.post(`/venues/${venueId}/students/${id}/photo`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      queryClient.invalidateQueries({ queryKey: ['student', id] });
+    } finally {
+      setPhotoLoading(false);
+      if (photoInputRef.current) photoInputRef.current.value = '';
+    }
+  };
+
+  const handleIdCardDownload = async () => {
+    setIdCardLoading(true);
+    try {
+      await downloadPdf(`/venues/${venueId}/students/${id}/id-card`, `id-card-${student?.name?.replace(/\s+/g, '-') ?? id}.pdf`);
+    } finally {
+      setIdCardLoading(false);
+    }
+  };
+
+  const handleInvoicePdf = async (invoiceId: string, invoiceNumber: string) => {
+    setInvoiceLoading(invoiceId);
+    try {
+      await downloadPdf(`/payments/invoices/${invoiceId}/pdf`, `invoice-${invoiceNumber}.pdf`);
+    } finally {
+      setInvoiceLoading(null);
+    }
+  };
+
+  if (isLoading || !venueId) return <div className="p-8 text-gray-400">Loading...</div>;
+  if (!student) return <div className="p-8 text-gray-400">Student not found.</div>;
+
+  const tabs = [
+    { key: 'profile', label: 'Profile', icon: User },
+    { key: 'attendance', label: 'Attendance', icon: Calendar },
+    { key: 'payments', label: 'Payments', icon: CreditCard },
+  ] as const;
+
+  return (
+    <div className="space-y-5 max-w-3xl">
+      {/* Header */}
+      <div className="flex items-start gap-4">
+        <Link href="/students" className="text-gray-400 hover:text-gray-700 mt-1">
+          <ArrowLeft size={20} />
+        </Link>
+        <div className="flex items-center gap-4 flex-1">
+          {/* Photo */}
+          <div className="relative group">
+            {student.photoUrl ? (
+              <img src={student.photoUrl} alt={student.name} className="w-16 h-16 rounded-full object-cover" />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
+                <User size={24} className="text-gray-400" />
+              </div>
+            )}
+            <button
+              onClick={() => photoInputRef.current?.click()}
+              disabled={photoLoading}
+              className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+            >
+              <Camera size={16} className="text-white" />
+            </button>
+            <input ref={photoInputRef} type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-2xl font-bold text-gray-900">{student.name}</h2>
+            <p className="text-gray-500 text-sm">{student.phone} · {student.status}</p>
+          </div>
+          {/* ID Card button */}
+          <button
+            onClick={handleIdCardDownload}
+            disabled={idCardLoading}
+            className="flex items-center gap-2 border border-gray-200 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            <CreditCard size={15} />
+            {idCardLoading ? 'Generating...' : 'ID Card PDF'}
+          </button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit">
+        {tabs.map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              tab === key ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <Icon size={14} />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        {/* Profile tab */}
+        {tab === 'profile' && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div><p className="text-xs text-gray-400">Name</p><p className="font-medium">{student.name}</p></div>
+              <div><p className="text-xs text-gray-400">Phone</p><p className="font-medium">{student.phone || '—'}</p></div>
+              <div><p className="text-xs text-gray-400">Email</p><p className="font-medium">{student.email || '—'}</p></div>
+              <div>
+                <p className="text-xs text-gray-400">Date of Birth</p>
+                <p className="font-medium">{student.dob ? dayjs(student.dob).format('DD MMM YYYY') : '—'}</p>
+              </div>
+              {student.address && (
+                <div className="col-span-2">
+                  <p className="text-xs text-gray-400">Address</p>
+                  <p className="font-medium">{student.address}</p>
+                </div>
+              )}
+            </div>
+            <hr className="border-gray-100" />
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-2">Enrolled Batches</p>
+              {student.enrollments?.filter((e: { isActive: boolean }) => e.isActive).length > 0 ? (
+                <ul className="space-y-2">
+                  {student.enrollments
+                    .filter((e: { isActive: boolean }) => e.isActive)
+                    .map((e: { id: string; batch: { name: string; sport: { name: string } } }) => (
+                      <li key={e.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
+                        <span className="font-medium text-sm">{e.batch?.name}</span>
+                        <span className="text-xs text-gray-400">{e.batch?.sport?.name}</span>
+                      </li>
+                    ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-gray-400">Not enrolled in any batch.</p>
+              )}
+            </div>
+            {student.guardians?.length > 0 && (
+              <div>
+                <hr className="border-gray-100 mb-4" />
+                <p className="text-sm font-medium text-gray-700 mb-2">Parent / Guardian Contact</p>
+                <div className="space-y-2">
+                  {student.guardians.map((g: { id: string; name: string; relation: string; phone: string }) => (
+                    <div key={g.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg text-sm">
+                      <span className="font-medium text-gray-900">{g.name}</span>
+                      <span className="text-xs text-gray-400 capitalize">{g.relation}</span>
+                      <span className="ml-auto text-gray-600">{g.phone}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Attendance tab */}
+        {tab === 'attendance' && (
+          <div className="space-y-4">
+            {attendanceStats ? (
+              <>
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div className="bg-green-50 rounded-lg p-4">
+                    <p className="text-2xl font-bold text-green-600">{attendanceStats.present}</p>
+                    <p className="text-sm text-gray-500">Present</p>
+                  </div>
+                  <div className="bg-red-50 rounded-lg p-4">
+                    <p className="text-2xl font-bold text-red-600">{attendanceStats.absent}</p>
+                    <p className="text-sm text-gray-500">Absent</p>
+                  </div>
+                  <div className="bg-blue-50 rounded-lg p-4">
+                    <p className="text-2xl font-bold text-blue-600">{attendanceStats.percentage}%</p>
+                    <p className="text-sm text-gray-500">Attendance</p>
+                  </div>
+                </div>
+                {attendanceStats.byBatch && Object.keys(attendanceStats.byBatch).length > 0 && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 mb-2">By Batch</p>
+                    <div className="space-y-2">
+                      {Object.entries(attendanceStats.byBatch).map(([batchName, stats]: [string, unknown]) => {
+                        const s = stats as { present: number; absent: number; percentage: number };
+                        return (
+                          <div key={batchName} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg text-sm">
+                            <span className="font-medium flex-1">{batchName}</span>
+                            <span className="text-green-600">{s.present}P</span>
+                            <span className="text-red-600">{s.absent}A</span>
+                            <span className="text-blue-600 font-medium">{s.percentage}%</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="text-gray-400 text-sm">Loading attendance stats...</p>
+            )}
+          </div>
+        )}
+
+        {/* Payments tab */}
+        {tab === 'payments' && (
+          <div className="space-y-3">
+            {invoices.length === 0 ? (
+              <p className="text-gray-400 text-sm">No invoices found.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="text-left text-gray-500 border-b">
+                  <tr>
+                    <th className="pb-2">Invoice #</th>
+                    <th className="pb-2">Amount</th>
+                    <th className="pb-2">Due Date</th>
+                    <th className="pb-2">Status</th>
+                    <th className="pb-2" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {invoices.map((inv: { id: string; invoiceNumber: string; amount: string; dueDate: string; status: string }) => (
+                    <tr key={inv.id}>
+                      <td className="py-2 font-mono text-xs">{inv.invoiceNumber}</td>
+                      <td className="py-2">₹{Number(inv.amount).toLocaleString()}</td>
+                      <td className="py-2">{dayjs(inv.dueDate).format('DD MMM YYYY')}</td>
+                      <td className="py-2">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                          inv.status === 'PAID' ? 'bg-green-100 text-green-700' :
+                          inv.status === 'OVERDUE' ? 'bg-red-100 text-red-700' :
+                          'bg-yellow-100 text-yellow-700'
+                        }`}>{inv.status}</span>
+                      </td>
+                      <td className="py-2 text-right">
+                        <button
+                          onClick={() => handleInvoicePdf(inv.id, inv.invoiceNumber)}
+                          disabled={invoiceLoading === inv.id}
+                          className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 disabled:opacity-50 ml-auto"
+                        >
+                          {invoiceLoading === inv.id ? (
+                            <span>Downloading...</span>
+                          ) : (
+                            <>
+                              <FileText size={12} />
+                              <Download size={12} />
+                            </>
+                          )}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

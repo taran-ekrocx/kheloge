@@ -1,0 +1,16 @@
+@source "../node_modules/@cloudflare/kumo/dist/**/*.{js,jsx,ts,tsx}";
+
+@import "@cloudflare/kumo/styles/tailwind";
+
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #1a56db;
+  --color-secondary: #ff6b35;
+}
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900;
+  }
+}

@@ -1,0 +1,529 @@
+// Kheloge.com - Multi-tenant Sports Management Platform
+// PostgreSQL + Prisma schema with Row-Level Security support
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN
+  CITY_MANAGER
+  VENUE_MANAGER
+  COACH
+  ACCOUNTANT
+  STUDENT
+  PARENT
+}
+
+enum StudentStatus {
+  ENQUIRY
+  TRIAL
+  ACTIVE
+  INACTIVE
+  GRADUATED
+  ON_HOLD
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum PaymentMode {
+  UPI
+  CASH
+  ONLINE
+  CHEQUE
+  BANK_TRANSFER
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+  REFUNDED
+}
+
+enum FeeFrequency {
+  MONTHLY
+  QUARTERLY
+  HALF_YEARLY
+  ANNUAL
+  ONE_TIME
+}
+
+enum EnquiryStage {
+  NEW
+  CONTACTED
+  TRIAL_SCHEDULED
+  TRIAL_DONE
+  CONVERTED
+  LOST
+}
+
+enum LeadSource {
+  WHATSAPP
+  INSTAGRAM
+  FACEBOOK
+  WALK_IN
+  REFERRAL
+  WEBSITE
+  OTHER
+}
+
+enum BatchDay {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+// ─────────────────────────────────────────────
+// ORGANIZATION (tenant root)
+// ─────────────────────────────────────────────
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  logoUrl     String?
+  website     String?
+  phone       String?
+  email       String?
+  address     String?
+  city        String?
+  state       String?
+  country     String   @default("IN")
+  timezone    String   @default("Asia/Kolkata")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  cities      City[]
+  venues      Venue[]
+  users       OrganizationUser[]
+  sports      Sport[]
+
+  @@map("organizations")
+}
+
+// ─────────────────────────────────────────────
+// CITY
+// ─────────────────────────────────────────────
+
+model City {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  state          String?
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  venues         Venue[]
+  users          OrganizationUser[]
+
+  @@map("cities")
+}
+
+// ─────────────────────────────────────────────
+// VENUE
+// ─────────────────────────────────────────────
+
+model Venue {
+  id             String       @id @default(cuid())
+  organizationId String
+  cityId         String?
+  name           String
+  slug           String
+  address        String?
+  phone          String?
+  email          String?
+  logoUrl        String?
+  primaryColor   String?
+  isActive       Boolean      @default(true)
+  openTime       String?      // HH:MM
+  closeTime      String?      // HH:MM
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  city           City?        @relation(fields: [cityId], references: [id])
+  sports         VenueSport[]
+  batches        Batch[]
+  users          OrganizationUser[]
+  students       Student[]
+  enquiries      Enquiry[]
+  holidays       VenueHoliday[]
+
+  @@unique([organizationId, slug])
+  @@map("venues")
+}
+
+// ─────────────────────────────────────────────
+// SPORT
+// ─────────────────────────────────────────────
+
+model Sport {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  icon           String?
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  venues         VenueSport[]
+  batches        Batch[]
+
+  @@unique([organizationId, name])
+  @@map("sports")
+}
+
+model VenueSport {
+  id        String   @id @default(cuid())
+  venueId   String
+  sportId   String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  venue     Venue    @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  sport     Sport    @relation(fields: [sportId], references: [id], onDelete: Cascade)
+
+  @@unique([venueId, sportId])
+  @@map("venue_sports")
+}
+
+// ─────────────────────────────────────────────
+// USER
+// ─────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  phone        String   @unique
+  email        String?  @unique
+  name         String
+  photoUrl     String?
+  isActive     Boolean  @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  organizations OrganizationUser[]
+  coachBatches  BatchCoach[]
+  attendanceMarks Attendance[] @relation("MarkedBy")
+  comments      EnquiryComment[]
+
+  @@map("users")
+}
+
+model OrganizationUser {
+  id             String   @id @default(cuid())
+  userId         String
+  organizationId String
+  cityId         String?
+  venueId        String?
+  role           UserRole
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  city           City?        @relation(fields: [cityId], references: [id])
+  venue          Venue?       @relation(fields: [venueId], references: [id])
+
+  @@unique([userId, organizationId, venueId, role])
+  @@map("organization_users")
+}
+
+// ─────────────────────────────────────────────
+// BATCH
+// ─────────────────────────────────────────────
+
+model Batch {
+  id          String    @id @default(cuid())
+  venueId     String
+  sportId     String
+  name        String
+  description String?
+  capacity    Int       @default(20)
+  ageMin      Int?
+  ageMax      Int?
+  startTime   String    // HH:MM
+  endTime     String    // HH:MM
+  days        BatchDay[]
+  isActive    Boolean   @default(true)
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  venue       Venue          @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  sport       Sport          @relation(fields: [sportId], references: [id])
+  coaches     BatchCoach[]
+  enrollments Enrollment[]
+  attendances Attendance[]
+  feePlans    FeePlan[]
+
+  @@map("batches")
+}
+
+model BatchCoach {
+  id         String   @id @default(cuid())
+  batchId    String
+  coachId    String
+  isPrimary  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  batch      Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  coach      User     @relation(fields: [coachId], references: [id], onDelete: Cascade)
+
+  @@unique([batchId, coachId])
+  @@map("batch_coaches")
+}
+
+// ─────────────────────────────────────────────
+// STUDENT
+// ─────────────────────────────────────────────
+
+model Student {
+  id             String        @id @default(cuid())
+  venueId        String
+  name           String
+  phone          String?
+  email          String?
+  dob            DateTime?
+  photoUrl       String?
+  idCardUrl      String?
+  address        String?
+  medicalNotes   String?
+  status         StudentStatus @default(ACTIVE)
+  enrolledAt     DateTime      @default(now())
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  venue          Venue          @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  guardians      Guardian[]
+  enrollments    Enrollment[]
+  attendances    Attendance[]
+  payments       Payment[]
+  invoices       Invoice[]
+
+  @@map("students")
+}
+
+model Guardian {
+  id           String   @id @default(cuid())
+  studentId    String
+  name         String
+  phone        String
+  email        String?
+  relation     String   // e.g. "Father", "Mother", "Guardian"
+  isPrimary    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@map("guardians")
+}
+
+model Enrollment {
+  id          String   @id @default(cuid())
+  studentId   String
+  batchId     String
+  enrolledAt  DateTime @default(now())
+  leftAt      DateTime?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  batch       Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, batchId])
+  @@map("enrollments")
+}
+
+// ─────────────────────────────────────────────
+// ATTENDANCE
+// ─────────────────────────────────────────────
+
+model Attendance {
+  id            String           @id @default(cuid())
+  batchId       String
+  studentId     String
+  date          DateTime         @db.Date
+  status        AttendanceStatus @default(ABSENT)
+  checkInAt     DateTime?
+  checkOutAt    DateTime?
+  markedById    String?
+  notes         String?
+  isAutoMarked  Boolean          @default(false)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  batch         Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  markedBy      User?    @relation("MarkedBy", fields: [markedById], references: [id])
+
+  @@unique([batchId, studentId, date])
+  @@map("attendances")
+}
+
+// ─────────────────────────────────────────────
+// FEE PLAN & PAYMENTS
+// ─────────────────────────────────────────────
+
+model FeePlan {
+  id             String       @id @default(cuid())
+  batchId        String?
+  name           String
+  amount         Decimal      @db.Decimal(10, 2)
+  frequency      FeeFrequency
+  dueDay         Int          @default(1)  // day of month
+  lateFeeAmount  Decimal?     @db.Decimal(10, 2)
+  discountAmount Decimal?     @db.Decimal(10, 2)
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  batch          Batch?    @relation(fields: [batchId], references: [id])
+  invoices       Invoice[]
+
+  @@map("fee_plans")
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  studentId      String
+  feePlanId      String
+  amount         Decimal       @db.Decimal(10, 2)
+  dueDate        DateTime
+  status         PaymentStatus @default(PENDING)
+  invoiceNumber  String        @unique
+  pdfUrl         String?
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  student        Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  feePlan        FeePlan   @relation(fields: [feePlanId], references: [id])
+  payments       Payment[]
+
+  @@map("invoices")
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  studentId       String
+  invoiceId       String?
+  amount          Decimal       @db.Decimal(10, 2)
+  mode            PaymentMode
+  status          PaymentStatus @default(PAID)
+  referenceNumber String?
+  gatewayOrderId  String?
+  gatewayPaymentId String?
+  receiptNumber   String        @unique
+  receiptUrl      String?
+  notes           String?
+  paidAt          DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  student         Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  invoice         Invoice? @relation(fields: [invoiceId], references: [id])
+
+  @@map("payments")
+}
+
+// ─────────────────────────────────────────────
+// ENQUIRY / LEAD MANAGEMENT
+// ─────────────────────────────────────────────
+
+model Enquiry {
+  id             String       @id @default(cuid())
+  venueId        String
+  name           String
+  phone          String
+  email          String?
+  sportInterest  String?
+  ageGroup       String?
+  stage          EnquiryStage @default(NEW)
+  source         LeadSource?
+  notes          String?
+  followUpAt     DateTime?
+  trialDate      DateTime?
+  convertedAt    DateTime?
+  convertedToStudentId String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  venue          Venue             @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  comments       EnquiryComment[]
+
+  @@map("enquiries")
+}
+
+model EnquiryComment {
+  id         String   @id @default(cuid())
+  enquiryId  String
+  authorId   String
+  body       String
+  createdAt  DateTime @default(now())
+
+  enquiry    Enquiry  @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  author     User     @relation(fields: [authorId], references: [id])
+
+  @@map("enquiry_comments")
+}
+
+// ─────────────────────────────────────────────
+// VENUE HOLIDAYS
+// ─────────────────────────────────────────────
+
+model VenueHoliday {
+  id          String   @id @default(cuid())
+  venueId     String
+  date        DateTime @db.Date
+  name        String
+  createdAt   DateTime @default(now())
+
+  venue       Venue    @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@unique([venueId, date])
+  @@map("venue_holidays")
+}
+
+// ─────────────────────────────────────────────
+// OTP (for phone-based auth)
+// ─────────────────────────────────────────────
+
+model OtpRequest {
+  id         String   @id @default(cuid())
+  phone      String
+  otp        String
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  @@map("otp_requests")
+}
