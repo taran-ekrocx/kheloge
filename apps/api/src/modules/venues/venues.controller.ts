@@ -26,6 +26,7 @@ class CreateVenueBatchDto {
 
 class UpdateVenueBatchDto {
   @IsOptional() @IsString() name?: string;
+  @IsOptional() @IsString() sportId?: string;
   @IsOptional() @IsString() coachId?: string;
   @IsOptional() @IsInt() @Min(1) @Type(() => Number) capacity?: number;
   @IsOptional() @IsNumber() @Type(() => Number) fee?: number;
@@ -150,8 +151,8 @@ export class VenuesController {
     @Param('batchId') batchId: string,
     @Body() dto: UpdateVenueBatchDto,
   ) {
-    const { coachId, fee, status, ...rest } = dto;
-    const batch = await this.batchesSvc.update(batchId, rest);
+    const { coachId, fee, status, sportId, ...rest } = dto;
+    const batch = await this.batchesSvc.update(batchId, { ...rest, ...(sportId ? { sportId } : {}) });
     return mapBatch(batch);
   }
 
