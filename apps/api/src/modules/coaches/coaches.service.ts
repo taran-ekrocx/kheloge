@@ -172,7 +172,7 @@ export class CoachesService {
 
   async findByVenue(organizationId: string, venueId: string) {
     const orgUsers = await this.prisma.organizationUser.findMany({
-      where: { organizationId, venueId, role: UserRole.COACH },
+      where: { organizationId, venueId, role: UserRole.COACH, isActive: true },
       include: {
         user: {
           select: {
