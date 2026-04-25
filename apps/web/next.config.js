@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'standalone',
   transpilePackages: ['@kheloge/shared'],
   images: {
     domains: ['pub-*.r2.dev', 'storage.googleapis.com'],
