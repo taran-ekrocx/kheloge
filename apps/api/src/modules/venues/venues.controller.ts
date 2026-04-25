@@ -1,18 +1,59 @@
 import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, Request } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
-import { UserRole } from '@kheloge/database';
+import { IsString, IsOptional, IsInt, IsArray, IsEnum, IsNumber, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { UserRole, BatchDay } from '@kheloge/database';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { VenuesService } from './venues.service';
 import { CoachesService, CreateCoachDto, UpdateCoachDto } from '../coaches/coaches.service';
+import { BatchesService } from '../batches/batches.service';
+
+// ── Venue-scoped batch DTOs (matches the frontend payload shape) ────────────
+
+class CreateVenueBatchDto {
+  @IsString() name: string;
+  @IsString() sportId: string;
+  @IsOptional() @IsString() coachId?: string;
+  @IsOptional() @IsInt() @Min(1) @Type(() => Number) capacity?: number;
+  @IsOptional() @IsNumber() @Type(() => Number) fee?: number;
+  @IsString() startTime: string;
+  @IsString() endTime: string;
+  @IsArray() @IsEnum(BatchDay, { each: true }) days: BatchDay[];
+  @IsOptional() @IsString() status?: string;
+}
+
+class UpdateVenueBatchDto {
+  @IsOptional() @IsString() name?: string;
+  @IsOptional() @IsString() coachId?: string;
+  @IsOptional() @IsInt() @Min(1) @Type(() => Number) capacity?: number;
+  @IsOptional() @IsNumber() @Type(() => Number) fee?: number;
+  @IsOptional() @IsString() startTime?: string;
+  @IsOptional() @IsString() endTime?: string;
+  @IsOptional() @IsArray() @IsEnum(BatchDay, { each: true }) days?: BatchDay[];
+  @IsOptional() @IsString() status?: string;
+}
+
+function mapBatch(b: any) {
+  return {
+    ...b,
+    coach: b.coaches?.[0]?.coach ?? null,
+    fee: b.feePlans?.[0]?.amount ?? null,
+    status: b.isActive === false ? 'INACTIVE' : 'ACTIVE',
+  };
+}
 
 @ApiTags('venues')
 @ApiBearerAuth()
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @Controller('venues')
 export class VenuesController {
-  constructor(private venues: VenuesService, private coaches: CoachesService) {}
+  constructor(
+    private venues: VenuesService,
+    private coaches: CoachesService,
+    private batchesSvc: BatchesService,
+  ) {}
 
   @Get()
   findAll(@Request() req) {
@@ -75,5 +116,48 @@ export class VenuesController {
     @Param('coachId') coachId: string,
   ) {
     return this.coaches.removeCoach(req.user.orgId, venueId, coachId);
+  }
+
+  // ── Batches sub-resource ─────────────────────────────────────────────────
+
+  @Get(':venueId/batches')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER, UserRole.COACH)
+  async listBatches(@Request() req, @Param('venueId') venueId: string) {
+    const batches = await this.batchesSvc.findAll(req.user.orgId, { venueId });
+    return batches.map(mapBatch);
+  }
+
+  @Post(':venueId/batches')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER)
+  async createBatch(
+    @Request() req,
+    @Param('venueId') venueId: string,
+    @Body() dto: CreateVenueBatchDto,
+  ) {
+    const { coachId, fee, status, ...rest } = dto;
+    const batch = await this.batchesSvc.create({
+      ...rest,
+      venueId,
+      coachIds: coachId ? [coachId] : undefined,
+      feeAmount: fee,
+    });
+    return mapBatch(batch);
+  }
+
+  @Patch(':venueId/batches/:batchId')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER)
+  async updateBatch(
+    @Param('batchId') batchId: string,
+    @Body() dto: UpdateVenueBatchDto,
+  ) {
+    const { coachId, fee, status, ...rest } = dto;
+    const batch = await this.batchesSvc.update(batchId, rest);
+    return mapBatch(batch);
+  }
+
+  @Delete(':venueId/batches/:batchId')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER)
+  async removeBatch(@Param('batchId') batchId: string) {
+    return this.batchesSvc.remove(batchId);
   }
 }
