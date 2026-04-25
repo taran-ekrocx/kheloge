@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 // Simple venue context via localStorage — in production use React Context
 export function useVenue() {
@@ -11,10 +11,10 @@ export function useVenue() {
     setVenueId(stored);
   }, []);
 
-  const selectVenue = (id: string) => {
+  const selectVenue = useCallback((id: string) => {
     localStorage.setItem('kheloge_venue_id', id);
     setVenueId(id);
-  };
+  }, []);
 
   return { venueId, selectVenue };
 }

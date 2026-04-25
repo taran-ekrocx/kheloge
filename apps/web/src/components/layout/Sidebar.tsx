@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AuthService } from '@/lib/auth';
 import { api } from '@/lib/api';
@@ -41,9 +42,11 @@ function VenueSelector() {
   });
 
   // Auto-select first venue when none selected and venues loaded
-  if (!venueId && venues.length > 0) {
-    selectVenue(venues[0].id);
-  }
+  useEffect(() => {
+    if (!venueId && venues.length > 0) {
+      selectVenue(venues[0].id);
+    }
+  }, [venueId, venues, selectVenue]);
 
   if (venues.length <= 1) return null;
 
