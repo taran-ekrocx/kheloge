@@ -2,11 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { AuthService } from '@/lib/auth';
+import { api } from '@/lib/api';
+import { useVenue } from '@/hooks/useVenue';
 import {
   LayoutDashboard, Users, Calendar, CheckSquare,
   CreditCard, MessageSquare, LogOut, Building2,
-  Trophy, MapPin, UsersRound, UserCheck, BarChart2, Receipt,
+  Trophy, MapPin, UsersRound, UserCheck, BarChart2, Receipt, ChevronDown,
 } from 'lucide-react';
 
 const NAV_OPERATIONS = [
@@ -27,6 +30,41 @@ const NAV_ADMIN = [
   { href: '/cities', label: 'Cities', icon: MapPin },
   { href: '/users', label: 'Team', icon: UsersRound },
 ];
+
+function VenueSelector() {
+  const { venueId, selectVenue } = useVenue();
+
+  const { data: venues = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ['venues-list'],
+    queryFn: () => api.get('/venues').then((r) => r.data),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Auto-select first venue when none selected and venues loaded
+  if (!venueId && venues.length > 0) {
+    selectVenue(venues[0].id);
+  }
+
+  if (venues.length <= 1) return null;
+
+  return (
+    <div className="px-3 pb-3">
+      <p className="px-1 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">Venue</p>
+      <div className="relative">
+        <select
+          value={venueId}
+          onChange={(e) => selectVenue(e.target.value)}
+          className="w-full appearance-none bg-blue-50 border border-blue-200 text-blue-800 rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 pr-8"
+        >
+          {venues.map((v) => (
+            <option key={v.id} value={v.id}>{v.name}</option>
+          ))}
+        </select>
+        <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-blue-500 pointer-events-none" />
+      </div>
+    </div>
+  );
+}
 
 function NavGroup({ label, items }: { label: string; items: typeof NAV_OPERATIONS }) {
   const pathname = usePathname();
@@ -62,6 +100,7 @@ export function Sidebar() {
         <p className="text-xs text-gray-400 mt-0.5">Sports Management</p>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-4 overflow-y-auto">
+        <VenueSelector />
         <NavGroup label="Operations" items={NAV_OPERATIONS} />
         <NavGroup label="Administration" items={NAV_ADMIN} />
       </nav>

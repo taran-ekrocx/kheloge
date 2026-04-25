@@ -28,6 +28,14 @@ api.interceptors.response.use(
         const { data } = await axios.post(`${API_URL}/auth/refresh`, { refreshToken: refresh });
         localStorage.setItem('kheloge_access_token', data.accessToken);
         localStorage.setItem('kheloge_refresh_token', data.refreshToken);
+        // Preserve venueId from refreshed token if not already set
+        try {
+          const b64 = data.accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+          const payload = JSON.parse(atob(b64));
+          if (payload.venueId && !localStorage.getItem('kheloge_venue_id')) {
+            localStorage.setItem('kheloge_venue_id', payload.venueId);
+          }
+        } catch {}
         original.headers.Authorization = `Bearer ${data.accessToken}`;
         return api(original);
       } catch {

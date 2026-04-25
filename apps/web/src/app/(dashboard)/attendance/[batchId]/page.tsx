@@ -29,12 +29,14 @@ export default function AttendancePage() {
 
   const { data: existing = [] } = useQuery({
     queryKey: ['attendance', batchId, today],
-    queryFn: () => api.get(`/attendance/batches/${batchId}`, { params: { date: today } }).then(r => r.data),
-    onSuccess: (data: any[]) => {
-      const init: Record<string, AttendanceStatus> = {};
-      data.forEach((a: any) => { init[a.studentId || a.student_id] = a.status; });
-      setRecords(init);
-    },
+    queryFn: () =>
+      api.get(`/attendance/batches/${batchId}`, { params: { date: today } }).then((r) => {
+        const data: any[] = r.data;
+        const init: Record<string, AttendanceStatus> = {};
+        data.forEach((a: any) => { init[a.studentId || a.student_id] = a.status; });
+        setRecords(init);
+        return data;
+      }),
   });
 
   const students = batch?.enrollments?.map((e: any) => e.student) || [];
