@@ -136,13 +136,12 @@ export class VenuesController {
     @Body() dto: CreateVenueBatchDto,
   ) {
     const { coachId, fee, status, ...rest } = dto;
-    const batch = await this.batchesSvc.create({
-      ...rest,
-      venueId,
-      coachIds: coachId ? [coachId] : undefined,
-      feeAmount: fee,
-    });
-    return mapBatch(batch);
+    const batch = await this.batchesSvc.create({ ...rest, venueId, feeAmount: fee });
+    if (coachId) {
+      await this.batchesSvc.reassignCoach(batch.id, coachId);
+    }
+    const created = await this.batchesSvc.findOne(batch.id);
+    return mapBatch(created);
   }
 
   @Patch(':venueId/batches/:batchId')
@@ -152,7 +151,11 @@ export class VenuesController {
     @Body() dto: UpdateVenueBatchDto,
   ) {
     const { coachId, fee, status, sportId, ...rest } = dto;
-    const batch = await this.batchesSvc.update(batchId, { ...rest, ...(sportId ? { sportId } : {}) });
+    await this.batchesSvc.update(batchId, { ...rest, ...(sportId ? { sportId } : {}) });
+    if (coachId !== undefined) {
+      await this.batchesSvc.reassignCoach(batchId, coachId);
+    }
+    const batch = await this.batchesSvc.findOne(batchId);
     return mapBatch(batch);
   }
 

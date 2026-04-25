@@ -132,6 +132,23 @@ export class BatchesService {
     });
   }
 
+  async reassignCoach(batchId: string, orgUserId: string) {
+    // Clear existing coach assignments for this batch first
+    await this.prisma.batchCoach.deleteMany({ where: { batchId } });
+
+    if (orgUserId) {
+      // orgUserId is an OrganizationUser.id — resolve to the underlying User.id
+      const orgUser = await this.prisma.organizationUser.findUnique({
+        where: { id: orgUserId },
+        select: { userId: true },
+      });
+      if (!orgUser) throw new NotFoundException('Coach not found');
+      await this.prisma.batchCoach.create({
+        data: { batchId, coachId: orgUser.userId, isPrimary: true },
+      });
+    }
+  }
+
   async remove(id: string) {
     const batch = await this.prisma.batch.findUnique({ where: { id } });
     if (!batch) throw new NotFoundException('Batch not found');
