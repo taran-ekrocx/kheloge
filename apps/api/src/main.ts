@@ -1,4 +1,4 @@
-import { NestFactory, Reflector } from '@nestjs/core';
+import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
@@ -6,7 +6,6 @@ import { IoAdapter } from '@nestjs/platform-socket.io';
 import multipart from '@fastify/multipart';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
-import { RolesGuard } from './common/guards/roles.guard';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -19,9 +18,6 @@ async function bootstrap() {
 
   // Global exception filter
   app.useGlobalFilters(new GlobalExceptionFilter());
-
-  // Global RBAC guard
-  app.useGlobalGuards(new RolesGuard(app.get(Reflector)));
 
   // Global validation pipe
   app.useGlobalPipes(
