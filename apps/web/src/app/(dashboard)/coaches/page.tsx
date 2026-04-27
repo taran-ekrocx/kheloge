@@ -8,6 +8,7 @@ import { Search, UserPlus, Filter, X, Edit2, Trash2, User } from 'lucide-react';
 import { STATE_NAMES, getDistricts, getCities } from '@/lib/india-locations';
 
 interface CoachBatch { id: string; name: string; sport?: { name: string }; }
+interface CoachSportItem { id: string; name: string; icon?: string; }
 interface Coach {
   id: string;
   name: string;
@@ -18,9 +19,11 @@ interface Coach {
   district?: string;
   city?: string;
   region?: string;
+  sports?: CoachSportItem[];
   batches?: CoachBatch[];
   _count?: { batches: number };
 }
+interface Sport { id: string; name: string; icon?: string; }
 
 const STATUS_STYLES: Record<string, string> = {
   ACTIVE: 'bg-green-100 text-green-700',
@@ -30,6 +33,7 @@ const STATUS_STYLES: Record<string, string> = {
 const DEFAULT_FORM = {
   name: '', phone: '', email: '', status: 'ACTIVE',
   state: '', district: '', city: '', region: '',
+  sportIds: [] as string[],
 };
 
 function CoachModal({
@@ -47,7 +51,22 @@ function CoachModal({
     district: existing.district || '',
     city: existing.city || '',
     region: existing.region || '',
+    sportIds: (existing.sports ?? []).map((s) => s.id),
   } : DEFAULT_FORM);
+
+  const { data: sports = [] } = useQuery<Sport[]>({
+    queryKey: ['sports'],
+    queryFn: () => api.get('/sports').then((r) => r.data),
+  });
+
+  const toggleSport = (sportId: string) => {
+    setForm((f) => ({
+      ...f,
+      sportIds: f.sportIds.includes(sportId)
+        ? f.sportIds.filter((id) => id !== sportId)
+        : [...f.sportIds, sportId],
+    }));
+  };
 
   const districts = useMemo(() => form.state ? getDistricts(form.state) : [], [form.state]);
   const cities = useMemo(() => form.state && form.district ? getCities(form.state, form.district) : [], [form.state, form.district]);
@@ -137,6 +156,28 @@ function CoachModal({
             </div>
           </div>
 
+          {sports.length > 0 && (
+            <div className="border-t pt-3">
+              <p className="text-xs font-medium text-gray-600 mb-2">Assign Sports</p>
+              <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                {sports.map((sport) => (
+                  <label key={sport.id} className="flex items-center gap-2 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={form.sportIds.includes(sport.id)}
+                      onChange={() => toggleSport(sport.id)}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-700 group-hover:text-gray-900">
+                      {sport.icon && <span className="mr-1">{sport.icon}</span>}
+                      {sport.name}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
           {mutation.isError && <p className="text-red-500 text-xs">Failed to save coach.</p>}
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 border rounded-lg py-2 text-sm font-medium hover:bg-gray-50">
@@ -181,6 +222,22 @@ function CoachDetailModal({ coach, onClose }: { coach: Coach; onClose: () => voi
               {coach.district && <div><span className="text-gray-400 text-xs">District</span><p className="font-medium">{coach.district}</p></div>}
               {coach.city && <div><span className="text-gray-400 text-xs">City</span><p className="font-medium">{coach.city}</p></div>}
               {coach.region && <div><span className="text-gray-400 text-xs">Region</span><p className="font-medium">{coach.region}</p></div>}
+            </div>
+          </div>
+        )}
+
+        {coach.sports && coach.sports.length > 0 && (
+          <div className="mb-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+              Assigned Sports
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {coach.sports.map((s) => (
+                <span key={s.id} className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
+                  {s.icon && <span>{s.icon}</span>}
+                  {s.name}
+                </span>
+              ))}
             </div>
           </div>
         )}

@@ -192,6 +192,7 @@ model Sport {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   venues         VenueSport[]
   batches        Batch[]
+  coaches        CoachSport[]
 
   @@unique([organizationId, name])
   @@map("sports")
@@ -209,6 +210,19 @@ model VenueSport {
 
   @@unique([venueId, sportId])
   @@map("venue_sports")
+}
+
+model CoachSport {
+  id        String   @id @default(cuid())
+  coachId   String
+  sportId   String
+  createdAt DateTime @default(now())
+
+  coach     User     @relation("CoachSports", fields: [coachId], references: [id], onDelete: Cascade)
+  sport     Sport    @relation(fields: [sportId], references: [id], onDelete: Cascade)
+
+  @@unique([coachId, sportId])
+  @@map("coach_sports")
 }
 
 // ─────────────────────────────────────────────
@@ -231,6 +245,7 @@ model User {
   attendanceMarks  Attendance[]        @relation("MarkedBy")
   coachSessions    AttendanceSession[] @relation("CoachSessions")
   comments         EnquiryComment[]
+  coachSports      CoachSport[]        @relation("CoachSports")
 
   @@map("users")
 }

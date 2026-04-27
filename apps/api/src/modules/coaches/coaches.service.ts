@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
-import { IsString, IsOptional, IsBoolean, IsEmail, IsIn } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsEmail, IsIn, IsArray } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { UserRole } from '@kheloge/database';
 import { PrismaService } from '../../database/prisma.service';
@@ -54,6 +54,12 @@ export class CreateCoachDto {
   @IsOptional()
   @IsString()
   region?: string;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  sportIds?: string[];
 }
 
 export class UpdateCoachDto {
@@ -96,6 +102,12 @@ export class UpdateCoachDto {
   @IsOptional()
   @IsString()
   region?: string;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  sportIds?: string[];
 }
 
 @Injectable()
@@ -204,6 +216,7 @@ export class CoachesService {
       status: isActive ? 'ACTIVE' : 'INACTIVE',
       city: locationCity ?? undefined,
       venue,
+      sports: (user.coachSports ?? []).map((cs: any) => cs.sport),
       batches: (user.coachBatches ?? []).map((bc: any) => ({
         batchId: bc.batchId,
         isPrimary: bc.isPrimary,
@@ -223,6 +236,9 @@ export class CoachesService {
             phone: true,
             email: true,
             photoUrl: true,
+            coachSports: {
+              include: { sport: { select: { id: true, name: true, icon: true } } },
+            },
             coachBatches: {
               include: {
                 batch: {
@@ -293,12 +309,35 @@ export class CoachesService {
         user: {
           select: {
             id: true, name: true, phone: true, email: true, photoUrl: true,
+            coachSports: { include: { sport: { select: { id: true, name: true, icon: true } } } },
             coachBatches: { include: { batch: { select: { id: true, name: true, sport: { select: { id: true, name: true } } } } } },
           },
         },
         venue: { select: { id: true, name: true } },
       },
     });
+
+    if (dto.sportIds && dto.sportIds.length > 0) {
+      await this.prisma.coachSport.createMany({
+        data: dto.sportIds.map((sportId) => ({ coachId: user.id, sportId })),
+        skipDuplicates: true,
+      });
+      // Re-fetch to get the sports included
+      const refreshed = await this.prisma.organizationUser.findFirst({
+        where: { id: orgUser.id },
+        include: {
+          user: {
+            select: {
+              id: true, name: true, phone: true, email: true, photoUrl: true,
+              coachSports: { include: { sport: { select: { id: true, name: true, icon: true } } } },
+              coachBatches: { include: { batch: { select: { id: true, name: true, sport: { select: { id: true, name: true } } } } } },
+            },
+          },
+          venue: { select: { id: true, name: true } },
+        },
+      });
+      return this.mapOrgUser(refreshed);
+    }
 
     return this.mapOrgUser(orgUser);
   }
@@ -329,12 +368,23 @@ export class CoachesService {
       await this.prisma.organizationUser.update({ where: { id: orgUserId }, data: orgUserUpdate });
     }
 
+    if (dto.sportIds !== undefined) {
+      await this.prisma.coachSport.deleteMany({ where: { coachId: orgUser.userId } });
+      if (dto.sportIds.length > 0) {
+        await this.prisma.coachSport.createMany({
+          data: dto.sportIds.map((sportId) => ({ coachId: orgUser.userId, sportId })),
+          skipDuplicates: true,
+        });
+      }
+    }
+
     const updated = await this.prisma.organizationUser.findFirst({
       where: { id: orgUserId },
       include: {
         user: {
           select: {
             id: true, name: true, phone: true, email: true, photoUrl: true,
+            coachSports: { include: { sport: { select: { id: true, name: true, icon: true } } } },
             coachBatches: { include: { batch: { select: { id: true, name: true, sport: { select: { id: true, name: true } } } } } },
           },
         },
