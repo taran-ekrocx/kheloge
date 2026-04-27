@@ -15,6 +15,10 @@ export interface CreateStudentDto {
   dob?: string;
   address?: string;
   medicalNotes?: string;
+  state?: string;
+  district?: string;
+  city?: string;
+  region?: string;
   cityId?: string;
   sportInterest?: string;
   status?: StudentStatus;

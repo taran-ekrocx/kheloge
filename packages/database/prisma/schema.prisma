@@ -329,6 +329,10 @@ model Student {
   idCardUrl      String?
   address        String?
   medicalNotes   String?
+  state          String?
+  district       String?
+  city           String?
+  region         String?
   status         StudentStatus @default(ACTIVE)
   enrolledAt     DateTime      @default(now())
   createdAt      DateTime      @default(now())

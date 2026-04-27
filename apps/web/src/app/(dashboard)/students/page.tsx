@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
 import { Search, UserPlus, ChevronRight, Download, CreditCard, User, Filter, X } from 'lucide-react';
+import { STATE_NAMES, getDistricts, getCities } from '@/lib/india-locations';
 import Link from 'next/link';
 
 interface Enrollment {
@@ -56,6 +57,10 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
     status: 'ACTIVE',
     sportId: '',
     batchId: '',
+    state: '',
+    district: '',
+    city: '',
+    region: '',
   });
 
   const { data: allSports = [] } = useQuery<Sport[]>({
@@ -73,6 +78,9 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
     ? allBatches.filter((b) => b.sportId === form.sportId)
     : allBatches;
 
+  const districts = useMemo(() => getDistricts(form.state), [form.state]);
+  const cities = useMemo(() => getCities(form.state, form.district), [form.state, form.district]);
+
   const mutation = useMutation({
     mutationFn: ({ sportId: _sportId, batchId, ...data }: typeof form) =>
       api.post(`/venues/${venueId}/students`, { ...data, batchIds: batchId ? [batchId] : [] }),
@@ -81,6 +89,9 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
       onClose();
     },
   });
+
+  const selectClass = 'w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
+  const inputClass = selectClass;
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -95,20 +106,20 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
             placeholder="Full Name *"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className={inputClass}
           />
           <input
             placeholder="Phone Number"
             value={form.phone}
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className={inputClass}
           />
           <input
             type="email"
             placeholder="Email"
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className={inputClass}
           />
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Date of Birth</label>
@@ -116,7 +127,7 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
               type="date"
               value={form.dob}
               onChange={(e) => setForm({ ...form, dob: e.target.value })}
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={inputClass}
             />
           </div>
           <div>
@@ -124,7 +135,7 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
             <select
               value={form.status}
               onChange={(e) => setForm({ ...form, status: e.target.value })}
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={selectClass}
             >
               <option value="ACTIVE">Active</option>
               <option value="INACTIVE">Inactive</option>
@@ -138,7 +149,7 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
               <select
                 value={form.sportId}
                 onChange={(e) => setForm({ ...form, sportId: e.target.value, batchId: '' })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={selectClass}
               >
                 <option value="">Select Sport</option>
                 {allSports.map((sport) => (
@@ -152,7 +163,7 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
             <select
               value={form.batchId}
               onChange={(e) => setForm({ ...form, batchId: e.target.value })}
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={selectClass}
             >
               <option value="">{form.sportId ? 'Select Batch' : 'Select Sport first'}</option>
               {visibleBatches.map((batch) => (
@@ -162,6 +173,63 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
               ))}
             </select>
           </div>
+
+          <div className="border-t pt-3">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Location</p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">State</label>
+                <select
+                  value={form.state}
+                  onChange={(e) => setForm({ ...form, state: e.target.value, district: '', city: '' })}
+                  className={selectClass}
+                >
+                  <option value="">Select State</option>
+                  {STATE_NAMES.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">District</label>
+                <select
+                  value={form.district}
+                  onChange={(e) => setForm({ ...form, district: e.target.value, city: '' })}
+                  disabled={!form.state}
+                  className={selectClass}
+                >
+                  <option value="">{form.state ? 'Select District' : 'Select State first'}</option>
+                  {districts.map((d) => (
+                    <option key={d.name} value={d.name}>{d.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">City</label>
+                <select
+                  value={form.city}
+                  onChange={(e) => setForm({ ...form, city: e.target.value })}
+                  disabled={!form.district}
+                  className={selectClass}
+                >
+                  <option value="">{form.district ? 'Select City' : 'Select District first'}</option>
+                  {cities.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Region</label>
+                <input
+                  placeholder="e.g. North Zone, Sector 12"
+                  value={form.region}
+                  onChange={(e) => setForm({ ...form, region: e.target.value })}
+                  className={inputClass}
+                />
+              </div>
+            </div>
+          </div>
+
           {mutation.isError && (
             <p className="text-red-500 text-sm">Failed to add student.</p>
           )}
