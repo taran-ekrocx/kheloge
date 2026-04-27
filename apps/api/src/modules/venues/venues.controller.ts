@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, Request } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
-import { IsString, IsOptional, IsInt, IsArray, IsEnum, IsNumber, Min } from 'class-validator';
+import { IsString, IsOptional, IsInt, IsArray, IsEnum, IsNumber, IsDateString, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { UserRole, BatchDay } from '@kheloge/database';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -22,6 +22,8 @@ class CreateVenueBatchDto {
   @IsString() endTime: string;
   @IsArray() @IsEnum(BatchDay, { each: true }) days: BatchDay[];
   @IsOptional() @IsString() status?: string;
+  @IsOptional() @IsDateString() startDate?: string;
+  @IsOptional() @IsDateString() endDate?: string;
 }
 
 class UpdateVenueBatchDto {
@@ -34,6 +36,8 @@ class UpdateVenueBatchDto {
   @IsOptional() @IsString() endTime?: string;
   @IsOptional() @IsArray() @IsEnum(BatchDay, { each: true }) days?: BatchDay[];
   @IsOptional() @IsString() status?: string;
+  @IsOptional() @IsDateString() startDate?: string;
+  @IsOptional() @IsDateString() endDate?: string;
 }
 
 function mapBatch(b: any) {
