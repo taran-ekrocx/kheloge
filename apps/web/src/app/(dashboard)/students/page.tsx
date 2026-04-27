@@ -54,8 +54,8 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
   const [form, setForm] = useState({
     name: '', phone: '', email: '', dob: '',
     status: 'ACTIVE',
-    sportIds: [] as string[],
-    batchIds: [] as string[],
+    sportId: '',
+    batchId: '',
   });
 
   const { data: allSports = [] } = useQuery<Sport[]>({
@@ -69,35 +69,13 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
     enabled: !!venueId,
   });
 
-  const visibleBatches = form.sportIds.length > 0
-    ? allBatches.filter((b) => form.sportIds.includes(b.sportId))
+  const visibleBatches = form.sportId
+    ? allBatches.filter((b) => b.sportId === form.sportId)
     : allBatches;
 
-  const toggleSport = (id: string) => {
-    setForm((f) => {
-      const next = f.sportIds.includes(id)
-        ? f.sportIds.filter((s) => s !== id)
-        : [...f.sportIds, id];
-      const validBatchIds = f.batchIds.filter((bid) => {
-        const b = allBatches.find((ab) => ab.id === bid);
-        return !b || next.length === 0 || next.includes(b.sportId);
-      });
-      return { ...f, sportIds: next, batchIds: validBatchIds };
-    });
-  };
-
-  const toggleBatch = (id: string) => {
-    setForm((f) => ({
-      ...f,
-      batchIds: f.batchIds.includes(id)
-        ? f.batchIds.filter((b) => b !== id)
-        : [...f.batchIds, id],
-    }));
-  };
-
   const mutation = useMutation({
-    mutationFn: ({ sportIds: _sportIds, ...data }: typeof form) =>
-      api.post(`/venues/${venueId}/students`, data),
+    mutationFn: ({ sportId: _sportId, batchId, ...data }: typeof form) =>
+      api.post(`/venues/${venueId}/students`, { ...data, batchIds: batchId ? [batchId] : [] }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students', venueId] });
       onClose();
@@ -156,51 +134,34 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
           </div>
           {allSports.length > 0 && (
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">Sports</label>
-              <div className="flex flex-wrap gap-1.5">
+              <label className="block text-xs font-medium text-gray-500 mb-1">Sport</label>
+              <select
+                value={form.sportId}
+                onChange={(e) => setForm({ ...form, sportId: e.target.value, batchId: '' })}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select Sport</option>
                 {allSports.map((sport) => (
-                  <button
-                    key={sport.id}
-                    type="button"
-                    onClick={() => toggleSport(sport.id)}
-                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                      form.sportIds.includes(sport.id)
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                    }`}
-                  >
-                    {sport.name}
-                  </button>
+                  <option key={sport.id} value={sport.id}>{sport.name}</option>
                 ))}
-              </div>
+              </select>
             </div>
           )}
-          {visibleBatches.length > 0 && (
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                Batches {form.sportIds.length > 0 ? '(filtered by selected sports)' : ''}
-              </label>
-              <div className="flex flex-wrap gap-1.5">
-                {visibleBatches.map((batch) => (
-                  <button
-                    key={batch.id}
-                    type="button"
-                    onClick={() => toggleBatch(batch.id)}
-                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                      form.batchIds.includes(batch.id)
-                        ? 'bg-green-600 text-white border-green-600'
-                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                    }`}
-                  >
-                    {batch.name}
-                    {form.sportIds.length === 0 && batch.sport?.name && (
-                      <span className="ml-1 opacity-60">· {batch.sport.name}</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Batch</label>
+            <select
+              value={form.batchId}
+              onChange={(e) => setForm({ ...form, batchId: e.target.value })}
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">{form.sportId ? 'Select Batch' : 'Select Sport first'}</option>
+              {visibleBatches.map((batch) => (
+                <option key={batch.id} value={batch.id}>
+                  {batch.name}{!form.sportId && batch.sport?.name ? ` · ${batch.sport.name}` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
           {mutation.isError && (
             <p className="text-red-500 text-sm">Failed to add student.</p>
           )}
