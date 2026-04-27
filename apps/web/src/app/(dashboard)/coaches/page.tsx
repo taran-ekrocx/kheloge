@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
 import { Search, UserPlus, Filter, X, Edit2, Trash2, User } from 'lucide-react';
+import { STATE_NAMES, getDistricts, getCities } from '@/lib/india-locations';
 
 interface Sport { id: string; name: string; }
 interface CoachBatch { id: string; name: string; sport?: { name: string }; }
@@ -14,6 +15,10 @@ interface Coach {
   phone: string;
   email?: string;
   status: string;
+  state?: string;
+  district?: string;
+  city?: string;
+  region?: string;
   sports?: Sport[];
   batches?: CoachBatch[];
   _count?: { batches: number };
@@ -24,7 +29,10 @@ const STATUS_STYLES: Record<string, string> = {
   INACTIVE: 'bg-gray-100 text-gray-600',
 };
 
-const DEFAULT_FORM = { name: '', phone: '', email: '', status: 'ACTIVE', sportIds: [] as string[] };
+const DEFAULT_FORM = {
+  name: '', phone: '', email: '', status: 'ACTIVE', sportIds: [] as string[],
+  state: '', district: '', city: '', region: '',
+};
 
 function CoachModal({
   onClose, venueId, existing, sports,
@@ -38,7 +46,22 @@ function CoachModal({
     email: existing.email || '',
     status: existing.status,
     sportIds: existing.sports?.map(s => s.id) ?? [],
+    state: existing.state || '',
+    district: existing.district || '',
+    city: existing.city || '',
+    region: existing.region || '',
   } : DEFAULT_FORM);
+
+  const districts = useMemo(() => form.state ? getDistricts(form.state) : [], [form.state]);
+  const cities = useMemo(() => form.state && form.district ? getCities(form.state, form.district) : [], [form.state, form.district]);
+
+  const handleStateChange = (state: string) => {
+    setForm(f => ({ ...f, state, district: '', city: '' }));
+  };
+
+  const handleDistrictChange = (district: string) => {
+    setForm(f => ({ ...f, district, city: '' }));
+  };
 
   const toggleSport = (id: string) => {
     setForm(f => ({
@@ -60,7 +83,7 @@ function CoachModal({
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
         <h3 className="text-lg font-bold mb-4">{existing ? 'Edit Coach' : 'Add Coach'}</h3>
         <form onSubmit={(e) => { e.preventDefault(); mutation.mutate(form); }} className="space-y-3">
           <input
@@ -85,6 +108,45 @@ function CoachModal({
             <option value="ACTIVE">Active</option>
             <option value="INACTIVE">Inactive</option>
           </select>
+
+          <div className="border-t pt-3">
+            <p className="text-xs font-medium text-gray-600 mb-2">Location</p>
+            <div className="space-y-3">
+              <select
+                value={form.state}
+                onChange={(e) => handleStateChange(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select State</option>
+                {STATE_NAMES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <select
+                value={form.district}
+                onChange={(e) => handleDistrictChange(e.target.value)}
+                disabled={!form.state}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
+              >
+                <option value="">Select District</option>
+                {districts.map(d => <option key={d.name} value={d.name}>{d.name}</option>)}
+              </select>
+              <select
+                value={form.city}
+                onChange={(e) => setForm(f => ({ ...f, city: e.target.value }))}
+                disabled={!form.district}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
+              >
+                <option value="">Select City</option>
+                {cities.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <input
+                placeholder="Region"
+                value={form.region}
+                onChange={(e) => setForm(f => ({ ...f, region: e.target.value }))}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
           {sports.length > 0 && (
             <div>
               <p className="text-xs font-medium text-gray-600 mb-2">Assign Sports</p>
@@ -141,6 +203,18 @@ function CoachDetailModal({ coach, onClose }: { coach: Coach; onClose: () => voi
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
         </div>
+
+        {(coach.state || coach.district || coach.city || coach.region) && (
+          <div className="mb-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Location</p>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              {coach.state && <div><span className="text-gray-400 text-xs">State</span><p className="font-medium">{coach.state}</p></div>}
+              {coach.district && <div><span className="text-gray-400 text-xs">District</span><p className="font-medium">{coach.district}</p></div>}
+              {coach.city && <div><span className="text-gray-400 text-xs">City</span><p className="font-medium">{coach.city}</p></div>}
+              {coach.region && <div><span className="text-gray-400 text-xs">Region</span><p className="font-medium">{coach.region}</p></div>}
+            </div>
+          </div>
+        )}
 
         {coach.sports && coach.sports.length > 0 && (
           <div className="mb-4">

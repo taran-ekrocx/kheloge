@@ -255,6 +255,10 @@ model OrganizationUser {
   venueId        String?
   role           UserRole
   isActive       Boolean  @default(true)
+  state          String?
+  district       String?
+  locationCity   String?
+  region         String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

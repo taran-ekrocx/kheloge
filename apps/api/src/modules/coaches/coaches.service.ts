@@ -40,6 +40,26 @@ export class CreateCoachDto {
   @IsArray()
   @IsString({ each: true })
   sportIds?: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  state?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  district?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  region?: string;
 }
 
 export class UpdateCoachDto {
@@ -68,6 +88,26 @@ export class UpdateCoachDto {
   @IsArray()
   @IsString({ each: true })
   sportIds?: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  state?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  district?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  region?: string;
 }
 
 @Injectable()
@@ -165,7 +205,7 @@ export class CoachesService {
   // ── Venue-scoped coach CRUD ──────────────────────────────────────────────
 
   private mapOrgUser(orgUser: any) {
-    const { user, venue, isActive, sports, ...rest } = orgUser;
+    const { user, venue, isActive, sports, locationCity, ...rest } = orgUser;
     return {
       ...rest,
       userId: user.id,
@@ -174,6 +214,7 @@ export class CoachesService {
       email: user.email ?? undefined,
       photoUrl: user.photoUrl,
       status: isActive ? 'ACTIVE' : 'INACTIVE',
+      city: locationCity ?? undefined,
       venue,
       sports: (sports ?? []).map((cs: any) => ({ id: cs.sport.id, name: cs.sport.name })),
       batches: (user.coachBatches ?? []).map((bc: any) => ({
@@ -257,6 +298,10 @@ export class CoachesService {
         venueId,
         role: UserRole.COACH,
         isActive,
+        ...(dto.state !== undefined ? { state: dto.state } : {}),
+        ...(dto.district !== undefined ? { district: dto.district } : {}),
+        ...(dto.city !== undefined ? { locationCity: dto.city } : {}),
+        ...(dto.region !== undefined ? { region: dto.region } : {}),
         ...(dto.sportIds?.length ? {
           sports: { create: dto.sportIds.map((sportId) => ({ sportId })) },
         } : {}),
@@ -294,6 +339,10 @@ export class CoachesService {
     // Update org user fields
     const orgUserUpdate: any = {};
     if (dto.status !== undefined) orgUserUpdate.isActive = dto.status === 'ACTIVE';
+    if (dto.state !== undefined) orgUserUpdate.state = dto.state;
+    if (dto.district !== undefined) orgUserUpdate.district = dto.district;
+    if (dto.city !== undefined) orgUserUpdate.locationCity = dto.city;
+    if (dto.region !== undefined) orgUserUpdate.region = dto.region;
     if (Object.keys(orgUserUpdate).length > 0) {
       await this.prisma.organizationUser.update({ where: { id: orgUserId }, data: orgUserUpdate });
     }
