@@ -1,8 +1,9 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
-import { IsString, IsOptional, IsBoolean, IsEmail, IsIn } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsEmail, IsIn, IsArray } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { UserRole } from '@kheloge/database';
 import { PrismaService } from '../../database/prisma.service';
+import { normalizePhone } from '../../common/utils/phone';
 
 export class AssignCoachDto {
   @ApiProperty({ description: 'Batch ID to assign the coach to' })
@@ -33,6 +34,12 @@ export class CreateCoachDto {
   @IsOptional()
   @IsIn(['ACTIVE', 'INACTIVE'])
   status?: string;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  sportIds?: string[];
 }
 
 export class UpdateCoachDto {
@@ -55,6 +62,12 @@ export class UpdateCoachDto {
   @IsOptional()
   @IsIn(['ACTIVE', 'INACTIVE'])
   status?: string;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  sportIds?: string[];
 }
 
 @Injectable()
@@ -152,7 +165,7 @@ export class CoachesService {
   // ── Venue-scoped coach CRUD ──────────────────────────────────────────────
 
   private mapOrgUser(orgUser: any) {
-    const { user, venue, isActive, ...rest } = orgUser;
+    const { user, venue, isActive, sports, ...rest } = orgUser;
     return {
       ...rest,
       userId: user.id,
@@ -162,6 +175,7 @@ export class CoachesService {
       photoUrl: user.photoUrl,
       status: isActive ? 'ACTIVE' : 'INACTIVE',
       venue,
+      sports: (sports ?? []).map((cs: any) => ({ id: cs.sport.id, name: cs.sport.name })),
       batches: (user.coachBatches ?? []).map((bc: any) => ({
         batchId: bc.batchId,
         isPrimary: bc.isPrimary,
@@ -200,6 +214,7 @@ export class CoachesService {
           },
         },
         venue: { select: { id: true, name: true } },
+        sports: { include: { sport: { select: { id: true, name: true } } } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -214,6 +229,7 @@ export class CoachesService {
     });
     if (!venue) throw new NotFoundException('Venue not found');
 
+    dto.phone = normalizePhone(dto.phone);
     // Find or create the underlying user
     let user = await this.prisma.user.findUnique({ where: { phone: dto.phone } });
     if (!user) {
@@ -235,7 +251,16 @@ export class CoachesService {
 
     const isActive = dto.status !== 'INACTIVE';
     const orgUser = await this.prisma.organizationUser.create({
-      data: { userId: user.id, organizationId, venueId, role: UserRole.COACH, isActive },
+      data: {
+        userId: user.id,
+        organizationId,
+        venueId,
+        role: UserRole.COACH,
+        isActive,
+        ...(dto.sportIds?.length ? {
+          sports: { create: dto.sportIds.map((sportId) => ({ sportId })) },
+        } : {}),
+      },
       include: {
         user: {
           select: {
@@ -244,6 +269,7 @@ export class CoachesService {
           },
         },
         venue: { select: { id: true, name: true } },
+        sports: { include: { sport: { select: { id: true, name: true } } } },
       },
     });
 
@@ -259,7 +285,7 @@ export class CoachesService {
     // Update user fields
     const userUpdate: any = {};
     if (dto.name !== undefined) userUpdate.name = dto.name;
-    if (dto.phone !== undefined) userUpdate.phone = dto.phone;
+    if (dto.phone !== undefined) userUpdate.phone = normalizePhone(dto.phone);
     if (dto.email !== undefined) userUpdate.email = dto.email;
     if (Object.keys(userUpdate).length > 0) {
       await this.prisma.user.update({ where: { id: orgUser.userId }, data: userUpdate });
@@ -272,6 +298,15 @@ export class CoachesService {
       await this.prisma.organizationUser.update({ where: { id: orgUserId }, data: orgUserUpdate });
     }
 
+    if (dto.sportIds !== undefined) {
+      await this.prisma.coachSport.deleteMany({ where: { coachId: orgUserId } });
+      if (dto.sportIds.length > 0) {
+        await this.prisma.coachSport.createMany({
+          data: dto.sportIds.map((sportId) => ({ coachId: orgUserId, sportId })),
+        });
+      }
+    }
+
     const updated = await this.prisma.organizationUser.findFirst({
       where: { id: orgUserId },
       include: {
@@ -282,6 +317,7 @@ export class CoachesService {
           },
         },
         venue: { select: { id: true, name: true } },
+        sports: { include: { sport: { select: { id: true, name: true } } } },
       },
     });
 

@@ -192,6 +192,7 @@ model Sport {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   venues         VenueSport[]
   batches        Batch[]
+  coaches        CoachSport[]
 
   @@unique([organizationId, name])
   @@map("sports")
@@ -209,6 +210,18 @@ model VenueSport {
 
   @@unique([venueId, sportId])
   @@map("venue_sports")
+}
+
+model CoachSport {
+  id      String          @id @default(cuid())
+  coachId String
+  sportId String
+
+  coach   OrganizationUser @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  sport   Sport            @relation(fields: [sportId], references: [id], onDelete: Cascade)
+
+  @@unique([coachId, sportId])
+  @@map("coach_sports")
 }
 
 // ─────────────────────────────────────────────
@@ -249,6 +262,7 @@ model OrganizationUser {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   city           City?        @relation(fields: [cityId], references: [id])
   venue          Venue?       @relation(fields: [venueId], references: [id])
+  sports         CoachSport[]
 
   @@unique([userId, organizationId, venueId, role])
   @@map("organization_users")

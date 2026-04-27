@@ -24,12 +24,12 @@ const STATUS_STYLES: Record<string, string> = {
   INACTIVE: 'bg-gray-100 text-gray-600',
 };
 
-const DEFAULT_FORM = { name: '', phone: '', email: '', status: 'ACTIVE' };
+const DEFAULT_FORM = { name: '', phone: '', email: '', status: 'ACTIVE', sportIds: [] as string[] };
 
 function CoachModal({
-  onClose, venueId, existing,
+  onClose, venueId, existing, sports,
 }: {
-  onClose: () => void; venueId: string; existing?: Coach;
+  onClose: () => void; venueId: string; existing?: Coach; sports: Sport[];
 }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState(existing ? {
@@ -37,7 +37,15 @@ function CoachModal({
     phone: existing.phone,
     email: existing.email || '',
     status: existing.status,
+    sportIds: existing.sports?.map(s => s.id) ?? [],
   } : DEFAULT_FORM);
+
+  const toggleSport = (id: string) => {
+    setForm(f => ({
+      ...f,
+      sportIds: f.sportIds.includes(id) ? f.sportIds.filter(s => s !== id) : [...f.sportIds, id],
+    }));
+  };
 
   const mutation = useMutation({
     mutationFn: (data: typeof form) =>
@@ -77,6 +85,27 @@ function CoachModal({
             <option value="ACTIVE">Active</option>
             <option value="INACTIVE">Inactive</option>
           </select>
+          {sports.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-gray-600 mb-2">Assign Sports</p>
+              <div className="flex flex-wrap gap-2">
+                {sports.map(sport => (
+                  <button
+                    key={sport.id}
+                    type="button"
+                    onClick={() => toggleSport(sport.id)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                      form.sportIds.includes(sport.id)
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'border-gray-200 text-gray-600 hover:border-blue-300'
+                    }`}
+                  >
+                    {sport.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {mutation.isError && <p className="text-red-500 text-xs">Failed to save coach.</p>}
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 border rounded-lg py-2 text-sm font-medium hover:bg-gray-50">
@@ -159,6 +188,11 @@ export default function CoachesPage() {
     queryKey: ['coaches', venueId],
     queryFn: () => api.get(`/venues/${venueId}/coaches`).then(r => r.data),
     enabled: !!venueId,
+  });
+
+  const { data: sports = [] } = useQuery<Sport[]>({
+    queryKey: ['sports'],
+    queryFn: () => api.get('/sports').then(r => r.data),
   });
 
   const statusMutation = useMutation({
@@ -324,6 +358,7 @@ export default function CoachesPage() {
           onClose={() => { setShowModal(false); setEditing(undefined); }}
           venueId={venueId}
           existing={editing}
+          sports={sports}
         />
       )}
 
