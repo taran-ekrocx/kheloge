@@ -23,6 +23,8 @@ interface Batch {
   capacity: number;
   fee?: number;
   status: string;
+  startDate?: string | null;
+  endDate?: string | null;
   sport: { id: string; name: string };
   coaches: { id: string; name: string }[];
   _count: { enrollments: number };
@@ -40,6 +42,7 @@ const STATUS_LABELS: Record<string, string> = {
 const DEFAULT_FORM = {
   name: '', sportId: '', coachIds: [] as string[], capacity: '', fee: '',
   startTime: '', endTime: '', days: [] as string[], status: 'ACTIVE',
+  startDate: '', endDate: '',
 };
 
 function BatchModal({
@@ -58,7 +61,10 @@ function BatchModal({
     endTime: existing.endTime,
     days: existing.days || [],
     status: existing.status || 'ACTIVE',
+    startDate: existing.startDate ? existing.startDate.split('T')[0] : '',
+    endDate: existing.endDate ? existing.endDate.split('T')[0] : '',
   } : DEFAULT_FORM);
+  const [dateError, setDateError] = useState('');
 
   const mutation = useMutation({
     mutationFn: (data: typeof form) => {
@@ -66,6 +72,8 @@ function BatchModal({
         ...data,
         capacity: Number(data.capacity),
         fee: data.fee ? Number(data.fee) : undefined,
+        startDate: data.startDate || undefined,
+        endDate: data.endDate || undefined,
       };
       return existing
         ? api.patch(`/venues/${venueId}/batches/${existing.id}`, payload)
@@ -95,7 +103,15 @@ function BatchModal({
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
         <h3 className="text-lg font-bold mb-4">{existing ? 'Edit Batch' : 'Create Batch'}</h3>
-        <form onSubmit={(e) => { e.preventDefault(); mutation.mutate(form); }} className="space-y-3">
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          if (form.startDate && form.endDate && form.endDate <= form.startDate) {
+            setDateError('End date must be after start date.');
+            return;
+          }
+          setDateError('');
+          mutation.mutate(form);
+        }} className="space-y-3">
           <input
             required placeholder="Batch Name *"
             value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -159,6 +175,27 @@ function BatchModal({
               />
             </div>
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Start Date</label>
+              <input
+                type="date"
+                value={form.startDate}
+                onChange={(e) => { setForm({ ...form, startDate: e.target.value }); setDateError(''); }}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">End Date</label>
+              <input
+                type="date"
+                value={form.endDate}
+                onChange={(e) => { setForm({ ...form, endDate: e.target.value }); setDateError(''); }}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+          {dateError && <p className="text-red-500 text-xs">{dateError}</p>}
           <div>
             <label className="text-xs text-gray-500 mb-2 block">Days *</label>
             <div className="flex flex-wrap gap-2">
