@@ -37,12 +37,67 @@ const STATUS_LABELS: Record<string, string> = {
   ON_HOLD: 'On Hold',
 };
 
+interface Sport {
+  id: string;
+  name: string;
+}
+
+interface BatchOption {
+  id: string;
+  name: string;
+  sportId: string;
+  sport: { id: string; name: string };
+}
+
 function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: string }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ name: '', phone: '', email: '', dob: '' });
+  const [form, setForm] = useState({
+    name: '', phone: '', email: '', dob: '',
+    status: 'ACTIVE',
+    sportIds: [] as string[],
+    batchIds: [] as string[],
+  });
+
+  const { data: allSports = [] } = useQuery<Sport[]>({
+    queryKey: ['sports'],
+    queryFn: () => api.get('/sports').then((r) => r.data),
+  });
+
+  const { data: allBatches = [] } = useQuery<BatchOption[]>({
+    queryKey: ['batches', venueId],
+    queryFn: () => api.get(`/venues/${venueId}/batches`).then((r) => r.data),
+    enabled: !!venueId,
+  });
+
+  const visibleBatches = form.sportIds.length > 0
+    ? allBatches.filter((b) => form.sportIds.includes(b.sportId))
+    : allBatches;
+
+  const toggleSport = (id: string) => {
+    setForm((f) => {
+      const next = f.sportIds.includes(id)
+        ? f.sportIds.filter((s) => s !== id)
+        : [...f.sportIds, id];
+      const validBatchIds = f.batchIds.filter((bid) => {
+        const b = allBatches.find((ab) => ab.id === bid);
+        return !b || next.length === 0 || next.includes(b.sportId);
+      });
+      return { ...f, sportIds: next, batchIds: validBatchIds };
+    });
+  };
+
+  const toggleBatch = (id: string) => {
+    setForm((f) => ({
+      ...f,
+      batchIds: f.batchIds.includes(id)
+        ? f.batchIds.filter((b) => b !== id)
+        : [...f.batchIds, id],
+    }));
+  };
 
   const mutation = useMutation({
-    mutationFn: (data: typeof form) => api.post(`/venues/${venueId}/students`, data),
+    mutationFn: ({ sportIds: _sportIds, ...data }: typeof form) =>
+      api.post(`/venues/${venueId}/students`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students', venueId] });
       onClose();
@@ -51,7 +106,7 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
         <h3 className="text-lg font-bold mb-4">Add New Student</h3>
         <form
           onSubmit={(e) => { e.preventDefault(); mutation.mutate(form); }}
@@ -77,13 +132,75 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
             onChange={(e) => setForm({ ...form, email: e.target.value })}
             className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <input
-            type="date"
-            placeholder="Date of Birth"
-            value={form.dob}
-            onChange={(e) => setForm({ ...form, dob: e.target.value })}
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Date of Birth</label>
+            <input
+              type="date"
+              value={form.dob}
+              onChange={(e) => setForm({ ...form, dob: e.target.value })}
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
+            <select
+              value={form.status}
+              onChange={(e) => setForm({ ...form, status: e.target.value })}
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="ACTIVE">Active</option>
+              <option value="INACTIVE">Inactive</option>
+              <option value="ENQUIRY">Enquiry</option>
+              <option value="TRIAL">Trial</option>
+            </select>
+          </div>
+          {allSports.length > 0 && (
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">Sports</label>
+              <div className="flex flex-wrap gap-1.5">
+                {allSports.map((sport) => (
+                  <button
+                    key={sport.id}
+                    type="button"
+                    onClick={() => toggleSport(sport.id)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                      form.sportIds.includes(sport.id)
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    {sport.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {visibleBatches.length > 0 && (
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">
+                Batches {form.sportIds.length > 0 ? '(filtered by selected sports)' : ''}
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {visibleBatches.map((batch) => (
+                  <button
+                    key={batch.id}
+                    type="button"
+                    onClick={() => toggleBatch(batch.id)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                      form.batchIds.includes(batch.id)
+                        ? 'bg-green-600 text-white border-green-600'
+                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    {batch.name}
+                    {form.sportIds.length === 0 && batch.sport?.name && (
+                      <span className="ml-1 opacity-60">· {batch.sport.name}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {mutation.isError && (
             <p className="text-red-500 text-sm">Failed to add student.</p>
           )}

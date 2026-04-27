@@ -17,6 +17,8 @@ export interface CreateStudentDto {
   medicalNotes?: string;
   cityId?: string;
   sportInterest?: string;
+  status?: StudentStatus;
+  batchIds?: string[];
   guardians?: Array<{ name: string; phone: string; email?: string; relation: string; isPrimary?: boolean }>;
 }
 
@@ -97,17 +99,33 @@ export class StudentsService {
   }
 
   async create(venueId: string, dto: CreateStudentDto) {
-    const { guardians, dob, cityId, sportInterest, ...rest } = dto;
-    return this.prisma.student.create({
+    const { guardians, dob, cityId, sportInterest, status, batchIds, ...rest } = dto;
+    const student = await this.prisma.student.create({
       data: {
         ...rest,
         venueId,
-        status: StudentStatus.ENQUIRY,
+        status: status ?? StudentStatus.ENQUIRY,
         dob: dob ? new Date(dob) : undefined,
         guardians: guardians ? { create: guardians } : undefined,
       },
-      include: { guardians: true },
+      include: { guardians: true, enrollments: { include: { batch: { include: { sport: true } } } } },
     });
+
+    if (batchIds && batchIds.length > 0) {
+      for (const batchId of batchIds) {
+        try {
+          await this.enroll(student.id, { batchId });
+        } catch {
+          // skip batches that are full or invalid
+        }
+      }
+      return this.prisma.student.findUnique({
+        where: { id: student.id },
+        include: { guardians: true, enrollments: { include: { batch: { include: { sport: true } } } } },
+      });
+    }
+
+    return student;
   }
 
   async transitionStatus(id: string, newStatus: StudentStatus) {
