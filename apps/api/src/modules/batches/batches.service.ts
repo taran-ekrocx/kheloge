@@ -32,6 +32,7 @@ export class UpdateBatchDto {
   @ApiPropertyOptional({ enum: BatchDay, isArray: true }) @IsOptional() @IsArray() @IsEnum(BatchDay, { each: true }) days?: BatchDay[];
   @ApiPropertyOptional() @IsOptional() @IsDateString() startDate?: string;
   @ApiPropertyOptional() @IsOptional() @IsDateString() endDate?: string;
+  @ApiPropertyOptional({ description: 'Coach org-user IDs to assign' }) @IsOptional() @IsArray() coachIds?: string[];
 }
 
 export interface BatchFilters {
@@ -133,11 +134,9 @@ export class BatchesService {
   }
 
   async reassignCoach(batchId: string, orgUserId: string) {
-    // Clear existing coach assignments for this batch first
     await this.prisma.batchCoach.deleteMany({ where: { batchId } });
 
     if (orgUserId) {
-      // orgUserId is an OrganizationUser.id — resolve to the underlying User.id
       const orgUser = await this.prisma.organizationUser.findUnique({
         where: { id: orgUserId },
         select: { userId: true },
@@ -145,6 +144,27 @@ export class BatchesService {
       if (!orgUser) throw new NotFoundException('Coach not found');
       await this.prisma.batchCoach.create({
         data: { batchId, coachId: orgUser.userId, isPrimary: true },
+      });
+    }
+  }
+
+  async reassignCoaches(batchId: string, orgUserIds: string[]) {
+    await this.prisma.batchCoach.deleteMany({ where: { batchId } });
+
+    if (orgUserIds.length > 0) {
+      const orgUsers = await this.prisma.organizationUser.findMany({
+        where: { id: { in: orgUserIds } },
+        select: { id: true, userId: true },
+      });
+      const userIdMap = new Map(orgUsers.map((ou) => [ou.id, ou.userId]));
+      await this.prisma.batchCoach.createMany({
+        data: orgUserIds
+          .filter((orgUserId) => userIdMap.has(orgUserId))
+          .map((orgUserId, i) => ({
+            batchId,
+            coachId: userIdMap.get(orgUserId)!,
+            isPrimary: i === 0,
+          })),
       });
     }
   }

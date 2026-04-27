@@ -24,7 +24,7 @@ interface Batch {
   fee?: number;
   status: string;
   sport: { id: string; name: string };
-  coach?: { id: string; name: string };
+  coaches: { id: string; name: string }[];
   _count: { enrollments: number };
 }
 
@@ -38,7 +38,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const DEFAULT_FORM = {
-  name: '', sportId: '', coachId: '', capacity: '', fee: '',
+  name: '', sportId: '', coachIds: [] as string[], capacity: '', fee: '',
   startTime: '', endTime: '', days: [] as string[], status: 'ACTIVE',
 };
 
@@ -51,7 +51,7 @@ function BatchModal({
   const [form, setForm] = useState(existing ? {
     name: existing.name,
     sportId: existing.sport?.id || '',
-    coachId: existing.coach?.id || '',
+    coachIds: existing.coaches?.map(c => c.id) ?? [],
     capacity: String(existing.capacity),
     fee: String(existing.fee || ''),
     startTime: existing.startTime,
@@ -66,7 +66,6 @@ function BatchModal({
         ...data,
         capacity: Number(data.capacity),
         fee: data.fee ? Number(data.fee) : undefined,
-        coachId: data.coachId || undefined,
       };
       return existing
         ? api.patch(`/venues/${venueId}/batches/${existing.id}`, payload)
@@ -85,6 +84,13 @@ function BatchModal({
     }));
   };
 
+  const toggleCoach = (id: string) => {
+    setForm(f => ({
+      ...f,
+      coachIds: f.coachIds.includes(id) ? f.coachIds.filter(c => c !== id) : [...f.coachIds, id],
+    }));
+  };
+
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
@@ -95,22 +101,34 @@ function BatchModal({
             value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
             className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <div className="grid grid-cols-2 gap-3">
-            <select
-              required value={form.sportId} onChange={(e) => setForm({ ...form, sportId: e.target.value })}
-              className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select Sport *</option>
-              {sports.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-            <select
-              value={form.coachId} onChange={(e) => setForm({ ...form, coachId: e.target.value })}
-              className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Assign Coach</option>
-              {coaches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
+          <select
+            required value={form.sportId} onChange={(e) => setForm({ ...form, sportId: e.target.value })}
+            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Select Sport *</option>
+            {sports.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+          {coaches.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-gray-600 mb-2">Assign Coaches</p>
+              <div className="flex flex-wrap gap-2">
+                {coaches.map(c => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => toggleCoach(c.id)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                      form.coachIds.includes(c.id)
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'border-gray-200 text-gray-600 hover:border-blue-300'
+                    }`}
+                  >
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <input
               required type="number" min="1" placeholder="Capacity *"
@@ -219,7 +237,7 @@ export default function BatchesPage() {
       const q = search.toLowerCase();
       if (q && !b.name.toLowerCase().includes(q)) return false;
       if (filterSport && b.sport?.id !== filterSport) return false;
-      if (filterCoach && b.coach?.id !== filterCoach) return false;
+      if (filterCoach && !b.coaches?.some(c => c.id === filterCoach)) return false;
       return true;
     });
   }, [batches, search, filterSport, filterCoach]);
@@ -307,7 +325,7 @@ export default function BatchesPage() {
                       {b.sport?.name || '—'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{b.coach?.name || '—'}</td>
+                  <td className="px-4 py-3 text-gray-600">{b.coaches?.length ? b.coaches.map(c => c.name).join(', ') : '—'}</td>
                   <td className="px-4 py-3 text-gray-600">
                     <div>{b.startTime} – {b.endTime}</div>
                     <div className="text-xs text-gray-400">{b.days?.map(d => DAY_SHORT[d] || d).join(', ')}</div>

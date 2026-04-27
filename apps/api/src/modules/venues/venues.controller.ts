@@ -15,7 +15,7 @@ import { BatchesService } from '../batches/batches.service';
 class CreateVenueBatchDto {
   @IsString() name: string;
   @IsString() sportId: string;
-  @IsOptional() @IsString() coachId?: string;
+  @IsOptional() @IsArray() coachIds?: string[];
   @IsOptional() @IsInt() @Min(1) @Type(() => Number) capacity?: number;
   @IsOptional() @IsNumber() @Type(() => Number) fee?: number;
   @IsString() startTime: string;
@@ -27,7 +27,7 @@ class CreateVenueBatchDto {
 class UpdateVenueBatchDto {
   @IsOptional() @IsString() name?: string;
   @IsOptional() @IsString() sportId?: string;
-  @IsOptional() @IsString() coachId?: string;
+  @IsOptional() @IsArray() coachIds?: string[];
   @IsOptional() @IsInt() @Min(1) @Type(() => Number) capacity?: number;
   @IsOptional() @IsNumber() @Type(() => Number) fee?: number;
   @IsOptional() @IsString() startTime?: string;
@@ -39,7 +39,7 @@ class UpdateVenueBatchDto {
 function mapBatch(b: any) {
   return {
     ...b,
-    coach: b.coaches?.[0]?.coach ?? null,
+    coaches: b.coaches?.map((bc: any) => bc.coach) ?? [],
     fee: b.feePlans?.[0]?.amount ?? null,
     status: b.isActive === false ? 'INACTIVE' : 'ACTIVE',
   };
@@ -135,10 +135,10 @@ export class VenuesController {
     @Param('venueId') venueId: string,
     @Body() dto: CreateVenueBatchDto,
   ) {
-    const { coachId, fee, status, ...rest } = dto;
+    const { coachIds, fee, status, ...rest } = dto;
     const batch = await this.batchesSvc.create({ ...rest, venueId, feeAmount: fee });
-    if (coachId) {
-      await this.batchesSvc.reassignCoach(batch.id, coachId);
+    if (coachIds?.length) {
+      await this.batchesSvc.reassignCoaches(batch.id, coachIds);
     }
     const created = await this.batchesSvc.findOne(batch.id);
     return mapBatch(created);
@@ -150,10 +150,10 @@ export class VenuesController {
     @Param('batchId') batchId: string,
     @Body() dto: UpdateVenueBatchDto,
   ) {
-    const { coachId, fee, status, sportId, ...rest } = dto;
+    const { coachIds, fee, status, sportId, ...rest } = dto;
     await this.batchesSvc.update(batchId, { ...rest, ...(sportId ? { sportId } : {}) });
-    if (coachId !== undefined) {
-      await this.batchesSvc.reassignCoach(batchId, coachId);
+    if (coachIds !== undefined) {
+      await this.batchesSvc.reassignCoaches(batchId, coachIds);
     }
     const batch = await this.batchesSvc.findOne(batchId);
     return mapBatch(batch);
