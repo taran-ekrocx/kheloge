@@ -5,7 +5,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
 import { Search, UserPlus, ChevronRight, Download, CreditCard, User, Filter, X } from 'lucide-react';
-import { STATE_NAMES, getDistricts, getCities } from '@/lib/india-locations';
 import Link from 'next/link';
 
 interface Enrollment {
@@ -50,6 +49,8 @@ interface BatchOption {
   sport: { id: string; name: string };
 }
 
+const GUARDIAN_RELATIONS = ['Father', 'Mother', 'Guardian', 'Uncle', 'Aunt', 'Sibling', 'Grandparent', 'Other'];
+
 function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: string }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState({
@@ -57,10 +58,8 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
     status: 'ACTIVE',
     sportId: '',
     batchId: '',
-    state: '',
-    district: '',
-    city: '',
-    region: '',
+    guardianRelation: '',
+    guardianPhone: '',
   });
 
   const { data: allSports = [] } = useQuery<Sport[]>({
@@ -78,20 +77,21 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
     ? allBatches.filter((b) => b.sportId === form.sportId)
     : allBatches;
 
-  const districts = useMemo(() => getDistricts(form.state), [form.state]);
-  const cities = useMemo(() => getCities(form.state, form.district), [form.state, form.district]);
-
   const mutation = useMutation({
-    mutationFn: ({ sportId: _sportId, batchId, ...data }: typeof form) =>
-      api.post(`/venues/${venueId}/students`, { ...data, batchIds: batchId ? [batchId] : [] }),
+    mutationFn: ({ sportId: _sportId, batchId, guardianRelation, guardianPhone, ...data }: typeof form) => {
+      const guardians =
+        guardianPhone
+          ? [{ name: guardianRelation || 'Guardian', phone: guardianPhone, relation: guardianRelation || 'Guardian', isPrimary: true }]
+          : undefined;
+      return api.post(`/venues/${venueId}/students`, { ...data, batchIds: batchId ? [batchId] : [], guardians });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students', venueId] });
       onClose();
     },
   });
 
-  const selectClass = 'w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
-  const inputClass = selectClass;
+  const fieldClass = 'w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -106,20 +106,20 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
             placeholder="Full Name *"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
-            className={inputClass}
+            className={fieldClass}
           />
           <input
             placeholder="Phone Number"
             value={form.phone}
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
-            className={inputClass}
+            className={fieldClass}
           />
           <input
             type="email"
             placeholder="Email"
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
-            className={inputClass}
+            className={fieldClass}
           />
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Date of Birth</label>
@@ -127,7 +127,7 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
               type="date"
               value={form.dob}
               onChange={(e) => setForm({ ...form, dob: e.target.value })}
-              className={inputClass}
+              className={fieldClass}
             />
           </div>
           <div>
@@ -135,7 +135,7 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
             <select
               value={form.status}
               onChange={(e) => setForm({ ...form, status: e.target.value })}
-              className={selectClass}
+              className={fieldClass}
             >
               <option value="ACTIVE">Active</option>
               <option value="INACTIVE">Inactive</option>
@@ -149,7 +149,7 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
               <select
                 value={form.sportId}
                 onChange={(e) => setForm({ ...form, sportId: e.target.value, batchId: '' })}
-                className={selectClass}
+                className={fieldClass}
               >
                 <option value="">Select Sport</option>
                 {allSports.map((sport) => (
@@ -163,7 +163,7 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
             <select
               value={form.batchId}
               onChange={(e) => setForm({ ...form, batchId: e.target.value })}
-              className={selectClass}
+              className={fieldClass}
             >
               <option value="">{form.sportId ? 'Select Batch' : 'Select Sport first'}</option>
               {visibleBatches.map((batch) => (
@@ -175,56 +175,28 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
           </div>
 
           <div className="border-t pt-3">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Location</p>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Parent / Guardian</p>
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">State</label>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Relationship</label>
                 <select
-                  value={form.state}
-                  onChange={(e) => setForm({ ...form, state: e.target.value, district: '', city: '' })}
-                  className={selectClass}
+                  value={form.guardianRelation}
+                  onChange={(e) => setForm({ ...form, guardianRelation: e.target.value })}
+                  className={fieldClass}
                 >
-                  <option value="">Select State</option>
-                  {STATE_NAMES.map((s) => (
-                    <option key={s} value={s}>{s}</option>
+                  <option value="">Select Relationship</option>
+                  {GUARDIAN_RELATIONS.map((r) => (
+                    <option key={r} value={r}>{r}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">District</label>
-                <select
-                  value={form.district}
-                  onChange={(e) => setForm({ ...form, district: e.target.value, city: '' })}
-                  disabled={!form.state}
-                  className={selectClass}
-                >
-                  <option value="">{form.state ? 'Select District' : 'Select State first'}</option>
-                  {districts.map((d) => (
-                    <option key={d.name} value={d.name}>{d.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">City</label>
-                <select
-                  value={form.city}
-                  onChange={(e) => setForm({ ...form, city: e.target.value })}
-                  disabled={!form.district}
-                  className={selectClass}
-                >
-                  <option value="">{form.district ? 'Select City' : 'Select District first'}</option>
-                  {cities.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Region</label>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Contact Number</label>
                 <input
-                  placeholder="e.g. North Zone, Sector 12"
-                  value={form.region}
-                  onChange={(e) => setForm({ ...form, region: e.target.value })}
-                  className={inputClass}
+                  placeholder="Parent / Guardian phone"
+                  value={form.guardianPhone}
+                  onChange={(e) => setForm({ ...form, guardianPhone: e.target.value })}
+                  className={fieldClass}
                 />
               </div>
             </div>
