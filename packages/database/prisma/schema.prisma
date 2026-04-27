@@ -226,10 +226,11 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  organizations OrganizationUser[]
-  coachBatches  BatchCoach[]
-  attendanceMarks Attendance[] @relation("MarkedBy")
-  comments      EnquiryComment[]
+  organizations    OrganizationUser[]
+  coachBatches     BatchCoach[]
+  attendanceMarks  Attendance[]        @relation("MarkedBy")
+  coachSessions    AttendanceSession[] @relation("CoachSessions")
+  comments         EnquiryComment[]
 
   @@map("users")
 }
@@ -280,12 +281,13 @@ model Batch {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  venue       Venue          @relation(fields: [venueId], references: [id], onDelete: Cascade)
-  sport       Sport          @relation(fields: [sportId], references: [id])
+  venue       Venue               @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  sport       Sport               @relation(fields: [sportId], references: [id])
   coaches     BatchCoach[]
   enrollments Enrollment[]
   attendances Attendance[]
   feePlans    FeePlan[]
+  sessions    AttendanceSession[]
 
   @@map("batches")
 }
@@ -395,6 +397,22 @@ model Attendance {
 
   @@unique([batchId, studentId, date])
   @@map("attendances")
+}
+
+model AttendanceSession {
+  id        String    @id @default(cuid())
+  batchId   String
+  coachId   String
+  date      DateTime  @db.Date
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  batch     Batch     @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  coach     User      @relation("CoachSessions", fields: [coachId], references: [id])
+
+  @@map("attendance_sessions")
 }
 
 // ─────────────────────────────────────────────

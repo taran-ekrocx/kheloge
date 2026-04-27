@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { AuthService } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
+import { useAuth } from '@/hooks/useAuth';
 import {
   LayoutDashboard, Users, Calendar, CheckSquare,
   CreditCard, MessageSquare, LogOut, Building2,
@@ -17,12 +18,12 @@ const NAV_OPERATIONS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/students', label: 'Students', icon: Users },
   { href: '/batches', label: 'Batches', icon: Calendar },
-  { href: '/coaches', label: 'Coaches', icon: UserCheck },
+  { href: '/coaches', label: 'Coaches', icon: UserCheck, hideForCoach: true },
   { href: '/attendance', label: 'Attendance', icon: CheckSquare },
-  { href: '/fees', label: 'Fees', icon: Receipt },
-  { href: '/payments', label: 'Payments', icon: CreditCard },
-  { href: '/enquiries', label: 'Enquiries', icon: MessageSquare },
-  { href: '/reports', label: 'Reports', icon: BarChart2 },
+  { href: '/fees', label: 'Fees', icon: Receipt, hideForCoach: true },
+  { href: '/payments', label: 'Payments', icon: CreditCard, hideForCoach: true },
+  { href: '/enquiries', label: 'Enquiries', icon: MessageSquare, hideForCoach: true },
+  { href: '/reports', label: 'Reports', icon: BarChart2, hideForCoach: true },
 ];
 
 const NAV_ADMIN = [
@@ -69,12 +70,13 @@ function VenueSelector() {
   );
 }
 
-function NavGroup({ label, items }: { label: string; items: typeof NAV_OPERATIONS }) {
+function NavGroup({ label, items, isCoach }: { label: string; items: typeof NAV_OPERATIONS; isCoach?: boolean }) {
   const pathname = usePathname();
+  const visibleItems = isCoach ? items.filter((item) => !(item as any).hideForCoach) : items;
   return (
     <div>
       <p className="px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
-      {items.map(({ href, label: itemLabel, icon: Icon }) => {
+      {visibleItems.map(({ href, label: itemLabel, icon: Icon }) => {
         const active = pathname === href || pathname.startsWith(href + '/');
         return (
           <Link
@@ -96,6 +98,9 @@ function NavGroup({ label, items }: { label: string; items: typeof NAV_OPERATION
 }
 
 export function Sidebar() {
+  const { role } = useAuth();
+  const isCoach = role === 'COACH';
+
   return (
     <aside className="w-60 min-h-screen bg-white border-r border-gray-200 flex flex-col">
       <div className="px-6 py-5 border-b border-gray-100">
@@ -104,8 +109,8 @@ export function Sidebar() {
       </div>
       <nav className="flex-1 px-3 py-4 space-y-4 overflow-y-auto">
         <VenueSelector />
-        <NavGroup label="Operations" items={NAV_OPERATIONS} />
-        <NavGroup label="Administration" items={NAV_ADMIN} />
+        <NavGroup label="Operations" items={NAV_OPERATIONS} isCoach={isCoach} />
+        {!isCoach && <NavGroup label="Administration" items={NAV_ADMIN} />}
       </nav>
       <div className="px-3 py-4 border-t border-gray-100">
         <button

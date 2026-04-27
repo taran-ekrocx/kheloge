@@ -2,9 +2,11 @@
 
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
-import { Plus, Search, Filter, X, Edit2, Trash2 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { Plus, Search, Filter, X, Edit2, Trash2, Play } from 'lucide-react';
 
 const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
 const DAY_SHORT: Record<string, string> = {
@@ -240,12 +242,16 @@ function BatchModal({
 
 export default function BatchesPage() {
   const { venueId } = useVenue();
+  const { role } = useAuth();
+  const isCoach = role === 'COACH';
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Batch | undefined>();
   const [search, setSearch] = useState('');
   const [filterSport, setFilterSport] = useState('');
   const [filterCoach, setFilterCoach] = useState('');
+  const [startingSession, setStartingSession] = useState<string | null>(null);
 
   const { data: batches = [], isLoading } = useQuery<Batch[]>({
     queryKey: ['batches', venueId],
@@ -269,6 +275,14 @@ export default function BatchesPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['batches', venueId] }),
   });
 
+  const startSessionMutation = useMutation({
+    mutationFn: (batchId: string) => api.post('/attendance/sessions', { batchId }).then(r => r.data),
+    onSuccess: (session) => {
+      router.push(`/attendance/${session.batchId}?sessionId=${session.id}`);
+    },
+    onSettled: () => setStartingSession(null),
+  });
+
   const filtered = useMemo(() => {
     return batches.filter(b => {
       const q = search.toLowerCase();
@@ -288,12 +302,14 @@ export default function BatchesPage() {
           <h2 className="text-2xl font-bold text-gray-900">Batches</h2>
           <p className="text-gray-500 text-sm">{filtered.length} of {batches.length} batches</p>
         </div>
-        <button
-          onClick={() => { setEditing(undefined); setShowModal(true); }}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
-        >
-          <Plus size={16} /> Create Batch
-        </button>
+        {!isCoach && (
+          <button
+            onClick={() => { setEditing(undefined); setShowModal(true); }}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
+          >
+            <Plus size={16} /> Create Batch
+          </button>
+        )}
       </div>
 
       <div className="relative">
@@ -375,18 +391,31 @@ export default function BatchesPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 justify-end">
-                      <button
-                        onClick={() => { setEditing(b); setShowModal(true); }}
-                        className="text-gray-400 hover:text-blue-600 transition-colors"
-                      >
-                        <Edit2 size={15} />
-                      </button>
-                      <button
-                        onClick={() => { if (confirm(`Delete batch "${b.name}"?`)) deleteMutation.mutate(b.id); }}
-                        className="text-gray-400 hover:text-red-500 transition-colors"
-                      >
-                        <Trash2 size={15} />
-                      </button>
+                      {isCoach ? (
+                        <button
+                          onClick={() => { setStartingSession(b.id); startSessionMutation.mutate(b.id); }}
+                          disabled={startingSession === b.id}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
+                        >
+                          <Play size={13} />
+                          {startingSession === b.id ? 'Starting...' : 'Start Session'}
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => { setEditing(b); setShowModal(true); }}
+                            className="text-gray-400 hover:text-blue-600 transition-colors"
+                          >
+                            <Edit2 size={15} />
+                          </button>
+                          <button
+                            onClick={() => { if (confirm(`Delete batch "${b.name}"?`)) deleteMutation.mutate(b.id); }}
+                            className="text-gray-400 hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>

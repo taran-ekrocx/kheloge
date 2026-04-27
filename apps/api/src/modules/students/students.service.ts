@@ -54,12 +54,22 @@ export class StudentsService {
     private fileUpload: FileUploadService,
   ) {}
 
-  async findAll(venueId: string, opts: { search?: string; status?: StudentStatus | 'all'; sportId?: string; batchId?: string } = {}) {
-    const { search, status, sportId, batchId } = opts;
+  async findAll(venueId: string, opts: { search?: string; status?: StudentStatus | 'all'; sportId?: string; batchId?: string; coachUserId?: string } = {}) {
+    const { search, status, sportId, batchId, coachUserId } = opts;
+
+    // When a coach queries, resolve their batch IDs to scope the student list
+    let coachBatchIds: string[] | undefined;
+    if (coachUserId) {
+      const batchCoaches = await this.prisma.batchCoach.findMany({
+        where: { coachId: coachUserId },
+        select: { batchId: true },
+      });
+      coachBatchIds = batchCoaches.map((bc) => bc.batchId);
+    }
+
     return this.prisma.student.findMany({
       where: {
         venueId,
-        // default to non-inactive statuses when status not specified
         ...(!status || status === 'all'
           ? { status: { notIn: [StudentStatus.INACTIVE] } }
           : { status: status as StudentStatus }),
@@ -70,17 +80,27 @@ export class StudentsService {
             { email: { contains: search, mode: 'insensitive' } },
           ],
         }),
-        ...(sportId || batchId
+        ...(coachBatchIds
           ? {
               enrollments: {
                 some: {
                   isActive: true,
-                  ...(batchId && { batchId }),
+                  batchId: { in: coachBatchIds },
                   ...(sportId && { batch: { sportId } }),
                 },
               },
             }
-          : {}),
+          : sportId || batchId
+            ? {
+                enrollments: {
+                  some: {
+                    isActive: true,
+                    ...(batchId && { batchId }),
+                    ...(sportId && { batch: { sportId } }),
+                  },
+                },
+              }
+            : {}),
       },
       include: { guardians: true, enrollments: { include: { batch: { include: { sport: true } } } } },
       orderBy: { name: 'asc' },

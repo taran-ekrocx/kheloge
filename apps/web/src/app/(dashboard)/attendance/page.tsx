@@ -1,9 +1,12 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
-import { Calendar, Clock, Users, ChevronRight } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { Calendar, Clock, Users, ChevronRight, Play } from 'lucide-react';
 import Link from 'next/link';
 import dayjs from 'dayjs';
 
@@ -28,11 +31,23 @@ interface Batch {
 
 export default function AttendanceIndexPage() {
   const { venueId } = useVenue();
+  const { role } = useAuth();
+  const isCoach = role === 'COACH';
+  const router = useRouter();
+  const [startingSession, setStartingSession] = useState<string | null>(null);
 
   const { data: batches = [], isLoading } = useQuery<Batch[]>({
     queryKey: ['batches', venueId],
     queryFn: () => api.get(`/venues/${venueId}/batches`).then(r => r.data),
     enabled: !!venueId,
+  });
+
+  const startSessionMutation = useMutation({
+    mutationFn: (batchId: string) => api.post('/attendance/sessions', { batchId }).then(r => r.data),
+    onSuccess: (session) => {
+      router.push(`/attendance/${session.batchId}?sessionId=${session.id}`);
+    },
+    onSettled: () => setStartingSession(null),
   });
 
   const todayBatches = batches.filter(b => b.days?.includes(TODAY_DOW));
@@ -62,7 +77,12 @@ export default function AttendanceIndexPage() {
               </h3>
               <div className="space-y-2">
                 {todayBatches.map((batch) => (
-                  <BatchRow key={batch.id} batch={batch} highlight />
+                  <BatchRow
+                    key={batch.id} batch={batch} highlight
+                    isCoach={isCoach}
+                    startingSession={startingSession}
+                    onStartSession={(id) => { setStartingSession(id); startSessionMutation.mutate(id); }}
+                  />
                 ))}
               </div>
             </div>
@@ -75,7 +95,12 @@ export default function AttendanceIndexPage() {
               </h3>
               <div className="space-y-2">
                 {otherBatches.map((batch) => (
-                  <BatchRow key={batch.id} batch={batch} />
+                  <BatchRow
+                    key={batch.id} batch={batch}
+                    isCoach={isCoach}
+                    startingSession={startingSession}
+                    onStartSession={(id) => { setStartingSession(id); startSessionMutation.mutate(id); }}
+                  />
                 ))}
               </div>
             </div>
@@ -86,16 +111,17 @@ export default function AttendanceIndexPage() {
   );
 }
 
-function BatchRow({ batch, highlight }: { batch: Batch; highlight?: boolean }) {
-  return (
-    <Link
-      href={`/attendance/${batch.id}`}
-      className={`flex items-center justify-between p-4 rounded-xl border transition-colors ${
-        highlight
-          ? 'bg-blue-50 border-blue-200 hover:border-blue-400'
-          : 'bg-white border-gray-100 hover:border-gray-300'
-      }`}
-    >
+function BatchRow({
+  batch, highlight, isCoach, startingSession, onStartSession,
+}: {
+  batch: Batch;
+  highlight?: boolean;
+  isCoach?: boolean;
+  startingSession?: string | null;
+  onStartSession?: (id: string) => void;
+}) {
+  const inner = (
+    <>
       <div className="flex items-center gap-4">
         <div className={`p-2 rounded-lg ${highlight ? 'bg-blue-100' : 'bg-gray-100'}`}>
           <Calendar size={18} className={highlight ? 'text-blue-600' : 'text-gray-500'} />
@@ -121,17 +147,47 @@ function BatchRow({ batch, highlight }: { batch: Batch; highlight?: boolean }) {
             <span
               key={d}
               className={`px-1.5 py-0.5 rounded text-xs font-medium ${
-                d === TODAY_DOW
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-500'
+                d === TODAY_DOW ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'
               }`}
             >
               {DAY_SHORT[d] || d}
             </span>
           ))}
         </div>
-        <ChevronRight size={16} className="text-gray-400" />
+        {isCoach ? (
+          <button
+            onClick={(e) => { e.preventDefault(); onStartSession?.(batch.id); }}
+            disabled={startingSession === batch.id}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50"
+          >
+            <Play size={12} />
+            {startingSession === batch.id ? 'Starting...' : 'Start Session'}
+          </button>
+        ) : (
+          <ChevronRight size={16} className="text-gray-400" />
+        )}
       </div>
+    </>
+  );
+
+  if (isCoach) {
+    return (
+      <div className={`flex items-center justify-between p-4 rounded-xl border ${
+        highlight ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-100'
+      }`}>
+        {inner}
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      href={`/attendance/${batch.id}`}
+      className={`flex items-center justify-between p-4 rounded-xl border transition-colors ${
+        highlight ? 'bg-blue-50 border-blue-200 hover:border-blue-400' : 'bg-white border-gray-100 hover:border-gray-300'
+      }`}
+    >
+      {inner}
     </Link>
   );
 }

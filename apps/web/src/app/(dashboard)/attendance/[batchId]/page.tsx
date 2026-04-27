@@ -3,20 +3,20 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { useParams } from 'next/navigation';
-import { Check, X, Clock, Save, ArrowLeft } from 'lucide-react';
+import { useParams, useSearchParams } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
+import { Check, X, Clock, Save, ArrowLeft, Play, Square } from 'lucide-react';
 import Link from 'next/link';
 import dayjs from 'dayjs';
 
 type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE';
 
-interface AttendanceRecord {
-  studentId: string;
-  status: AttendanceStatus;
-}
-
 export default function AttendancePage() {
   const { batchId } = useParams<{ batchId: string }>();
+  const searchParams = useSearchParams();
+  const sessionId = searchParams.get('sessionId');
+  const { role } = useAuth();
+  const isCoach = role === 'COACH';
   const queryClient = useQueryClient();
   const today = dayjs().format('YYYY-MM-DD');
   const [records, setRecords] = useState<Record<string, AttendanceStatus>>({});
@@ -25,6 +25,12 @@ export default function AttendancePage() {
   const { data: batch } = useQuery({
     queryKey: ['batch', batchId],
     queryFn: () => api.get(`/venues/any/batches/${batchId}`).then(r => r.data),
+  });
+
+  const { data: session } = useQuery({
+    queryKey: ['attendance-session', sessionId],
+    queryFn: () => api.get(`/attendance/sessions/${sessionId}`).then(r => r.data),
+    enabled: !!sessionId,
   });
 
   const { data: existing = [] } = useQuery({
@@ -39,14 +45,17 @@ export default function AttendancePage() {
       }),
   });
 
-  const students = batch?.enrollments?.map((e: any) => e.student) || [];
+  // Use enrolled students from session (for coaches) or batch
+  const students = session
+    ? session.batch?.enrollments?.map((e: any) => e.student) || []
+    : batch?.enrollments?.map((e: any) => e.student) || [];
 
   const setStatus = (studentId: string, status: AttendanceStatus) => {
     setRecords(r => ({ ...r, [studentId]: status }));
     setSaved(false);
   };
 
-  const mutation = useMutation({
+  const markMutation = useMutation({
     mutationFn: () =>
       api.post(`/attendance/batches/${batchId}/mark`, {
         date: today,
@@ -61,22 +70,59 @@ export default function AttendancePage() {
     },
   });
 
+  const endSessionMutation = useMutation({
+    mutationFn: () => api.patch(`/attendance/sessions/${sessionId}/end`).then(r => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['attendance-session', sessionId] });
+    },
+  });
+
   const presentCount = Object.values(records).filter(s => s === 'PRESENT').length;
   const absentCount = Object.values(records).filter(s => s === 'ABSENT').length;
+  const sessionEnded = session?.endedAt;
 
   return (
     <div className="space-y-5 max-w-2xl">
       <div className="flex items-center gap-3">
-        <Link href="/batches" className="text-gray-400 hover:text-gray-700">
+        <Link href={isCoach ? '/batches' : '/attendance'} className="text-gray-400 hover:text-gray-700">
           <ArrowLeft size={20} />
         </Link>
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Attendance</h2>
           <p className="text-gray-500 text-sm">
-            {batch?.name} · {dayjs(today).format('DD MMM YYYY')}
+            {batch?.name || session?.batch?.name} · {dayjs(today).format('DD MMM YYYY')}
           </p>
         </div>
       </div>
+
+      {session && (
+        <div className={`flex items-center justify-between p-3 rounded-lg border ${
+          sessionEnded ? 'bg-gray-50 border-gray-200' : 'bg-green-50 border-green-200'
+        }`}>
+          <div className="flex items-center gap-2 text-sm">
+            {sessionEnded ? (
+              <span className="text-gray-500">Session ended at {dayjs(session.endedAt).format('h:mm A')}</span>
+            ) : (
+              <>
+                <Play size={14} className="text-green-600" />
+                <span className="text-green-700 font-medium">
+                  Session active · Started {dayjs(session.startedAt).format('h:mm A')}
+                </span>
+              </>
+            )}
+          </div>
+          {!sessionEnded && (
+            <button
+              onClick={() => endSessionMutation.mutate()}
+              disabled={endSessionMutation.isPending}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 text-white rounded-lg text-xs font-medium hover:bg-gray-900 disabled:opacity-50"
+            >
+              <Square size={12} />
+              End Session
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="flex gap-4">
         <div className="bg-green-50 rounded-lg px-4 py-2 text-center">
@@ -141,14 +187,14 @@ export default function AttendancePage() {
       </div>
 
       <button
-        onClick={() => mutation.mutate()}
-        disabled={mutation.isPending || students.length === 0}
+        onClick={() => markMutation.mutate()}
+        disabled={markMutation.isPending || students.length === 0}
         className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-medium text-sm transition-colors ${
           saved ? 'bg-green-600 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'
         } disabled:opacity-50`}
       >
         <Save size={16} />
-        {mutation.isPending ? 'Saving...' : saved ? 'Saved!' : 'Save Attendance'}
+        {markMutation.isPending ? 'Saving...' : saved ? 'Saved!' : 'Save Attendance'}
       </button>
     </div>
   );

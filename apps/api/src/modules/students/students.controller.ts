@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards, Res, Req, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards, Request, Res, Req, BadRequestException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { FastifyReply } from 'fastify';
@@ -18,13 +18,15 @@ export class StudentsController {
   @Get()
   @Roles(UserRole.SUPER_ADMIN, UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER, UserRole.COACH)
   findAll(
+    @Request() req,
     @Param('venueId') venueId: string,
     @Query('search') search?: string,
     @Query('status') status?: StudentStatus | 'all',
     @Query('sportId') sportId?: string,
     @Query('batchId') batchId?: string,
   ) {
-    return this.students.findAll(venueId, { search, status, sportId, batchId });
+    const coachUserId = req.user.role === UserRole.COACH ? req.user.id : undefined;
+    return this.students.findAll(venueId, { search, status, sportId, batchId, coachUserId });
   }
 
   @Get(':id')

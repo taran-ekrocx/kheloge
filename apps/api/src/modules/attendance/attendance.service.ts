@@ -1,4 +1,4 @@
-import { Injectable, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, Inject, forwardRef, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { AttendanceStatus } from '@kheloge/database';
 import { AttendanceGateway } from './attendance.gateway';
@@ -14,6 +14,10 @@ export interface MarkAttendanceDto {
 
 export interface QrCheckinDto {
   studentId: string;
+  batchId: string;
+}
+
+export interface StartSessionDto {
   batchId: string;
 }
 
@@ -131,5 +135,82 @@ export class AttendanceService {
     const total = records.length;
     const present = records.filter((r) => r.status === AttendanceStatus.PRESENT).length;
     return { total, present, absent: total - present, percentage: total ? Math.round((present / total) * 100) : 0 };
+  }
+
+  async verifyCoachBatch(coachId: string, batchId: string): Promise<boolean> {
+    const bc = await this.prisma.batchCoach.findUnique({
+      where: { batchId_coachId: { batchId, coachId } },
+    });
+    return !!bc;
+  }
+
+  async startSession(batchId: string, coachId: string) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const session = await this.prisma.attendanceSession.create({
+      data: { batchId, coachId, date: today },
+      include: {
+        batch: {
+          include: {
+            sport: { select: { id: true, name: true } },
+            enrollments: {
+              where: { isActive: true },
+              include: {
+                student: { select: { id: true, name: true, photoUrl: true, phone: true } },
+              },
+            },
+          },
+        },
+        coach: { select: { id: true, name: true } },
+      },
+    });
+
+    return session;
+  }
+
+  async getSession(sessionId: string) {
+    const session = await this.prisma.attendanceSession.findUnique({
+      where: { id: sessionId },
+      include: {
+        batch: {
+          include: {
+            sport: { select: { id: true, name: true } },
+            enrollments: {
+              where: { isActive: true },
+              include: {
+                student: { select: { id: true, name: true, photoUrl: true, phone: true } },
+              },
+            },
+          },
+        },
+        coach: { select: { id: true, name: true } },
+      },
+    });
+    if (!session) throw new NotFoundException('Session not found');
+    return session;
+  }
+
+  async endSession(sessionId: string) {
+    const session = await this.prisma.attendanceSession.findUnique({ where: { id: sessionId } });
+    if (!session) throw new NotFoundException('Session not found');
+    return this.prisma.attendanceSession.update({
+      where: { id: sessionId },
+      data: { endedAt: new Date() },
+    });
+  }
+
+  async getSessionsForBatch(batchId: string, date?: string) {
+    const where: any = { batchId };
+    if (date) {
+      const d = new Date(date);
+      d.setHours(0, 0, 0, 0);
+      where.date = d;
+    }
+    return this.prisma.attendanceSession.findMany({
+      where,
+      include: { coach: { select: { id: true, name: true } } },
+      orderBy: { startedAt: 'desc' },
+    });
   }
 }

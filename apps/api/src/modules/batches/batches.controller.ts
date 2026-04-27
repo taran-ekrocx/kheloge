@@ -26,7 +26,9 @@ export class BatchesController {
     @Query('coachId') coachId?: string,
     @Query('status') status?: 'active' | 'inactive',
   ) {
-    return this.batches.findAll(req.user.orgId, { sportId, venueId, coachId, status });
+    // Coaches only see their own assigned batches
+    const effectiveCoachId = req.user.role === UserRole.COACH ? req.user.id : coachId;
+    return this.batches.findAll(req.user.orgId, { sportId, venueId, coachId: effectiveCoachId, status });
   }
 
   @Get(':id')
