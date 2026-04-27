@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
-import { IsString, IsOptional, IsBoolean, IsEmail, IsIn, IsArray } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsEmail, IsIn } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { UserRole } from '@kheloge/database';
 import { PrismaService } from '../../database/prisma.service';
@@ -34,12 +34,6 @@ export class CreateCoachDto {
   @IsOptional()
   @IsIn(['ACTIVE', 'INACTIVE'])
   status?: string;
-
-  @ApiPropertyOptional({ type: [String] })
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  sportIds?: string[];
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -82,12 +76,6 @@ export class UpdateCoachDto {
   @IsOptional()
   @IsIn(['ACTIVE', 'INACTIVE'])
   status?: string;
-
-  @ApiPropertyOptional({ type: [String] })
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  sportIds?: string[];
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -205,7 +193,7 @@ export class CoachesService {
   // ── Venue-scoped coach CRUD ──────────────────────────────────────────────
 
   private mapOrgUser(orgUser: any) {
-    const { user, venue, isActive, sports, locationCity, ...rest } = orgUser;
+    const { user, venue, isActive, locationCity, ...rest } = orgUser;
     return {
       ...rest,
       userId: user.id,
@@ -216,7 +204,6 @@ export class CoachesService {
       status: isActive ? 'ACTIVE' : 'INACTIVE',
       city: locationCity ?? undefined,
       venue,
-      sports: (sports ?? []).map((cs: any) => ({ id: cs.sport.id, name: cs.sport.name })),
       batches: (user.coachBatches ?? []).map((bc: any) => ({
         batchId: bc.batchId,
         isPrimary: bc.isPrimary,
@@ -255,7 +242,6 @@ export class CoachesService {
           },
         },
         venue: { select: { id: true, name: true } },
-        sports: { include: { sport: { select: { id: true, name: true } } } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -302,9 +288,6 @@ export class CoachesService {
         ...(dto.district !== undefined ? { district: dto.district } : {}),
         ...(dto.city !== undefined ? { locationCity: dto.city } : {}),
         ...(dto.region !== undefined ? { region: dto.region } : {}),
-        ...(dto.sportIds?.length ? {
-          sports: { create: dto.sportIds.map((sportId) => ({ sportId })) },
-        } : {}),
       },
       include: {
         user: {
@@ -314,7 +297,6 @@ export class CoachesService {
           },
         },
         venue: { select: { id: true, name: true } },
-        sports: { include: { sport: { select: { id: true, name: true } } } },
       },
     });
 
@@ -347,15 +329,6 @@ export class CoachesService {
       await this.prisma.organizationUser.update({ where: { id: orgUserId }, data: orgUserUpdate });
     }
 
-    if (dto.sportIds !== undefined) {
-      await this.prisma.coachSport.deleteMany({ where: { coachId: orgUserId } });
-      if (dto.sportIds.length > 0) {
-        await this.prisma.coachSport.createMany({
-          data: dto.sportIds.map((sportId) => ({ coachId: orgUserId, sportId })),
-        });
-      }
-    }
-
     const updated = await this.prisma.organizationUser.findFirst({
       where: { id: orgUserId },
       include: {
@@ -366,7 +339,6 @@ export class CoachesService {
           },
         },
         venue: { select: { id: true, name: true } },
-        sports: { include: { sport: { select: { id: true, name: true } } } },
       },
     });
 

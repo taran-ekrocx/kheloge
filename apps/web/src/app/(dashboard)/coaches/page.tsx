@@ -7,7 +7,6 @@ import { useVenue } from '@/hooks/useVenue';
 import { Search, UserPlus, Filter, X, Edit2, Trash2, User } from 'lucide-react';
 import { STATE_NAMES, getDistricts, getCities } from '@/lib/india-locations';
 
-interface Sport { id: string; name: string; }
 interface CoachBatch { id: string; name: string; sport?: { name: string }; }
 interface Coach {
   id: string;
@@ -19,7 +18,6 @@ interface Coach {
   district?: string;
   city?: string;
   region?: string;
-  sports?: Sport[];
   batches?: CoachBatch[];
   _count?: { batches: number };
 }
@@ -30,14 +28,14 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 const DEFAULT_FORM = {
-  name: '', phone: '', email: '', status: 'ACTIVE', sportIds: [] as string[],
+  name: '', phone: '', email: '', status: 'ACTIVE',
   state: '', district: '', city: '', region: '',
 };
 
 function CoachModal({
-  onClose, venueId, existing, sports,
+  onClose, venueId, existing,
 }: {
-  onClose: () => void; venueId: string; existing?: Coach; sports: Sport[];
+  onClose: () => void; venueId: string; existing?: Coach;
 }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState(existing ? {
@@ -45,7 +43,6 @@ function CoachModal({
     phone: existing.phone,
     email: existing.email || '',
     status: existing.status,
-    sportIds: existing.sports?.map(s => s.id) ?? [],
     state: existing.state || '',
     district: existing.district || '',
     city: existing.city || '',
@@ -61,13 +58,6 @@ function CoachModal({
 
   const handleDistrictChange = (district: string) => {
     setForm(f => ({ ...f, district, city: '' }));
-  };
-
-  const toggleSport = (id: string) => {
-    setForm(f => ({
-      ...f,
-      sportIds: f.sportIds.includes(id) ? f.sportIds.filter(s => s !== id) : [...f.sportIds, id],
-    }));
   };
 
   const mutation = useMutation({
@@ -147,27 +137,6 @@ function CoachModal({
             </div>
           </div>
 
-          {sports.length > 0 && (
-            <div>
-              <p className="text-xs font-medium text-gray-600 mb-2">Assign Sports</p>
-              <div className="flex flex-wrap gap-2">
-                {sports.map(sport => (
-                  <button
-                    key={sport.id}
-                    type="button"
-                    onClick={() => toggleSport(sport.id)}
-                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                      form.sportIds.includes(sport.id)
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'border-gray-200 text-gray-600 hover:border-blue-300'
-                    }`}
-                  >
-                    {sport.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
           {mutation.isError && <p className="text-red-500 text-xs">Failed to save coach.</p>}
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 border rounded-lg py-2 text-sm font-medium hover:bg-gray-50">
@@ -216,17 +185,6 @@ function CoachDetailModal({ coach, onClose }: { coach: Coach; onClose: () => voi
           </div>
         )}
 
-        {coach.sports && coach.sports.length > 0 && (
-          <div className="mb-4">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Sports</p>
-            <div className="flex flex-wrap gap-2">
-              {coach.sports.map(s => (
-                <span key={s.id} className="bg-blue-50 text-blue-600 text-xs px-2 py-1 rounded-full font-medium">{s.name}</span>
-              ))}
-            </div>
-          </div>
-        )}
-
         <div>
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
             Assigned Batches ({coach.batches?.length ?? 0})
@@ -262,11 +220,6 @@ export default function CoachesPage() {
     queryKey: ['coaches', venueId],
     queryFn: () => api.get(`/venues/${venueId}/coaches`).then(r => r.data),
     enabled: !!venueId,
-  });
-
-  const { data: sports = [] } = useQuery<Sport[]>({
-    queryKey: ['sports'],
-    queryFn: () => api.get('/sports').then(r => r.data),
   });
 
   const statusMutation = useMutation({
@@ -351,7 +304,6 @@ export default function CoachesPage() {
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Coach</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Phone</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Sports</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Batches</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
                 <th className="px-4 py-3" />
@@ -360,7 +312,6 @@ export default function CoachesPage() {
             <tbody className="divide-y divide-gray-50">
               {filtered.map((c) => {
                 const batchCount = c._count?.batches ?? c.batches?.length ?? 0;
-                const sportNames = c.sports?.map(s => s.name) ?? [];
 
                 return (
                   <tr key={c.id} className="hover:bg-gray-50 transition-colors">
@@ -378,15 +329,6 @@ export default function CoachesPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-gray-600">{c.phone}</td>
-                    <td className="px-4 py-3">
-                      {sportNames.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {sportNames.map(s => (
-                            <span key={s} className="bg-blue-50 text-blue-600 text-xs px-2 py-0.5 rounded-full">{s}</span>
-                          ))}
-                        </div>
-                      ) : <span className="text-gray-400">—</span>}
-                    </td>
                     <td className="px-4 py-3 text-gray-600">{batchCount} batch{batchCount !== 1 ? 'es' : ''}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
@@ -432,7 +374,6 @@ export default function CoachesPage() {
           onClose={() => { setShowModal(false); setEditing(undefined); }}
           venueId={venueId}
           existing={editing}
-          sports={sports}
         />
       )}
 
