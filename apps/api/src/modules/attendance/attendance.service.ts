@@ -1,4 +1,4 @@
-import { Injectable, Inject, forwardRef, NotFoundException } from '@nestjs/common';
+import { Injectable, Inject, forwardRef, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { AttendanceStatus } from '@kheloge/database';
 import { AttendanceGateway } from './attendance.gateway';
@@ -51,6 +51,13 @@ export class AttendanceService {
   async mark(batchId: string, dto: MarkAttendanceDto, markedById: string) {
     const date = dto.date ? new Date(dto.date) : new Date();
     date.setHours(0, 0, 0, 0);
+
+    const endedSession = await this.prisma.attendanceSession.findFirst({
+      where: { batchId, date, endedAt: { not: null } },
+    });
+    if (endedSession) {
+      throw new ForbiddenException('Session has ended. Attendance can no longer be modified.');
+    }
 
     const ops = dto.records.map((r) =>
       this.prisma.attendance.upsert({
