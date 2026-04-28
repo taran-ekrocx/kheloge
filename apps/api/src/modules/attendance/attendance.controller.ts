@@ -77,6 +77,12 @@ export class AttendanceController {
     return this.attendance.getActiveSession(batchId);
   }
 
+  @Get('sessions/my-active')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER, UserRole.COACH)
+  getMyActiveSession(@Request() req) {
+    return this.attendance.getMyActiveSession(req.user.id);
+  }
+
   @Get('sessions/:sessionId')
   @Roles(UserRole.SUPER_ADMIN, UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER, UserRole.COACH)
   getSession(@Param('sessionId') sessionId: string) {
