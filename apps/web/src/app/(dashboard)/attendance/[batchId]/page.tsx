@@ -24,7 +24,7 @@ export default function AttendancePage() {
 
   const { data: batch } = useQuery({
     queryKey: ['batch', batchId],
-    queryFn: () => api.get(`/venues/any/batches/${batchId}`).then(r => r.data),
+    queryFn: () => api.get(`/batches/${batchId}`).then(r => r.data),
   });
 
   const { data: session } = useQuery({

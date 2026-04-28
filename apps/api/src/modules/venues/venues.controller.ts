@@ -128,7 +128,8 @@ export class VenuesController {
   @Get(':venueId/batches')
   @Roles(UserRole.SUPER_ADMIN, UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER, UserRole.COACH)
   async listBatches(@Request() req, @Param('venueId') venueId: string) {
-    const batches = await this.batchesSvc.findAll(req.user.orgId, { venueId, status: 'active' });
+    const effectiveCoachId = req.user.role === UserRole.COACH ? req.user.id : undefined;
+    const batches = await this.batchesSvc.findAll(req.user.orgId, { venueId, coachId: effectiveCoachId, status: 'active' });
     return batches.map(mapBatch);
   }
 

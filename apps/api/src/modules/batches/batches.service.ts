@@ -83,6 +83,12 @@ export class BatchesService {
             coach: { select: { id: true, name: true, photoUrl: true } },
           },
         },
+        enrollments: {
+          where: { isActive: true },
+          include: {
+            student: { select: { id: true, name: true, photoUrl: true, phone: true } },
+          },
+        },
         _count: { select: { enrollments: true } },
         feePlans: { where: { isActive: true } },
       },
