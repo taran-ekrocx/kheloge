@@ -49,8 +49,9 @@ export class AttendanceService {
   }
 
   async mark(batchId: string, dto: MarkAttendanceDto, markedById: string) {
-    const date = dto.date ? new Date(dto.date) : new Date();
-    date.setHours(0, 0, 0, 0);
+    const date = dto.date
+      ? new Date(dto.date)
+      : (() => { const d = new Date(); d.setUTCHours(0, 0, 0, 0); return d; })();
 
     const endedSession = await this.prisma.attendanceSession.findFirst({
       where: { batchId, date, endedAt: { not: null } },
@@ -80,7 +81,7 @@ export class AttendanceService {
 
   async qrCheckin(dto: QrCheckinDto) {
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    today.setUTCHours(0, 0, 0, 0);
 
     const record = await this.prisma.attendance.upsert({
       where: {
@@ -108,7 +109,7 @@ export class AttendanceService {
 
   async autoMarkAbsent(batchId: string) {
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    today.setUTCHours(0, 0, 0, 0);
 
     // Get all enrolled students
     const enrollments = await this.prisma.enrollment.findMany({
@@ -153,7 +154,7 @@ export class AttendanceService {
 
   async startSession(batchId: string, coachId: string) {
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    today.setUTCHours(0, 0, 0, 0);
 
     const session = await this.prisma.attendanceSession.create({
       data: { batchId, coachId, date: today },
@@ -210,9 +211,7 @@ export class AttendanceService {
   async getSessionsForBatch(batchId: string, date?: string) {
     const where: any = { batchId };
     if (date) {
-      const d = new Date(date);
-      d.setHours(0, 0, 0, 0);
-      where.date = d;
+      where.date = new Date(date);
     }
     return this.prisma.attendanceSession.findMany({
       where,
