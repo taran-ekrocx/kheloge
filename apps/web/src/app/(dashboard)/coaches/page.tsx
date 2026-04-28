@@ -7,6 +7,8 @@ import { useVenue } from '@/hooks/useVenue';
 import { Search, UserPlus, Filter, X, Edit2, Trash2, User } from 'lucide-react';
 import { STATE_NAMES, getDistricts, getCities } from '@/lib/india-locations';
 
+const COACH_STEP_LABELS = ['Personal Info', 'Location', 'Assign Sports'];
+
 interface CoachBatch { id: string; name: string; sport?: { name: string }; }
 interface CoachSportItem { id: string; name: string; icon?: string; }
 interface Coach {
@@ -42,6 +44,8 @@ function CoachModal({
   onClose: () => void; venueId: string; existing?: Coach;
 }) {
   const queryClient = useQueryClient();
+  const [currentStep, setCurrentStep] = useState(1);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [form, setForm] = useState(existing ? {
     name: existing.name,
     phone: existing.phone,
@@ -79,89 +83,140 @@ function CoachModal({
     setForm(f => ({ ...f, district, city: '' }));
   };
 
+  const validateStep = (step: number): boolean => {
+    const next: Record<string, string> = {};
+    if (step === 1) {
+      if (!form.name.trim()) next.name = 'Full name is required';
+      if (!form.phone.trim()) next.phone = 'Mobile number is required';
+    }
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
+  const handleNext = () => { if (validateStep(currentStep)) setCurrentStep((s) => s + 1); };
+  const handleBack = () => { setErrors({}); setCurrentStep((s) => s - 1); };
+
   const mutation = useMutation({
-    mutationFn: (data: typeof form) =>
+    mutationFn: () =>
       existing
-        ? api.patch(`/venues/${venueId}/coaches/${existing.id}`, data)
-        : api.post(`/venues/${venueId}/coaches`, data),
+        ? api.patch(`/venues/${venueId}/coaches/${existing.id}`, form)
+        : api.post(`/venues/${venueId}/coaches`, form),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['coaches', venueId] });
       onClose();
     },
   });
 
+  const inputCls = 'w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
+
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
-        <h3 className="text-lg font-bold mb-4">{existing ? 'Edit Coach' : 'Add Coach'}</h3>
-        <form onSubmit={(e) => { e.preventDefault(); mutation.mutate(form); }} className="space-y-3">
-          <input
-            required placeholder="Full Name *"
-            value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <input
-            required placeholder="Phone Number *"
-            value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <input
-            type="email" placeholder="Email"
-            value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })}
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <select
-            value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="ACTIVE">Active</option>
-            <option value="INACTIVE">Inactive</option>
-          </select>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold">{existing ? 'Edit Coach' : 'Add Coach'}</h3>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+        </div>
 
-          <div className="border-t pt-3">
-            <p className="text-xs font-medium text-gray-600 mb-2">Location</p>
-            <div className="space-y-3">
-              <select
-                value={form.state}
-                onChange={(e) => handleStateChange(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Select State</option>
-                {STATE_NAMES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-              <select
-                value={form.district}
-                onChange={(e) => handleDistrictChange(e.target.value)}
-                disabled={!form.state}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
-              >
-                <option value="">Select District</option>
-                {districts.map(d => <option key={d.name} value={d.name}>{d.name}</option>)}
-              </select>
-              <select
-                value={form.city}
-                onChange={(e) => setForm(f => ({ ...f, city: e.target.value }))}
-                disabled={!form.district}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
-              >
-                <option value="">Select City</option>
-                {cities.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-              <input
-                placeholder="Region"
-                value={form.region}
-                onChange={(e) => setForm(f => ({ ...f, region: e.target.value }))}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+        {/* Progress indicator */}
+        <div className="mb-5">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-gray-500">Step {currentStep} of 3</span>
+            <span className="text-xs font-medium text-blue-600">{COACH_STEP_LABELS[currentStep - 1]}</span>
           </div>
+          <div className="flex gap-1">
+            {COACH_STEP_LABELS.map((_, i) => (
+              <div key={i} className={`flex-1 h-1.5 rounded-full transition-colors ${i + 1 <= currentStep ? 'bg-blue-600' : 'bg-gray-200'}`} />
+            ))}
+          </div>
+        </div>
 
-          {sports.length > 0 && (
-            <div className="border-t pt-3">
-              <p className="text-xs font-medium text-gray-600 mb-2">Assign Sports</p>
-              <div className="space-y-1.5 max-h-40 overflow-y-auto">
+        {/* Step 1: Personal Info */}
+        {currentStep === 1 && (
+          <div className="space-y-3">
+            <div>
+              <input
+                placeholder="Full Name *"
+                value={form.name}
+                onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
+                className={`${inputCls}${errors.name ? ' border-red-400' : ''}`}
+              />
+              {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
+            </div>
+            <div>
+              <input
+                placeholder="Mobile Number *"
+                value={form.phone}
+                onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))}
+                className={`${inputCls}${errors.phone ? ' border-red-400' : ''}`}
+              />
+              {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
+            </div>
+            <input
+              type="email"
+              placeholder="Email"
+              value={form.email}
+              onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))}
+              className={inputCls}
+            />
+            <select
+              value={form.status}
+              onChange={(e) => setForm(f => ({ ...f, status: e.target.value }))}
+              className={inputCls}
+            >
+              <option value="ACTIVE">Active</option>
+              <option value="INACTIVE">Inactive</option>
+            </select>
+          </div>
+        )}
+
+        {/* Step 2: Location */}
+        {currentStep === 2 && (
+          <div className="space-y-3">
+            <select
+              value={form.state}
+              onChange={(e) => handleStateChange(e.target.value)}
+              className={inputCls}
+            >
+              <option value="">Select State</option>
+              {STATE_NAMES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select
+              value={form.district}
+              onChange={(e) => handleDistrictChange(e.target.value)}
+              disabled={!form.state}
+              className={`${inputCls} disabled:bg-gray-50 disabled:text-gray-400`}
+            >
+              <option value="">Select District</option>
+              {districts.map(d => <option key={d.name} value={d.name}>{d.name}</option>)}
+            </select>
+            <select
+              value={form.city}
+              onChange={(e) => setForm(f => ({ ...f, city: e.target.value }))}
+              disabled={!form.district}
+              className={`${inputCls} disabled:bg-gray-50 disabled:text-gray-400`}
+            >
+              <option value="">Select City</option>
+              {cities.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <input
+              placeholder="Region"
+              value={form.region}
+              onChange={(e) => setForm(f => ({ ...f, region: e.target.value }))}
+              className={inputCls}
+            />
+          </div>
+        )}
+
+        {/* Step 3: Assign Sports */}
+        {currentStep === 3 && (
+          <div>
+            <p className="text-xs text-gray-500 mb-3">Select sports for this coach (optional)</p>
+            {sports.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-6">No sports configured yet.</p>
+            ) : (
+              <div className="space-y-1.5 max-h-56 overflow-y-auto">
                 {sports.map((sport) => (
-                  <label key={sport.id} className="flex items-center gap-2 cursor-pointer group">
+                  <label key={sport.id} className="flex items-center gap-2 cursor-pointer group py-1">
                     <input
                       type="checkbox"
                       checked={form.sportIds.includes(sport.id)}
@@ -175,22 +230,38 @@ function CoachModal({
                   </label>
                 ))}
               </div>
-            </div>
-          )}
+            )}
+          </div>
+        )}
 
-          {mutation.isError && <p className="text-red-500 text-xs">Failed to save coach.</p>}
-          <div className="flex gap-3 pt-2">
+        {mutation.isError && <p className="text-red-500 text-xs mt-3">Failed to save coach. Please try again.</p>}
+
+        {/* Navigation */}
+        <div className="flex gap-3 pt-5">
+          {currentStep > 1 ? (
+            <button type="button" onClick={handleBack} className="flex-1 border rounded-lg py-2 text-sm font-medium hover:bg-gray-50">
+              Back
+            </button>
+          ) : (
             <button type="button" onClick={onClose} className="flex-1 border rounded-lg py-2 text-sm font-medium hover:bg-gray-50">
               Cancel
             </button>
+          )}
+          {currentStep < 3 ? (
+            <button type="button" onClick={handleNext} className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700">
+              Next
+            </button>
+          ) : (
             <button
-              type="submit" disabled={mutation.isPending}
+              type="button"
+              onClick={() => mutation.mutate()}
+              disabled={mutation.isPending}
               className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
             >
               {mutation.isPending ? 'Saving...' : (existing ? 'Save Changes' : 'Add Coach')}
             </button>
-          </div>
-        </form>
+          )}
+        </div>
       </div>
     </div>
   );
