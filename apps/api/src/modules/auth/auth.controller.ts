@@ -1,4 +1,4 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { IsString, IsPhoneNumber } from 'class-validator';
@@ -36,6 +36,11 @@ class RefreshDto {
 @Controller('auth')
 export class AuthController {
   constructor(private auth: AuthService) {}
+
+  @Get('users-by-role')
+  getUsersByRole(@Query('orgSlug') orgSlug: string) {
+    return this.auth.getUsersByRole(orgSlug);
+  }
 
   @Post('otp/send')
   sendOtp(@Body() dto: SendOtpDto) {

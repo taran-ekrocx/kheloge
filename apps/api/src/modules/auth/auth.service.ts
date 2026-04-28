@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../database/prisma.service';
 import { OtpService } from './otp.service';
 import { JwtPayload, AuthTokens, ACCESS_TOKEN_EXPIRY, REFRESH_TOKEN_EXPIRY } from '@kheloge/shared';
+import { normalizePhone } from '../../common/utils/phone';
 
 @Injectable()
 export class AuthService {
@@ -15,6 +16,7 @@ export class AuthService {
   ) {}
 
   async sendOtp(phone: string): Promise<{ message: string }> {
+    phone = normalizePhone(phone);
     const code = await this.otp.generate(phone);
     // TODO: send via MSG91 / Gupshup
     // For dev, log it
@@ -25,6 +27,7 @@ export class AuthService {
   }
 
   async verifyOtp(phone: string, code: string, orgSlug: string): Promise<AuthTokens> {
+    phone = normalizePhone(phone);
     const valid = await this.otp.verify(phone, code);
     if (!valid) throw new UnauthorizedException('Invalid or expired OTP');
 
@@ -57,6 +60,7 @@ export class AuthService {
       throw new UnauthorizedException('Not available in production');
     }
 
+    phone = normalizePhone(phone);
     let user = await this.prisma.user.findUnique({ where: { phone } });
     if (!user) {
       user = await this.prisma.user.create({ data: { phone, name: phone } });
@@ -77,6 +81,27 @@ export class AuthService {
       venueId: orgUser.venueId || undefined,
       cityId: orgUser.cityId || undefined,
     });
+  }
+
+  async getUsersByRole(orgSlug: string): Promise<Record<string, Array<{ name: string; phone: string }>>> {
+    const org = await this.prisma.organization.findUnique({ where: { slug: orgSlug } });
+    if (!org) throw new BadRequestException('Organization not found');
+
+    const orgUsers = await this.prisma.organizationUser.findMany({
+      where: { organizationId: org.id, isActive: true },
+      include: {
+        user: { select: { name: true, phone: true } },
+      },
+      orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
+    });
+
+    const grouped: Record<string, Array<{ name: string; phone: string }>> = {};
+    for (const ou of orgUsers) {
+      if (!grouped[ou.role]) grouped[ou.role] = [];
+      grouped[ou.role].push({ name: ou.user.name, phone: ou.user.phone });
+    }
+
+    return grouped;
   }
 
   async refreshTokens(refreshToken: string): Promise<AuthTokens> {
