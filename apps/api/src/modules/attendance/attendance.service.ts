@@ -1,4 +1,4 @@
-import { Injectable, Inject, forwardRef, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, Inject, forwardRef, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { AttendanceStatus } from '@kheloge/database';
 import { AttendanceGateway } from './attendance.gateway';
@@ -155,6 +155,13 @@ export class AttendanceService {
   async startSession(batchId: string, coachId: string) {
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
+
+    const existing = await this.prisma.attendanceSession.findFirst({
+      where: { batchId, date: today, endedAt: null },
+    });
+    if (existing) {
+      throw new ConflictException(`An active session already exists for this batch (id: ${existing.id})`);
+    }
 
     const session = await this.prisma.attendanceSession.create({
       data: { batchId, coachId, date: today },
