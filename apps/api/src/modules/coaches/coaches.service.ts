@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
-import { IsString, IsOptional, IsBoolean, IsEmail, IsIn, IsArray } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsEmail, IsIn, IsArray, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { UserRole } from '@kheloge/database';
 import { PrismaService } from '../../database/prisma.service';
@@ -14,6 +15,62 @@ export class AssignCoachDto {
   @IsOptional()
   @IsBoolean()
   isPrimary?: boolean;
+}
+
+export class EducationDetailDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() qualification?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() institute?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() year?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() remarks?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() sportsCertifications?: string;
+}
+
+export class CoachingExperienceDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() organization?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() role?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() duration?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() responsibilities?: string;
+}
+
+export class CoachProfileDto {
+  @ApiPropertyOptional({ type: [EducationDetailDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EducationDetailDto)
+  educationDetails?: EducationDetailDto[];
+
+  @ApiPropertyOptional() @IsOptional() @IsString() sportSpecialization?: string;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  playingLevels?: string[];
+
+  @ApiPropertyOptional() @IsOptional() @IsString() achievements?: string;
+
+  @ApiPropertyOptional({ type: [CoachingExperienceDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CoachingExperienceDto)
+  coachingExperience?: CoachingExperienceDto[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  keySkills?: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  responsibilities?: string[];
+
+  @ApiPropertyOptional() @IsOptional() @IsString() expectedSalary?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() joiningAvailability?: string;
 }
 
 export class CreateCoachDto {
@@ -60,6 +117,12 @@ export class CreateCoachDto {
   @IsArray()
   @IsString({ each: true })
   sportIds?: string[];
+
+  @ApiPropertyOptional({ type: CoachProfileDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CoachProfileDto)
+  profile?: CoachProfileDto;
 }
 
 export class UpdateCoachDto {
@@ -108,7 +171,25 @@ export class UpdateCoachDto {
   @IsArray()
   @IsString({ each: true })
   sportIds?: string[];
+
+  @ApiPropertyOptional({ type: CoachProfileDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CoachProfileDto)
+  profile?: CoachProfileDto;
 }
+
+const VENUE_COACH_INCLUDE = {
+  user: {
+    select: {
+      id: true, name: true, phone: true, email: true, photoUrl: true,
+      coachSports: { include: { sport: { select: { id: true, name: true, icon: true } } } },
+      coachBatches: { include: { batch: { select: { id: true, name: true, sport: { select: { id: true, name: true } } } } } },
+    },
+  },
+  venue: { select: { id: true, name: true } },
+  coachProfile: true,
+};
 
 @Injectable()
 export class CoachesService {
@@ -205,7 +286,7 @@ export class CoachesService {
   // ── Venue-scoped coach CRUD ──────────────────────────────────────────────
 
   private mapOrgUser(orgUser: any) {
-    const { user, venue, isActive, locationCity, ...rest } = orgUser;
+    const { user, venue, isActive, locationCity, coachProfile, ...rest } = orgUser;
     return {
       ...rest,
       userId: user.id,
@@ -222,43 +303,14 @@ export class CoachesService {
         isPrimary: bc.isPrimary,
         ...bc.batch,
       })),
+      profile: coachProfile ?? null,
     };
   }
 
   async findByVenue(organizationId: string, venueId: string) {
     const orgUsers = await this.prisma.organizationUser.findMany({
       where: { organizationId, venueId, role: UserRole.COACH, isActive: true },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            phone: true,
-            email: true,
-            photoUrl: true,
-            coachSports: {
-              include: { sport: { select: { id: true, name: true, icon: true } } },
-            },
-            coachBatches: {
-              include: {
-                batch: {
-                  select: {
-                    id: true,
-                    name: true,
-                    sport: { select: { id: true, name: true } },
-                    venue: { select: { id: true, name: true } },
-                    startTime: true,
-                    endTime: true,
-                    days: true,
-                    isActive: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-        venue: { select: { id: true, name: true } },
-      },
+      include: VENUE_COACH_INCLUDE,
       orderBy: { createdAt: 'desc' },
     });
 
@@ -266,14 +318,12 @@ export class CoachesService {
   }
 
   async createCoach(organizationId: string, venueId: string, dto: CreateCoachDto) {
-    // Verify venue belongs to org
     const venue = await this.prisma.venue.findFirst({
       where: { id: venueId, organizationId },
     });
     if (!venue) throw new NotFoundException('Venue not found');
 
     dto.phone = normalizePhone(dto.phone);
-    // Find or create the underlying user
     let user = await this.prisma.user.findUnique({ where: { phone: dto.phone } });
     if (!user) {
       user = await this.prisma.user.create({
@@ -286,7 +336,6 @@ export class CoachesService {
       });
     }
 
-    // Check for existing active coach membership at this venue
     const existing = await this.prisma.organizationUser.findFirst({
       where: { userId: user.id, organizationId, venueId, role: UserRole.COACH, isActive: true },
     });
@@ -305,16 +354,7 @@ export class CoachesService {
         ...(dto.city !== undefined ? { locationCity: dto.city } : {}),
         ...(dto.region !== undefined ? { region: dto.region } : {}),
       },
-      include: {
-        user: {
-          select: {
-            id: true, name: true, phone: true, email: true, photoUrl: true,
-            coachSports: { include: { sport: { select: { id: true, name: true, icon: true } } } },
-            coachBatches: { include: { batch: { select: { id: true, name: true, sport: { select: { id: true, name: true } } } } } },
-          },
-        },
-        venue: { select: { id: true, name: true } },
-      },
+      include: VENUE_COACH_INCLUDE,
     });
 
     if (dto.sportIds && dto.sportIds.length > 0) {
@@ -322,24 +362,30 @@ export class CoachesService {
         data: dto.sportIds.map((sportId) => ({ coachId: user.id, sportId })),
         skipDuplicates: true,
       });
-      // Re-fetch to get the sports included
-      const refreshed = await this.prisma.organizationUser.findFirst({
-        where: { id: orgUser.id },
-        include: {
-          user: {
-            select: {
-              id: true, name: true, phone: true, email: true, photoUrl: true,
-              coachSports: { include: { sport: { select: { id: true, name: true, icon: true } } } },
-              coachBatches: { include: { batch: { select: { id: true, name: true, sport: { select: { id: true, name: true } } } } } },
-            },
-          },
-          venue: { select: { id: true, name: true } },
-        },
-      });
-      return this.mapOrgUser(refreshed);
     }
 
-    return this.mapOrgUser(orgUser);
+    if (dto.profile) {
+      await this.prisma.coachProfile.create({
+        data: {
+          orgUserId: orgUser.id,
+          educationDetails: (dto.profile.educationDetails ?? []) as any,
+          sportSpecialization: dto.profile.sportSpecialization,
+          playingLevels: dto.profile.playingLevels ?? [],
+          achievements: dto.profile.achievements,
+          coachingExperience: (dto.profile.coachingExperience ?? []) as any,
+          keySkills: dto.profile.keySkills ?? [],
+          responsibilities: dto.profile.responsibilities ?? [],
+          expectedSalary: dto.profile.expectedSalary,
+          joiningAvailability: dto.profile.joiningAvailability,
+        },
+      });
+    }
+
+    const refreshed = await this.prisma.organizationUser.findFirst({
+      where: { id: orgUser.id },
+      include: VENUE_COACH_INCLUDE,
+    });
+    return this.mapOrgUser(refreshed);
   }
 
   async updateCoach(organizationId: string, venueId: string, orgUserId: string, dto: UpdateCoachDto) {
@@ -348,7 +394,6 @@ export class CoachesService {
     });
     if (!orgUser) throw new NotFoundException('Coach not found');
 
-    // Update user fields
     const userUpdate: any = {};
     if (dto.name !== undefined) userUpdate.name = dto.name;
     if (dto.phone !== undefined) userUpdate.phone = normalizePhone(dto.phone);
@@ -357,7 +402,6 @@ export class CoachesService {
       await this.prisma.user.update({ where: { id: orgUser.userId }, data: userUpdate });
     }
 
-    // Update org user fields
     const orgUserUpdate: any = {};
     if (dto.status !== undefined) orgUserUpdate.isActive = dto.status === 'ACTIVE';
     if (dto.state !== undefined) orgUserUpdate.state = dto.state;
@@ -378,18 +422,38 @@ export class CoachesService {
       }
     }
 
+    if (dto.profile !== undefined) {
+      await this.prisma.coachProfile.upsert({
+        where: { orgUserId },
+        create: {
+          orgUserId,
+          educationDetails: (dto.profile.educationDetails ?? []) as any,
+          sportSpecialization: dto.profile.sportSpecialization,
+          playingLevels: dto.profile.playingLevels ?? [],
+          achievements: dto.profile.achievements,
+          coachingExperience: (dto.profile.coachingExperience ?? []) as any,
+          keySkills: dto.profile.keySkills ?? [],
+          responsibilities: dto.profile.responsibilities ?? [],
+          expectedSalary: dto.profile.expectedSalary,
+          joiningAvailability: dto.profile.joiningAvailability,
+        },
+        update: {
+          ...(dto.profile.educationDetails !== undefined ? { educationDetails: dto.profile.educationDetails as any } : {}),
+          ...(dto.profile.sportSpecialization !== undefined ? { sportSpecialization: dto.profile.sportSpecialization } : {}),
+          ...(dto.profile.playingLevels !== undefined ? { playingLevels: dto.profile.playingLevels } : {}),
+          ...(dto.profile.achievements !== undefined ? { achievements: dto.profile.achievements } : {}),
+          ...(dto.profile.coachingExperience !== undefined ? { coachingExperience: dto.profile.coachingExperience as any } : {}),
+          ...(dto.profile.keySkills !== undefined ? { keySkills: dto.profile.keySkills } : {}),
+          ...(dto.profile.responsibilities !== undefined ? { responsibilities: dto.profile.responsibilities } : {}),
+          ...(dto.profile.expectedSalary !== undefined ? { expectedSalary: dto.profile.expectedSalary } : {}),
+          ...(dto.profile.joiningAvailability !== undefined ? { joiningAvailability: dto.profile.joiningAvailability } : {}),
+        },
+      });
+    }
+
     const updated = await this.prisma.organizationUser.findFirst({
       where: { id: orgUserId },
-      include: {
-        user: {
-          select: {
-            id: true, name: true, phone: true, email: true, photoUrl: true,
-            coachSports: { include: { sport: { select: { id: true, name: true, icon: true } } } },
-            coachBatches: { include: { batch: { select: { id: true, name: true, sport: { select: { id: true, name: true } } } } } },
-          },
-        },
-        venue: { select: { id: true, name: true } },
-      },
+      include: VENUE_COACH_INCLUDE,
     });
 
     return this.mapOrgUser(updated);
@@ -410,14 +474,12 @@ export class CoachesService {
   }
 
   async assignToBatch(organizationId: string, orgUserId: string, dto: AssignCoachDto) {
-    // Resolve org user → user
     const orgUser = await this.prisma.organizationUser.findFirst({
       where: { id: orgUserId, organizationId, role: UserRole.COACH, isActive: true },
       select: { userId: true },
     });
     if (!orgUser) throw new NotFoundException('Coach not found');
 
-    // Verify batch belongs to this org
     const batch = await this.prisma.batch.findFirst({
       where: { id: dto.batchId, venue: { organizationId } },
     });

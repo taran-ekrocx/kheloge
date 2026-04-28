@@ -269,9 +269,30 @@ model OrganizationUser {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   city           City?        @relation(fields: [cityId], references: [id])
   venue          Venue?       @relation(fields: [venueId], references: [id])
+  coachProfile   CoachProfile?
 
   @@unique([userId, organizationId, venueId, role])
   @@map("organization_users")
+}
+
+model CoachProfile {
+  id                  String   @id @default(cuid())
+  orgUserId           String   @unique
+  educationDetails    Json?
+  sportSpecialization String?
+  playingLevels       String[]
+  achievements        String?
+  coachingExperience  Json?
+  keySkills           String[]
+  responsibilities    String[]
+  expectedSalary      String?
+  joiningAvailability String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  orgUser             OrganizationUser @relation(fields: [orgUserId], references: [id], onDelete: Cascade)
+
+  @@map("coach_profiles")
 }
 
 // ─────────────────────────────────────────────
