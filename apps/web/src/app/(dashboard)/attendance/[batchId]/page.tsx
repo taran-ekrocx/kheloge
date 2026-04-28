@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { Check, X, Clock, Save, ArrowLeft, Play, Square } from 'lucide-react';
+import { Save, ArrowLeft, Play, Square } from 'lucide-react';
 import Link from 'next/link';
 import dayjs from 'dayjs';
 
@@ -151,35 +151,16 @@ export default function AttendancePage() {
                   <p className="font-medium text-gray-900 text-sm">{s.name}</p>
                   <p className="text-xs text-gray-400">{s.phone}</p>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setStatus(s.id, 'PRESENT')}
-                    className={`p-2 rounded-lg transition-colors ${
-                      status === 'PRESENT' ? 'bg-green-100 text-green-700' : 'text-gray-300 hover:text-green-500'
-                    }`}
-                    title="Present"
-                  >
-                    <Check size={18} />
-                  </button>
-                  <button
-                    onClick={() => setStatus(s.id, 'LATE')}
-                    className={`p-2 rounded-lg transition-colors ${
-                      status === 'LATE' ? 'bg-yellow-100 text-yellow-700' : 'text-gray-300 hover:text-yellow-500'
-                    }`}
-                    title="Late"
-                  >
-                    <Clock size={18} />
-                  </button>
-                  <button
-                    onClick={() => setStatus(s.id, 'ABSENT')}
-                    className={`p-2 rounded-lg transition-colors ${
-                      status === 'ABSENT' ? 'bg-red-100 text-red-700' : 'text-gray-300 hover:text-red-500'
-                    }`}
-                    title="Absent"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
+                <button
+                  onClick={() => setStatus(s.id, status === 'PRESENT' ? 'ABSENT' : 'PRESENT')}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                    status === 'PRESENT'
+                      ? 'bg-green-100 text-green-700 border border-green-300'
+                      : 'bg-red-100 text-red-700 border border-red-300'
+                  }`}
+                >
+                  {status === 'PRESENT' ? 'Present' : 'Absent'}
+                </button>
               </div>
             );
           })
