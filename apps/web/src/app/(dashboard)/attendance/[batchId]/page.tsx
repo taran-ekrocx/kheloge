@@ -21,6 +21,7 @@ export default function AttendancePage() {
   const today = dayjs().format('YYYY-MM-DD');
   const [records, setRecords] = useState<Record<string, AttendanceStatus>>({});
   const [saved, setSaved] = useState(false);
+  const [savedStatuses, setSavedStatuses] = useState<Record<string, AttendanceStatus>>({});
 
   const { data: batch } = useQuery({
     queryKey: ['batch', batchId],
@@ -66,6 +67,7 @@ export default function AttendancePage() {
       }),
     onSuccess: () => {
       setSaved(true);
+      setSavedStatuses({ ...records });
       queryClient.invalidateQueries({ queryKey: ['attendance', batchId] });
     },
   });
@@ -139,6 +141,12 @@ export default function AttendancePage() {
         </div>
       </div>
 
+      {sessionEnded && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm px-4 py-2 rounded-md">
+          Session has ended — attendance is locked.
+        </div>
+      )}
+
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 divide-y divide-gray-50">
         {students.length === 0 ? (
           <div className="p-8 text-center text-gray-400">No students enrolled in this batch.</div>
@@ -148,12 +156,24 @@ export default function AttendancePage() {
             return (
               <div key={s.id} className="flex items-center justify-between px-4 py-3">
                 <div>
-                  <p className="font-medium text-gray-900 text-sm">{s.name}</p>
+                  <p className="font-medium text-gray-900 text-sm">
+                    {s.name}
+                    {savedStatuses[s.id] && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full ml-2 ${
+                        savedStatuses[s.id] === 'PRESENT'
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-red-100 text-red-700'
+                      }`}>
+                        {savedStatuses[s.id] === 'PRESENT' ? 'Present' : 'Absent'}
+                      </span>
+                    )}
+                  </p>
                   <p className="text-xs text-gray-400">{s.phone}</p>
                 </div>
                 <button
                   onClick={() => setStatus(s.id, status === 'PRESENT' ? 'ABSENT' : 'PRESENT')}
-                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                  disabled={!!sessionEnded}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                     status === 'PRESENT'
                       ? 'bg-green-100 text-green-700 border border-green-300'
                       : 'bg-red-100 text-red-700 border border-red-300'
@@ -169,7 +189,7 @@ export default function AttendancePage() {
 
       <button
         onClick={() => markMutation.mutate()}
-        disabled={markMutation.isPending || students.length === 0}
+        disabled={markMutation.isPending || students.length === 0 || !!sessionEnded}
         className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-medium text-sm transition-colors ${
           saved ? 'bg-green-600 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'
         } disabled:opacity-50`}
