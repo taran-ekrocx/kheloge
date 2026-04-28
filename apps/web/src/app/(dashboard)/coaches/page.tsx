@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
-import { Search, UserPlus, Filter, X, Edit2, Trash2, User, Plus, Minus } from 'lucide-react';
+import { Search, UserPlus, Filter, X, Edit2, Trash2, User, Plus } from 'lucide-react';
 import { STATE_NAMES, getDistricts, getCities } from '@/lib/india-locations';
 
 const COACH_STEP_LABELS = [
@@ -215,7 +215,30 @@ function CoachModal({
     const next: Record<string, string> = {};
     if (step === 1) {
       if (!form.name.trim()) next.name = 'Full name is required';
-      if (!form.phone.trim()) next.phone = 'Mobile number is required';
+      if (!form.phone.trim()) {
+        next.phone = 'Mobile number is required';
+      } else if (!/^\d{10}$/.test(form.phone.replace(/\s/g, ''))) {
+        next.phone = 'Enter a valid 10-digit mobile number';
+      }
+      if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+        next.email = 'Enter a valid email address';
+      }
+    }
+    if (step === 2) {
+      form.profile.educationDetails.forEach((edu, i) => {
+        const hasAnyData = edu.institute || edu.year || edu.sportsCertifications || edu.remarks;
+        if (hasAnyData && !edu.qualification.trim()) {
+          next[`edu_${i}_qualification`] = 'Qualification is required when other fields are filled';
+        }
+      });
+    }
+    if (step === 4) {
+      form.profile.coachingExperience.forEach((exp, i) => {
+        const hasAnyData = exp.role || exp.duration || exp.responsibilities;
+        if (hasAnyData && !exp.organization.trim()) {
+          next[`exp_${i}_organization`] = 'Organization is required when other fields are filled';
+        }
+      });
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -292,13 +315,16 @@ function CoachModal({
               />
               {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
             </div>
-            <input
-              type="email"
-              placeholder="Email"
-              value={form.email}
-              onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))}
-              className={inputCls}
-            />
+            <div>
+              <input
+                type="email"
+                placeholder="Email"
+                value={form.email}
+                onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))}
+                className={`${inputCls}${errors.email ? ' border-red-400' : ''}`}
+              />
+              {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
+            </div>
             <select
               value={form.status}
               onChange={(e) => setForm(f => ({ ...f, status: e.target.value }))}
@@ -377,18 +403,30 @@ function CoachModal({
           <div className="space-y-4">
             <p className="text-xs text-gray-500">Add educational qualifications and certifications (optional)</p>
             {form.profile.educationDetails.map((edu, i) => (
-              <div key={i} className="border rounded-lg p-3 space-y-2 relative">
-                {form.profile.educationDetails.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeEdu(i)}
-                    className="absolute top-2 right-2 text-gray-400 hover:text-red-500"
-                  >
-                    <Minus size={14} />
-                  </button>
-                )}
-                <p className="text-xs font-medium text-gray-600">Entry {i + 1}</p>
-                <input placeholder="Qualification" value={edu.qualification} onChange={(e) => updateEdu(i, 'qualification', e.target.value)} className={inputCls} />
+              <div key={i} className="border rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-gray-600">Entry {i + 1}</p>
+                  {form.profile.educationDetails.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeEdu(i)}
+                      className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium"
+                    >
+                      <Trash2 size={12} /> Remove Entry
+                    </button>
+                  )}
+                </div>
+                <div>
+                  <input
+                    placeholder="Qualification *"
+                    value={edu.qualification}
+                    onChange={(e) => updateEdu(i, 'qualification', e.target.value)}
+                    className={`${inputCls}${errors[`edu_${i}_qualification`] ? ' border-red-400' : ''}`}
+                  />
+                  {errors[`edu_${i}_qualification`] && (
+                    <p className="text-red-500 text-xs mt-1">{errors[`edu_${i}_qualification`]}</p>
+                  )}
+                </div>
                 <input placeholder="Institute / Board" value={edu.institute} onChange={(e) => updateEdu(i, 'institute', e.target.value)} className={inputCls} />
                 <div className="grid grid-cols-2 gap-2">
                   <input placeholder="Year" value={edu.year} onChange={(e) => updateEdu(i, 'year', e.target.value)} className={inputCls} />
@@ -457,18 +495,30 @@ function CoachModal({
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Coaching Experience</p>
               {form.profile.coachingExperience.map((exp, i) => (
-                <div key={i} className="border rounded-lg p-3 space-y-2 relative mb-3">
-                  {form.profile.coachingExperience.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeExp(i)}
-                      className="absolute top-2 right-2 text-gray-400 hover:text-red-500"
-                    >
-                      <Minus size={14} />
-                    </button>
-                  )}
-                  <p className="text-xs font-medium text-gray-600">Experience {i + 1}</p>
-                  <input placeholder="Organization / Academy" value={exp.organization} onChange={(e) => updateExp(i, 'organization', e.target.value)} className={inputCls} />
+                <div key={i} className="border rounded-lg p-3 space-y-2 mb-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-gray-600">Experience {i + 1}</p>
+                    {form.profile.coachingExperience.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeExp(i)}
+                        className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium"
+                      >
+                        <Trash2 size={12} /> Remove Experience
+                      </button>
+                    )}
+                  </div>
+                  <div>
+                    <input
+                      placeholder="Organization / Academy *"
+                      value={exp.organization}
+                      onChange={(e) => updateExp(i, 'organization', e.target.value)}
+                      className={`${inputCls}${errors[`exp_${i}_organization`] ? ' border-red-400' : ''}`}
+                    />
+                    {errors[`exp_${i}_organization`] && (
+                      <p className="text-red-500 text-xs mt-1">{errors[`exp_${i}_organization`]}</p>
+                    )}
+                  </div>
                   <div className="grid grid-cols-2 gap-2">
                     <input placeholder="Role" value={exp.role} onChange={(e) => updateExp(i, 'role', e.target.value)} className={inputCls} />
                     <input placeholder="Duration" value={exp.duration} onChange={(e) => updateExp(i, 'duration', e.target.value)} className={inputCls} />
@@ -515,19 +565,14 @@ function CoachModal({
           <div className="space-y-4">
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Responsibilities to Handle</p>
-              <div className="space-y-1.5">
+              <ul className="space-y-2">
                 {RESPONSIBILITIES.map((r) => (
-                  <label key={r} className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={form.profile.responsibilities.includes(r)}
-                      onChange={() => toggleCheckbox('responsibilities', r)}
-                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-gray-700">{r}</span>
-                  </label>
+                  <li key={r} className="flex items-start gap-2 text-sm text-gray-700">
+                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />
+                    {r}
+                  </li>
                 ))}
-              </div>
+              </ul>
             </div>
 
             <div className="border-t pt-3 space-y-2">
