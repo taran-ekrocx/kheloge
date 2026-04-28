@@ -215,6 +215,28 @@ export class AttendanceService {
     });
   }
 
+  async getActiveSession(batchId: string) {
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    return this.prisma.attendanceSession.findFirst({
+      where: { batchId, date: today, endedAt: null },
+      include: {
+        batch: {
+          include: {
+            sport: { select: { id: true, name: true } },
+            enrollments: {
+              where: { isActive: true },
+              include: {
+                student: { select: { id: true, name: true, photoUrl: true, phone: true } },
+              },
+            },
+          },
+        },
+        coach: { select: { id: true, name: true } },
+      },
+    });
+  }
+
   async getSessionsForBatch(batchId: string, date?: string) {
     const where: any = { batchId };
     if (date) {

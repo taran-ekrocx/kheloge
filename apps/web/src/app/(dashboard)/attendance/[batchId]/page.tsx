@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useParams, useSearchParams } from 'next/navigation';
@@ -22,17 +22,40 @@ export default function AttendancePage() {
   const [records, setRecords] = useState<Record<string, AttendanceStatus>>({});
   const [saved, setSaved] = useState(false);
   const [savedStatuses, setSavedStatuses] = useState<Record<string, AttendanceStatus>>({});
+  const [elapsed, setElapsed] = useState('');
 
   const { data: batch } = useQuery({
     queryKey: ['batch', batchId],
     queryFn: () => api.get(`/batches/${batchId}`).then(r => r.data),
   });
 
-  const { data: session } = useQuery({
+  const { data: sessionFromParam } = useQuery({
     queryKey: ['attendance-session', sessionId],
     queryFn: () => api.get(`/attendance/sessions/${sessionId}`).then(r => r.data),
     enabled: !!sessionId,
   });
+
+  const { data: activeSession } = useQuery({
+    queryKey: ['attendance-active-session', batchId],
+    queryFn: () => api.get(`/attendance/sessions/active?batchId=${batchId}`).then(r => r.data),
+    enabled: !sessionId,
+  });
+
+  const session = sessionFromParam ?? activeSession ?? null;
+
+  useEffect(() => {
+    if (!session || session.endedAt) return;
+    const update = () => {
+      const diffMs = Date.now() - new Date(session.startedAt).getTime();
+      const totalSec = Math.floor(diffMs / 1000);
+      const m = Math.floor(totalSec / 60);
+      const s = totalSec % 60;
+      setElapsed(m + 'm ' + s.toString().padStart(2, '0') + 's');
+    };
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [session]);
 
   const { data: existing = [] } = useQuery({
     queryKey: ['attendance', batchId, today],
@@ -73,9 +96,10 @@ export default function AttendancePage() {
   });
 
   const endSessionMutation = useMutation({
-    mutationFn: () => api.patch(`/attendance/sessions/${sessionId}/end`).then(r => r.data),
+    mutationFn: () => api.patch(`/attendance/sessions/${session?.id}/end`).then(r => r.data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['attendance-session', sessionId] });
+      queryClient.invalidateQueries({ queryKey: ['attendance-active-session', batchId] });
     },
   });
 
@@ -109,6 +133,9 @@ export default function AttendancePage() {
                 <Play size={14} className="text-green-600" />
                 <span className="text-green-700 font-medium">
                   Session active · Started {dayjs(session.startedAt).format('h:mm A')}
+                  {elapsed && (
+                    <span className="ml-1 text-green-600 font-normal">(running {elapsed})</span>
+                  )}
                 </span>
               </>
             )}
