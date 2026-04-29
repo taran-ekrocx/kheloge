@@ -6,6 +6,7 @@ interface AuthState {
   role: string | null;
   userId: string | null;
   orgId: string | null;
+  name: string | null;
 }
 
 function decodeJwt(token: string): Record<string, unknown> | null {
@@ -19,7 +20,7 @@ function decodeJwt(token: string): Record<string, unknown> | null {
 }
 
 export function useAuth(): AuthState {
-  const [auth, setAuth] = useState<AuthState>({ role: null, userId: null, orgId: null });
+  const [auth, setAuth] = useState<AuthState>({ role: null, userId: null, orgId: null, name: null });
 
   useEffect(() => {
     const token = localStorage.getItem('kheloge_access_token');
@@ -30,6 +31,7 @@ export function useAuth(): AuthState {
         role: (payload.role as string) || null,
         userId: (payload.sub as string) || null,
         orgId: (payload.orgId as string) || null,
+        name: (payload.name as string) || null,
       });
     }
   }, []);

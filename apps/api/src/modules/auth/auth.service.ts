@@ -50,6 +50,7 @@ export class AuthService {
       sub: user.id,
       orgId: org.id,
       role: orgUser.role,
+      name: user.name,
       venueId: orgUser.venueId || undefined,
       cityId: orgUser.cityId || undefined,
     });
@@ -78,6 +79,7 @@ export class AuthService {
       sub: user.id,
       orgId: org.id,
       role: orgUser.role,
+      name: user.name,
       venueId: orgUser.venueId || undefined,
       cityId: orgUser.cityId || undefined,
     });

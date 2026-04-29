@@ -8,6 +8,7 @@ export interface JwtPayload {
   sub: string;       // userId
   orgId: string;     // organizationId
   role: string;      // UserRole
+  name?: string;     // display name
   venueId?: string;  // scoped venue
   cityId?: string;   // scoped city
   iat?: number;

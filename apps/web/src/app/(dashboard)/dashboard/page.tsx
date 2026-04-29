@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
+import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import {
   Users, Calendar, CreditCard, AlertCircle,
@@ -68,6 +69,7 @@ function StatCard({
 
 export default function DashboardPage() {
   const { venueId } = useVenue();
+  const { name } = useAuth();
   const router = useRouter();
 
   const { data: kpi, isLoading } = useQuery<KpiData>({
@@ -105,7 +107,9 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
+          <h2 className="text-2xl font-bold text-gray-900">
+            {name ? `Welcome, ${name}` : 'Dashboard'}
+          </h2>
           <p className="text-gray-500 text-sm mt-0.5">Overview for current venue</p>
         </div>
       </div>
