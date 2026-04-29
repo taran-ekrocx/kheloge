@@ -16,7 +16,7 @@ import {
 
 const NAV_OPERATIONS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/students', label: 'Students', icon: Users },
+  { href: '/students', label: 'Students', icon: Users, hideForCoach: true },
   { href: '/batches', label: 'Batches', icon: Calendar },
   { href: '/coaches', label: 'Coaches', icon: UserCheck, hideForCoach: true },
   { href: '/attendance', label: 'Attendance', icon: CheckSquare },
@@ -33,7 +33,7 @@ const NAV_ADMIN = [
   { href: '/users', label: 'Team', icon: UsersRound },
 ];
 
-function VenueSelector() {
+function VenueSelector({ isCoach }: { isCoach?: boolean }) {
   const { venueId, selectVenue } = useVenue();
 
   const { data: venues = [] } = useQuery<{ id: string; name: string }[]>({
@@ -49,7 +49,7 @@ function VenueSelector() {
     }
   }, [venueId, venues, selectVenue]);
 
-  if (venues.length <= 1) return null;
+  if (isCoach || venues.length <= 1) return null;
 
   return (
     <div className="px-3 pb-3">
@@ -108,7 +108,7 @@ export function Sidebar() {
         <p className="text-xs text-gray-400 mt-0.5">Sports Management</p>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-4 overflow-y-auto">
-        <VenueSelector />
+        <VenueSelector isCoach={isCoach} />
         <NavGroup label="Operations" items={NAV_OPERATIONS} isCoach={isCoach} />
         {!isCoach && <NavGroup label="Administration" items={NAV_ADMIN} />}
       </nav>

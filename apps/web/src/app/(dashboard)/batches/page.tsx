@@ -28,6 +28,7 @@ interface Batch {
   startDate?: string | null;
   endDate?: string | null;
   sport: { id: string; name: string };
+  venue: { id: string; name: string };
   coaches: { id: string; name: string }[];
   _count: { enrollments: number };
 }
@@ -254,9 +255,11 @@ export default function BatchesPage() {
   const [startingSession, setStartingSession] = useState<string | null>(null);
 
   const { data: batches = [], isLoading } = useQuery<Batch[]>({
-    queryKey: ['batches', venueId],
-    queryFn: () => api.get(`/venues/${venueId}/batches`).then(r => r.data),
-    enabled: !!venueId,
+    queryKey: isCoach ? ['batches-all-coach'] : ['batches', venueId],
+    queryFn: isCoach
+      ? () => api.get('/batches?status=active').then(r => r.data)
+      : () => api.get(`/venues/${venueId}/batches`).then(r => r.data),
+    enabled: isCoach ? true : !!venueId,
   });
 
   const { data: sports = [] } = useQuery<Sport[]>({
@@ -362,10 +365,20 @@ export default function BatchesPage() {
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Batch</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Sport</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Coach</th>
+                {isCoach ? (
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Venue</th>
+                ) : (
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Coach</th>
+                )}
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Schedule</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Capacity</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
+                {isCoach ? (
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Attendees</th>
+                ) : (
+                  <>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Capacity</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
+                  </>
+                )}
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -378,17 +391,27 @@ export default function BatchesPage() {
                       {b.sport?.name || '—'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{b.coaches?.length ? b.coaches.map(c => c.name).join(', ') : '—'}</td>
+                  {isCoach ? (
+                    <td className="px-4 py-3 text-gray-600">{b.venue?.name || '—'}</td>
+                  ) : (
+                    <td className="px-4 py-3 text-gray-600">{b.coaches?.length ? b.coaches.map(c => c.name).join(', ') : '—'}</td>
+                  )}
                   <td className="px-4 py-3 text-gray-600">
                     <div>{b.startTime} – {b.endTime}</div>
                     <div className="text-xs text-gray-400">{b.days?.map(d => DAY_SHORT[d] || d).join(', ')}</div>
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{b._count?.enrollments || 0}/{b.capacity}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[b.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                      {STATUS_LABELS[b.status] ?? b.status ?? 'Active'}
-                    </span>
-                  </td>
+                  {isCoach ? (
+                    <td className="px-4 py-3 text-gray-600">{b._count?.enrollments || 0}</td>
+                  ) : (
+                    <>
+                      <td className="px-4 py-3 text-gray-600">{b._count?.enrollments || 0}/{b.capacity}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[b.status] ?? 'bg-gray-100 text-gray-600'}`}>
+                          {STATUS_LABELS[b.status] ?? b.status ?? 'Active'}
+                        </span>
+                      </td>
+                    </>
+                  )}
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 justify-end">
                       {isCoach ? (

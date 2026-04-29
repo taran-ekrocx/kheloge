@@ -28,6 +28,7 @@ interface Batch {
   endTime: string;
   days: string[];
   sport: { name: string };
+  venue: { id: string; name: string };
   _count: { enrollments: number };
 }
 
@@ -83,9 +84,11 @@ export default function AttendanceIndexPage() {
   const [filterCoachId, setFilterCoachId] = useState<string>('');
 
   const { data: batches = [], isLoading } = useQuery<Batch[]>({
-    queryKey: ['batches', venueId],
-    queryFn: () => api.get(`/venues/${venueId}/batches`).then(r => r.data),
-    enabled: !!venueId,
+    queryKey: isCoach ? ['batches-all-coach'] : ['batches', venueId],
+    queryFn: isCoach
+      ? () => api.get('/batches?status=active').then(r => r.data)
+      : () => api.get(`/venues/${venueId}/batches`).then(r => r.data),
+    enabled: isCoach ? true : !!venueId,
   });
 
   const { data: myActiveSession } = useQuery<ActiveSession | null>({
@@ -251,7 +254,9 @@ export default function AttendanceIndexPage() {
             >
               <option value="">Choose a batch...</option>
               {batches.map(b => (
-                <option key={b.id} value={b.id}>{b.name} · {b.sport?.name}</option>
+                <option key={b.id} value={b.id}>
+                  {b.name} · {b.sport?.name}{b.venue?.name ? ` · ${b.venue.name}` : ''}
+                </option>
               ))}
             </select>
           </div>
@@ -469,6 +474,11 @@ function BatchRow({
               {batch._count?.enrollments || 0} students
             </span>
             <span>{batch.sport?.name}</span>
+            {isCoach && batch.venue?.name && (
+              <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-medium">
+                {batch.venue.name}
+              </span>
+            )}
           </div>
         </div>
       </div>

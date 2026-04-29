@@ -6,6 +6,15 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { BatchesService, CreateBatchDto, UpdateBatchDto } from './batches.service';
 
+function mapBatch(b: any) {
+  return {
+    ...b,
+    coaches: b.coaches?.map((bc: any) => bc.coach) ?? [],
+    fee: b.feePlans?.[0]?.amount ?? null,
+    status: b.isActive === false ? 'INACTIVE' : 'ACTIVE',
+  };
+}
+
 @ApiTags('batches')
 @ApiBearerAuth()
 @UseGuards(AuthGuard('jwt'), RolesGuard)
@@ -19,7 +28,7 @@ export class BatchesController {
   @ApiQuery({ name: 'venueId', required: false })
   @ApiQuery({ name: 'coachId', required: false })
   @ApiQuery({ name: 'status', required: false, enum: ['active', 'inactive'] })
-  findAll(
+  async findAll(
     @Request() req,
     @Query('sportId') sportId?: string,
     @Query('venueId') venueId?: string,
@@ -28,7 +37,8 @@ export class BatchesController {
   ) {
     // Coaches only see their own assigned batches
     const effectiveCoachId = req.user.role === UserRole.COACH ? req.user.id : coachId;
-    return this.batches.findAll(req.user.orgId, { sportId, venueId, coachId: effectiveCoachId, status });
+    const batches = await this.batches.findAll(req.user.orgId, { sportId, venueId, coachId: effectiveCoachId, status });
+    return batches.map(mapBatch);
   }
 
   @Get(':id')
