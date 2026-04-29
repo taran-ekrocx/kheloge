@@ -277,6 +277,43 @@ export class AttendanceService {
     });
   }
 
+  async getAllSessions(venueId?: string, coachId?: string) {
+    const where: any = { endedAt: { not: null } };
+    if (venueId) {
+      where.batch = { venueId };
+    }
+    if (coachId) {
+      where.coachId = coachId;
+    }
+
+    const sessions = await this.prisma.attendanceSession.findMany({
+      where,
+      include: {
+        coach: { select: { id: true, name: true } },
+        batch: { select: { id: true, name: true, sport: { select: { name: true } } } },
+        coachAttendance: { select: { status: true } },
+        _count: { select: { attendances: true } },
+      },
+      orderBy: { startedAt: 'desc' },
+      take: 200,
+    });
+
+    const enriched = await Promise.all(
+      sessions.map(async (s) => {
+        const stats = await this.prisma.attendance.groupBy({
+          by: ['status'],
+          where: { sessionId: s.id },
+          _count: true,
+        });
+        const presentCount = stats.find((x) => x.status === AttendanceStatus.PRESENT)?._count ?? 0;
+        const totalCount = stats.reduce((acc, x) => acc + x._count, 0);
+        return { ...s, attendanceStats: { total: totalCount, present: presentCount, absent: totalCount - presentCount } };
+      }),
+    );
+
+    return enriched;
+  }
+
   async getSessionsForBatch(batchId: string, date?: string) {
     const where: any = { batchId };
     if (date) {

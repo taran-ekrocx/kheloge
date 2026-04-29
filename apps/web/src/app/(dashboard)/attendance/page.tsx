@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
 import { useAuth } from '@/hooks/useAuth';
-import { Calendar, Clock, Users, ChevronRight, Play } from 'lucide-react';
+import { Calendar, Clock, Users, ChevronRight, Play, ChevronDown, ChevronUp } from 'lucide-react';
 import Link from 'next/link';
 import dayjs from 'dayjs';
 
@@ -19,6 +19,8 @@ const TODAY_DOW = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRID
   new Date().getDay()
 ];
 
+type Tab = 'today' | 'history';
+
 interface Batch {
   id: string;
   name: string;
@@ -29,18 +31,49 @@ interface Batch {
   _count: { enrollments: number };
 }
 
+interface Coach {
+  id: string;
+  name: string;
+}
+
 interface ActiveSession {
   id: string;
   batchId: string;
   batch: { name: string };
 }
 
+interface SessionHistoryItem {
+  id: string;
+  date: string;
+  startedAt: string;
+  endedAt: string | null;
+  coach: { id: string; name: string };
+  coachAttendance: { status: string } | null;
+  attendanceStats: { total: number; present: number; absent: number };
+}
+
+interface AdminSessionHistoryItem extends SessionHistoryItem {
+  batch: { id: string; name: string; sport: { name: string } };
+}
+
+interface SessionAttendanceRecord {
+  id: string;
+  studentId: string;
+  status: 'PRESENT' | 'ABSENT' | 'LATE';
+  student: { id: string; name: string; photoUrl: string | null };
+}
+
 export default function AttendanceIndexPage() {
   const { venueId } = useVenue();
   const { role } = useAuth();
   const isCoach = role === 'COACH';
+  const isAdmin = ['SUPER_ADMIN', 'CITY_MANAGER', 'VENUE_MANAGER'].includes(role || '');
   const router = useRouter();
   const [startingSession, setStartingSession] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>('today');
+  const [historyBatchId, setHistoryBatchId] = useState<string | null>(null);
+  const [expandedSession, setExpandedSession] = useState<string | null>(null);
+  const [filterCoachId, setFilterCoachId] = useState<string>('');
 
   const { data: batches = [], isLoading } = useQuery<Batch[]>({
     queryKey: ['batches', venueId],
@@ -55,6 +88,35 @@ export default function AttendanceIndexPage() {
     refetchInterval: 30000,
   });
 
+  const { data: sessionHistory = [] } = useQuery<SessionHistoryItem[]>({
+    queryKey: ['session-history', historyBatchId],
+    queryFn: () => api.get(`/attendance/batches/${historyBatchId}/sessions`).then(r => r.data),
+    enabled: !!historyBatchId && tab === 'history' && isCoach,
+  });
+
+  const { data: coaches = [] } = useQuery<Coach[]>({
+    queryKey: ['coaches'],
+    queryFn: () => api.get('/coaches').then(r => r.data),
+    enabled: isAdmin && tab === 'history',
+  });
+
+  const { data: adminSessionHistory = [] } = useQuery<AdminSessionHistoryItem[]>({
+    queryKey: ['admin-session-history', venueId, filterCoachId],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (venueId) params.set('venueId', venueId);
+      if (filterCoachId) params.set('coachId', filterCoachId);
+      return api.get(`/attendance/sessions?${params.toString()}`).then(r => r.data);
+    },
+    enabled: isAdmin && tab === 'history',
+  });
+
+  const { data: expandedAttendance } = useQuery<SessionAttendanceRecord[]>({
+    queryKey: ['session-attendance', expandedSession],
+    queryFn: () => api.get(`/attendance/sessions/${expandedSession}/attendance`).then(r => r.data),
+    enabled: !!expandedSession,
+  });
+
   const startSessionMutation = useMutation({
     mutationFn: (batchId: string) => api.post('/attendance/sessions', { batchId }).then(r => r.data),
     onSuccess: (session) => {
@@ -65,75 +127,263 @@ export default function AttendanceIndexPage() {
 
   const todayBatches = batches.filter(b => b.days?.includes(TODAY_DOW));
   const otherBatches = batches.filter(b => !b.days?.includes(TODAY_DOW));
+  const pastSessions = sessionHistory.filter(s => s.endedAt);
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-gray-900">Attendance</h2>
         <p className="text-gray-500 text-sm">
-          {dayjs().format('dddd, DD MMM YYYY')} · Select a batch to mark attendance
+          {dayjs().format('dddd, DD MMM YYYY')} · {tab === 'today' ? 'Select a batch to mark attendance' : 'Session history'}
         </p>
       </div>
 
-      {isLoading ? (
-        <div className="text-gray-400">Loading batches...</div>
-      ) : batches.length === 0 ? (
-        <div className="bg-white rounded-xl p-8 text-center text-gray-400">
-          No batches found. Add batches first.
+      {(isCoach || isAdmin) && (
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit">
+          <button
+            onClick={() => setTab('today')}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              tab === 'today' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Today
+          </button>
+          <button
+            onClick={() => setTab('history')}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              tab === 'history' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            History
+          </button>
         </div>
-      ) : (
+      )}
+
+      {tab === 'today' && (
         <>
-          {isCoach && myActiveSession && myActiveSession.batchId !== undefined && (
-            <div className="flex items-center gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
-              <Play size={14} className="shrink-0" />
-              <span>
-                You have an active session for <strong>{myActiveSession.batch?.name}</strong>.
-                End it before starting a new one.
-              </span>
+          {isLoading ? (
+            <div className="text-gray-400">Loading batches...</div>
+          ) : batches.length === 0 ? (
+            <div className="bg-white rounded-xl p-8 text-center text-gray-400">
+              No batches found. Add batches first.
             </div>
-          )}
+          ) : (
+            <>
+              {isCoach && myActiveSession && myActiveSession.batchId !== undefined && (
+                <div className="flex items-center gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
+                  <Play size={14} className="shrink-0" />
+                  <span>
+                    You have an active session for <strong>{myActiveSession.batch?.name}</strong>.
+                    End it before starting a new one.
+                  </span>
+                </div>
+              )}
 
-          {todayBatches.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-                Today&apos;s Batches
-              </h3>
-              <div className="space-y-2">
-                {todayBatches.map((batch) => (
-                  <BatchRow
-                    key={batch.id} batch={batch} highlight
-                    isCoach={isCoach}
-                    startingSession={startingSession}
-                    activeSessionBatchId={myActiveSession?.batchId ?? null}
-                    activeSessionId={myActiveSession?.id ?? null}
-                    onStartSession={(id) => { setStartingSession(id); startSessionMutation.mutate(id); }}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+              {todayBatches.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                    Today&apos;s Batches
+                  </h3>
+                  <div className="space-y-2">
+                    {todayBatches.map((batch) => (
+                      <BatchRow
+                        key={batch.id} batch={batch} highlight
+                        isCoach={isCoach}
+                        startingSession={startingSession}
+                        activeSessionBatchId={myActiveSession?.batchId ?? null}
+                        activeSessionId={myActiveSession?.id ?? null}
+                        onStartSession={(id) => { setStartingSession(id); startSessionMutation.mutate(id); }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
 
-          {otherBatches.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-                Other Batches
-              </h3>
-              <div className="space-y-2">
-                {otherBatches.map((batch) => (
-                  <BatchRow
-                    key={batch.id} batch={batch}
-                    isCoach={isCoach}
-                    startingSession={startingSession}
-                    activeSessionBatchId={myActiveSession?.batchId ?? null}
-                    activeSessionId={myActiveSession?.id ?? null}
-                    onStartSession={(id) => { setStartingSession(id); startSessionMutation.mutate(id); }}
-                  />
-                ))}
-              </div>
-            </div>
+              {otherBatches.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                    Other Batches
+                  </h3>
+                  <div className="space-y-2">
+                    {otherBatches.map((batch) => (
+                      <BatchRow
+                        key={batch.id} batch={batch}
+                        isCoach={isCoach}
+                        startingSession={startingSession}
+                        activeSessionBatchId={myActiveSession?.batchId ?? null}
+                        activeSessionId={myActiveSession?.id ?? null}
+                        onStartSession={(id) => { setStartingSession(id); startSessionMutation.mutate(id); }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </>
       )}
+
+      {isCoach && tab === 'history' && (
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Select Batch</label>
+            <select
+              value={historyBatchId || ''}
+              onChange={e => { setHistoryBatchId(e.target.value || null); setExpandedSession(null); }}
+              className="w-full sm:w-72 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Choose a batch...</option>
+              {batches.map(b => (
+                <option key={b.id} value={b.id}>{b.name} · {b.sport?.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {!historyBatchId ? (
+            <div className="bg-white rounded-xl p-8 text-center text-gray-400 border border-gray-100">
+              Select a batch to view session history.
+            </div>
+          ) : pastSessions.length === 0 ? (
+            <div className="bg-white rounded-xl p-8 text-center text-gray-400 border border-gray-100">
+              No completed sessions yet for this batch.
+            </div>
+          ) : (
+            <SessionList
+              sessions={pastSessions}
+              expandedSession={expandedSession}
+              expandedAttendance={expandedAttendance}
+              onToggleSession={(id) => setExpandedSession(expandedSession === id ? null : id)}
+            />
+          )}
+        </div>
+      )}
+
+      {isAdmin && tab === 'history' && (
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Coach</label>
+            <select
+              value={filterCoachId}
+              onChange={e => { setFilterCoachId(e.target.value); setExpandedSession(null); }}
+              className="w-full sm:w-72 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All coaches</option>
+              {coaches.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {adminSessionHistory.length === 0 ? (
+            <div className="bg-white rounded-xl p-8 text-center text-gray-400 border border-gray-100">
+              No completed sessions found{filterCoachId ? ' for this coach' : ''}.
+            </div>
+          ) : (
+            <SessionList
+              sessions={adminSessionHistory}
+              expandedSession={expandedSession}
+              expandedAttendance={expandedAttendance}
+              onToggleSession={(id) => setExpandedSession(expandedSession === id ? null : id)}
+              showBatch
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SessionList({
+  sessions,
+  expandedSession,
+  expandedAttendance,
+  onToggleSession,
+  showBatch,
+}: {
+  sessions: (SessionHistoryItem & { batch?: { id: string; name: string; sport: { name: string } } })[];
+  expandedSession: string | null;
+  expandedAttendance: SessionAttendanceRecord[] | undefined;
+  onToggleSession: (id: string) => void;
+  showBatch?: boolean;
+}) {
+  return (
+    <div className="space-y-3">
+      {sessions.map((s) => {
+        const isExpanded = expandedSession === s.id;
+        const duration = s.endedAt
+          ? Math.round((new Date(s.endedAt).getTime() - new Date(s.startedAt).getTime()) / 60000)
+          : null;
+        return (
+          <div key={s.id} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+            <button
+              className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
+              onClick={() => onToggleSession(s.id)}
+            >
+              <div className="flex items-center gap-3 text-left">
+                <div className="bg-blue-50 p-2 rounded-lg">
+                  <Clock size={16} className="text-blue-600" />
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900 text-sm">
+                    {dayjs(s.date).format('DD MMM YYYY')}
+                    {showBatch && s.batch && (
+                      <span className="ml-2 text-gray-500 font-normal">· {s.batch.name}</span>
+                    )}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {dayjs(s.startedAt).format('h:mm A')} – {s.endedAt ? dayjs(s.endedAt).format('h:mm A') : '—'}
+                    {duration !== null && <span className="ml-1">· {duration}m</span>}
+                    <span className="ml-2 text-gray-400">Coach: {s.coach?.name}</span>
+                    {showBatch && s.batch?.sport && (
+                      <span className="ml-2 text-gray-400">· {s.batch.sport.name}</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">
+                    {s.attendanceStats.present} present
+                  </span>
+                  <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-medium">
+                    {s.attendanceStats.absent} absent
+                  </span>
+                  <span className="flex items-center gap-1 text-gray-500">
+                    <Users size={11} />
+                    {s.attendanceStats.total}
+                  </span>
+                </div>
+                {isExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+              </div>
+            </button>
+
+            {isExpanded && (
+              <div className="border-t border-gray-100 divide-y divide-gray-50">
+                {!expandedAttendance ? (
+                  <div className="px-4 py-4 text-center text-gray-400 text-sm">Loading...</div>
+                ) : expandedAttendance.length === 0 ? (
+                  <div className="px-4 py-4 text-center text-gray-400 text-sm">No attendance records for this session.</div>
+                ) : (
+                  expandedAttendance.map((record) => (
+                    <div key={record.id} className="flex items-center justify-between px-4 py-2.5">
+                      <p className="text-sm text-gray-800">{record.student.name}</p>
+                      <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${
+                        record.status === 'PRESENT'
+                          ? 'bg-green-100 text-green-700'
+                          : record.status === 'LATE'
+                          ? 'bg-yellow-100 text-yellow-700'
+                          : 'bg-red-100 text-red-700'
+                      }`}>
+                        {record.status.charAt(0) + record.status.slice(1).toLowerCase()}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

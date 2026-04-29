@@ -71,6 +71,15 @@ export class AttendanceController {
     return this.attendance.startSession(dto.batchId, req.user.id);
   }
 
+  @Get('sessions')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER)
+  getAllSessions(
+    @Query('venueId') venueId?: string,
+    @Query('coachId') coachId?: string,
+  ) {
+    return this.attendance.getAllSessions(venueId, coachId);
+  }
+
   @Get('sessions/active')
   @Roles(UserRole.SUPER_ADMIN, UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER, UserRole.COACH)
   getActiveSession(@Query('batchId') batchId: string) {
