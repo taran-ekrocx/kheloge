@@ -6,6 +6,11 @@ import { api } from '@/lib/api';
 import { useAuth, hasRole, MANAGER_ROLES, SENIOR_ROLES } from '@/hooks/useAuth';
 import { Building2, Plus, MapPin, Phone, Clock } from 'lucide-react';
 
+interface Sport {
+  id: string;
+  name: string;
+}
+
 interface Venue {
   id: string;
   name: string;
@@ -15,7 +20,7 @@ interface Venue {
   closeTime?: string;
   isActive: boolean;
   city?: { name: string };
-  sports?: { sport: { name: string } }[];
+  sports?: { sport: { id: string; name: string } }[];
 }
 
 function VenueFormModal({ onClose, existing }: { onClose: () => void; existing?: Venue }) {
@@ -26,6 +31,12 @@ function VenueFormModal({ onClose, existing }: { onClose: () => void; existing?:
     phone: existing?.phone || '',
     openTime: existing?.openTime || '06:00',
     closeTime: existing?.closeTime || '21:00',
+    sportIds: existing?.sports?.map(vs => vs.sport.id) ?? [],
+  });
+
+  const { data: sports = [] } = useQuery<Sport[]>({
+    queryKey: ['sports'],
+    queryFn: () => api.get('/sports').then(r => r.data),
   });
 
   const mutation = useMutation({
@@ -38,6 +49,15 @@ function VenueFormModal({ onClose, existing }: { onClose: () => void; existing?:
       onClose();
     },
   });
+
+  function toggleSport(sportId: string) {
+    setForm(f => ({
+      ...f,
+      sportIds: f.sportIds.includes(sportId)
+        ? f.sportIds.filter(id => id !== sportId)
+        : [...f.sportIds, sportId],
+    }));
+  }
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -83,6 +103,27 @@ function VenueFormModal({ onClose, existing }: { onClose: () => void; existing?:
               />
             </div>
           </div>
+          {sports.length > 0 && (
+            <div>
+              <label className="text-xs text-gray-500 mb-2 block">Sports Available</label>
+              <div className="flex flex-wrap gap-2">
+                {sports.map(sport => (
+                  <button
+                    key={sport.id}
+                    type="button"
+                    onClick={() => toggleSport(sport.id)}
+                    className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                      form.sportIds.includes(sport.id)
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+                    }`}
+                  >
+                    {sport.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="flex gap-2 pt-2">
             <button type="button" onClick={onClose} className="flex-1 border rounded-lg py-2 text-sm text-gray-600 hover:bg-gray-50">
               Cancel
@@ -198,7 +239,7 @@ export default function VenuesPage() {
               {venue.sports && venue.sports.length > 0 && (
                 <div className="flex flex-wrap gap-1 pt-1">
                   {venue.sports.map(vs => (
-                    <span key={vs.sport.name} className="bg-blue-50 text-blue-600 text-xs px-2 py-0.5 rounded-full">
+                    <span key={vs.sport.id} className="bg-blue-50 text-blue-600 text-xs px-2 py-0.5 rounded-full">
                       {vs.sport.name}
                     </span>
                   ))}
