@@ -33,6 +33,7 @@ interface Batch {
 
 interface Coach {
   id: string;
+  userId: string;
   name: string;
 }
 
@@ -269,7 +270,7 @@ export default function AttendanceIndexPage() {
             >
               <option value="">All coaches</option>
               {coaches.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+                <option key={c.id} value={c.userId}>{c.name}</option>
               ))}
             </select>
           </div>
