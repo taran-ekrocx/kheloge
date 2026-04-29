@@ -1,6 +1,6 @@
 import { Injectable, Inject, forwardRef, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { AttendanceStatus } from '@kheloge/database';
+import { AttendanceStatus, CoachAttendanceStatus, UserRole } from '@kheloge/database';
 import { AttendanceGateway } from './attendance.gateway';
 
 export interface MarkAttendanceDto {
@@ -10,6 +10,7 @@ export interface MarkAttendanceDto {
     notes?: string;
   }>;
   date?: string; // ISO date string, defaults to today
+  sessionId?: string;
 }
 
 export interface QrCheckinDto {
@@ -60,17 +61,26 @@ export class AttendanceService {
       throw new ForbiddenException('Session has ended. Attendance can no longer be modified.');
     }
 
+    // Resolve sessionId: use provided or look up active session for linking
+    let sessionId = dto.sessionId ?? null;
+    if (!sessionId) {
+      const activeSession = await this.prisma.attendanceSession.findFirst({
+        where: { batchId, date, endedAt: null },
+        select: { id: true },
+      });
+      sessionId = activeSession?.id ?? null;
+    }
+
     const ops = dto.records.map((r) =>
       this.prisma.attendance.upsert({
         where: { batchId_studentId_date: { batchId, studentId: r.studentId, date } },
-        create: { batchId, studentId: r.studentId, date, status: r.status, markedById, notes: r.notes },
-        update: { status: r.status, notes: r.notes, markedById },
+        create: { batchId, studentId: r.studentId, date, status: r.status, markedById, notes: r.notes, sessionId },
+        update: { status: r.status, notes: r.notes, markedById, sessionId: sessionId ?? undefined },
       }),
     );
 
     const results = await this.prisma.$transaction(ops);
 
-    // Emit real-time update to all clients watching this batch
     this.gateway.emitAttendanceUpdate(batchId, {
       date: date.toISOString().split('T')[0],
       records: results.map((r) => ({ studentId: r.studentId, status: r.status })),
@@ -97,7 +107,6 @@ export class AttendanceService {
       update: { status: AttendanceStatus.PRESENT, checkInAt: new Date() },
     });
 
-    // Emit real-time QR check-in event
     this.gateway.emitQrCheckin(dto.batchId, {
       studentId: dto.studentId,
       status: AttendanceStatus.PRESENT,
@@ -111,13 +120,11 @@ export class AttendanceService {
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
 
-    // Get all enrolled students
     const enrollments = await this.prisma.enrollment.findMany({
       where: { batchId, isActive: true },
       select: { studentId: true },
     });
 
-    // For each student without today's record, create absent
     const ops = enrollments.map((e) =>
       this.prisma.attendance.upsert({
         where: { batchId_studentId_date: { batchId, studentId: e.studentId, date: today } },
@@ -125,7 +132,7 @@ export class AttendanceService {
           batchId, studentId: e.studentId, date: today,
           status: AttendanceStatus.ABSENT, isAutoMarked: true,
         },
-        update: {}, // don't overwrite manually marked records
+        update: {},
       }),
     );
 
@@ -156,11 +163,23 @@ export class AttendanceService {
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
 
-    const existing = await this.prisma.attendanceSession.findFirst({
+    // Enforce: one active session per batch
+    const existingBatchSession = await this.prisma.attendanceSession.findFirst({
       where: { batchId, date: today, endedAt: null },
     });
-    if (existing) {
-      throw new ConflictException(`An active session already exists for this batch (id: ${existing.id})`);
+    if (existingBatchSession) {
+      throw new ConflictException(`An active session already exists for this batch (id: ${existingBatchSession.id})`);
+    }
+
+    // Enforce: one active session per coach across all batches
+    const existingCoachSession = await this.prisma.attendanceSession.findFirst({
+      where: { coachId, date: today, endedAt: null },
+      include: { batch: { select: { name: true } } },
+    });
+    if (existingCoachSession) {
+      throw new ConflictException(
+        `You already have an active session for batch "${existingCoachSession.batch.name}" (id: ${existingCoachSession.id}). End it before starting a new one.`,
+      );
     }
 
     const session = await this.prisma.attendanceSession.create({
@@ -178,6 +197,17 @@ export class AttendanceService {
           },
         },
         coach: { select: { id: true, name: true } },
+      },
+    });
+
+    // Auto-record coach attendance as PRESENT
+    await this.prisma.coachAttendance.create({
+      data: {
+        sessionId: session.id,
+        coachId,
+        batchId,
+        date: today,
+        status: CoachAttendanceStatus.PRESENT,
       },
     });
 
@@ -200,6 +230,7 @@ export class AttendanceService {
           },
         },
         coach: { select: { id: true, name: true } },
+        coachAttendance: true,
       },
     });
     if (!session) throw new NotFoundException('Session not found');
@@ -251,10 +282,71 @@ export class AttendanceService {
     if (date) {
       where.date = new Date(date);
     }
-    return this.prisma.attendanceSession.findMany({
+    const sessions = await this.prisma.attendanceSession.findMany({
       where,
-      include: { coach: { select: { id: true, name: true } } },
+      include: {
+        coach: { select: { id: true, name: true } },
+        coachAttendance: { select: { status: true } },
+        _count: { select: { attendances: true } },
+      },
       orderBy: { startedAt: 'desc' },
+    });
+
+    // Attach attendance stats per session
+    const enriched = await Promise.all(
+      sessions.map(async (s) => {
+        const stats = await this.prisma.attendance.groupBy({
+          by: ['status'],
+          where: { sessionId: s.id },
+          _count: true,
+        });
+        const presentCount = stats.find((x) => x.status === AttendanceStatus.PRESENT)?._count ?? 0;
+        const totalCount = stats.reduce((acc, x) => acc + x._count, 0);
+        return { ...s, attendanceStats: { total: totalCount, present: presentCount, absent: totalCount - presentCount } };
+      }),
+    );
+
+    return enriched;
+  }
+
+  async getSessionAttendance(sessionId: string, requesterId: string, requesterRole: UserRole) {
+    const session = await this.prisma.attendanceSession.findUnique({
+      where: { id: sessionId },
+      select: { coachId: true },
+    });
+    if (!session) throw new NotFoundException('Session not found');
+
+    if (requesterRole === UserRole.COACH && session.coachId !== requesterId) {
+      throw new ForbiddenException('You can only view attendance for your own sessions');
+    }
+
+    return this.prisma.attendance.findMany({
+      where: { sessionId },
+      include: { student: { select: { id: true, name: true, photoUrl: true } } },
+      orderBy: { student: { name: 'asc' } },
+    });
+  }
+
+  async getCoachAttendanceHistory(
+    coachId: string,
+    requesterId: string,
+    requesterRole: UserRole,
+    months: number = 3,
+  ) {
+    if (requesterRole === UserRole.COACH && coachId !== requesterId) {
+      throw new ForbiddenException('You can only view your own attendance');
+    }
+
+    const since = new Date();
+    since.setMonth(since.getMonth() - months);
+
+    return this.prisma.coachAttendance.findMany({
+      where: { coachId, date: { gte: since } },
+      include: {
+        session: { select: { id: true, startedAt: true, endedAt: true } },
+        batch: { select: { id: true, name: true } },
+      },
+      orderBy: { date: 'desc' },
     });
   }
 }

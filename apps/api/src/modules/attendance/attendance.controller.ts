@@ -83,6 +83,29 @@ export class AttendanceController {
     return this.attendance.getMyActiveSession(req.user.id);
   }
 
+  // Must come before :sessionId route to avoid route conflict
+  @Get('coach-attendance')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER, UserRole.COACH)
+  getCoachAttendanceHistory(
+    @Request() req,
+    @Query('coachId') coachId: string,
+    @Query('months') months: string,
+  ) {
+    const targetCoachId = req.user.role === UserRole.COACH ? req.user.id : (coachId || req.user.id);
+    return this.attendance.getCoachAttendanceHistory(
+      targetCoachId,
+      req.user.id,
+      req.user.role,
+      months ? parseInt(months) : 3,
+    );
+  }
+
+  @Get('sessions/:sessionId/attendance')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER, UserRole.COACH)
+  getSessionAttendance(@Param('sessionId') sessionId: string, @Request() req) {
+    return this.attendance.getSessionAttendance(sessionId, req.user.id, req.user.role);
+  }
+
   @Get('sessions/:sessionId')
   @Roles(UserRole.SUPER_ADMIN, UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER, UserRole.COACH)
   getSession(@Param('sessionId') sessionId: string) {

@@ -40,6 +40,12 @@ enum AttendanceStatus {
   EXCUSED
 }
 
+enum CoachAttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+}
+
 enum PaymentMode {
   UPI
   CASH
@@ -244,6 +250,7 @@ model User {
   coachBatches     BatchCoach[]
   attendanceMarks  Attendance[]        @relation("MarkedBy")
   coachSessions    AttendanceSession[] @relation("CoachSessions")
+  coachAttendances CoachAttendance[]   @relation("CoachAttendances")
   comments         EnquiryComment[]
   coachSports      CoachSport[]        @relation("CoachSports")
 
@@ -321,9 +328,10 @@ model Batch {
   sport       Sport               @relation(fields: [sportId], references: [id])
   coaches     BatchCoach[]
   enrollments Enrollment[]
-  attendances Attendance[]
-  feePlans    FeePlan[]
-  sessions    AttendanceSession[]
+  attendances      Attendance[]
+  feePlans         FeePlan[]
+  sessions         AttendanceSession[]
+  coachAttendances CoachAttendance[]
 
   @@map("batches")
 }
@@ -417,6 +425,7 @@ model Attendance {
   id            String           @id @default(cuid())
   batchId       String
   studentId     String
+  sessionId     String?
   date          DateTime         @db.Date
   status        AttendanceStatus @default(ABSENT)
   checkInAt     DateTime?
@@ -427,28 +436,50 @@ model Attendance {
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
-  batch         Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  markedBy      User?    @relation("MarkedBy", fields: [markedById], references: [id])
+  batch         Batch              @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  student       Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  markedBy      User?              @relation("MarkedBy", fields: [markedById], references: [id])
+  session       AttendanceSession? @relation(fields: [sessionId], references: [id])
 
   @@unique([batchId, studentId, date])
   @@map("attendances")
 }
 
 model AttendanceSession {
-  id        String    @id @default(cuid())
-  batchId   String
-  coachId   String
-  date      DateTime  @db.Date
-  startedAt DateTime  @default(now())
-  endedAt   DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  batchId         String
+  coachId         String
+  date            DateTime  @db.Date
+  startedAt       DateTime  @default(now())
+  endedAt         DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  batch     Batch     @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  coach     User      @relation("CoachSessions", fields: [coachId], references: [id])
+  batch           Batch              @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  coach           User               @relation("CoachSessions", fields: [coachId], references: [id])
+  attendances     Attendance[]
+  coachAttendance CoachAttendance?
 
   @@map("attendance_sessions")
+}
+
+model CoachAttendance {
+  id        String                @id @default(cuid())
+  sessionId String                @unique
+  coachId   String
+  batchId   String
+  date      DateTime              @db.Date
+  status    CoachAttendanceStatus @default(PRESENT)
+  markedAt  DateTime              @default(now())
+  notes     String?
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+
+  session   AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  coach     User              @relation("CoachAttendances", fields: [coachId], references: [id])
+  batch     Batch             @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@map("coach_attendances")
 }
 
 // ─────────────────────────────────────────────

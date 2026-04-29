@@ -29,6 +29,12 @@ interface Batch {
   _count: { enrollments: number };
 }
 
+interface ActiveSession {
+  id: string;
+  batchId: string;
+  batch: { name: string };
+}
+
 export default function AttendanceIndexPage() {
   const { venueId } = useVenue();
   const { role } = useAuth();
@@ -40,6 +46,13 @@ export default function AttendanceIndexPage() {
     queryKey: ['batches', venueId],
     queryFn: () => api.get(`/venues/${venueId}/batches`).then(r => r.data),
     enabled: !!venueId,
+  });
+
+  const { data: myActiveSession } = useQuery<ActiveSession | null>({
+    queryKey: ['my-active-session'],
+    queryFn: () => api.get('/attendance/sessions/my-active').then(r => r.data),
+    enabled: isCoach,
+    refetchInterval: 30000,
   });
 
   const startSessionMutation = useMutation({
@@ -70,6 +83,16 @@ export default function AttendanceIndexPage() {
         </div>
       ) : (
         <>
+          {isCoach && myActiveSession && myActiveSession.batchId !== undefined && (
+            <div className="flex items-center gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
+              <Play size={14} className="shrink-0" />
+              <span>
+                You have an active session for <strong>{myActiveSession.batch?.name}</strong>.
+                End it before starting a new one.
+              </span>
+            </div>
+          )}
+
           {todayBatches.length > 0 && (
             <div>
               <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
@@ -81,6 +104,8 @@ export default function AttendanceIndexPage() {
                     key={batch.id} batch={batch} highlight
                     isCoach={isCoach}
                     startingSession={startingSession}
+                    activeSessionBatchId={myActiveSession?.batchId ?? null}
+                    activeSessionId={myActiveSession?.id ?? null}
                     onStartSession={(id) => { setStartingSession(id); startSessionMutation.mutate(id); }}
                   />
                 ))}
@@ -99,6 +124,8 @@ export default function AttendanceIndexPage() {
                     key={batch.id} batch={batch}
                     isCoach={isCoach}
                     startingSession={startingSession}
+                    activeSessionBatchId={myActiveSession?.batchId ?? null}
+                    activeSessionId={myActiveSession?.id ?? null}
                     onStartSession={(id) => { setStartingSession(id); startSessionMutation.mutate(id); }}
                   />
                 ))}
@@ -112,14 +139,18 @@ export default function AttendanceIndexPage() {
 }
 
 function BatchRow({
-  batch, highlight, isCoach, startingSession, onStartSession,
+  batch, highlight, isCoach, startingSession, activeSessionBatchId, activeSessionId, onStartSession,
 }: {
   batch: Batch;
   highlight?: boolean;
   isCoach?: boolean;
   startingSession?: string | null;
+  activeSessionBatchId?: string | null;
+  activeSessionId?: string | null;
   onStartSession?: (id: string) => void;
 }) {
+  const hasOtherActiveSession = !!activeSessionBatchId && activeSessionBatchId !== batch.id;
+  const thisSessionActive = activeSessionBatchId === batch.id;
   const inner = (
     <>
       <div className="flex items-center gap-4">
@@ -155,14 +186,26 @@ function BatchRow({
           ))}
         </div>
         {isCoach ? (
-          <button
-            onClick={(e) => { e.preventDefault(); onStartSession?.(batch.id); }}
-            disabled={startingSession === batch.id}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50"
-          >
-            <Play size={12} />
-            {startingSession === batch.id ? 'Starting...' : 'Start Session'}
-          </button>
+          thisSessionActive ? (
+            <Link
+              href={`/attendance/${batch.id}?sessionId=${activeSessionId}`}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Play size={12} />
+              Resume
+            </Link>
+          ) : (
+            <button
+              onClick={(e) => { e.preventDefault(); onStartSession?.(batch.id); }}
+              disabled={startingSession === batch.id || hasOtherActiveSession}
+              title={hasOtherActiveSession ? 'End your current session before starting a new one' : undefined}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Play size={12} />
+              {startingSession === batch.id ? 'Starting...' : 'Start Session'}
+            </button>
+          )
         ) : (
           <ChevronRight size={16} className="text-gray-400" />
         )}
