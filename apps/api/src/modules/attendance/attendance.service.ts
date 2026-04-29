@@ -364,6 +364,34 @@ export class AttendanceService {
     });
   }
 
+  async getCoachSessionSummary(venueId?: string) {
+    const where: any = { endedAt: { not: null } };
+    if (venueId) {
+      where.batch = { venueId };
+    }
+
+    const grouped = await this.prisma.attendanceSession.groupBy({
+      by: ['coachId'],
+      where,
+      _count: { id: true },
+      orderBy: { _count: { id: 'desc' } },
+    });
+
+    const coachIds = grouped.map((g) => g.coachId);
+    const coaches = await this.prisma.user.findMany({
+      where: { id: { in: coachIds } },
+      select: { id: true, name: true },
+    });
+
+    const coachMap = Object.fromEntries(coaches.map((c) => [c.id, c.name]));
+
+    return grouped.map((g) => ({
+      coachId: g.coachId,
+      coachName: coachMap[g.coachId] ?? 'Unknown',
+      sessionCount: g._count.id,
+    }));
+  }
+
   async getCoachAttendanceHistory(
     coachId: string,
     requesterId: string,

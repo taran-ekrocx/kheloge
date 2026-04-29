@@ -57,6 +57,12 @@ interface AdminSessionHistoryItem extends SessionHistoryItem {
   batch: { id: string; name: string; sport: { name: string } };
 }
 
+interface CoachSessionSummary {
+  coachId: string;
+  coachName: string;
+  sessionCount: number;
+}
+
 interface SessionAttendanceRecord {
   id: string;
   studentId: string;
@@ -108,6 +114,16 @@ export default function AttendanceIndexPage() {
       if (venueId) params.set('venueId', venueId);
       if (filterCoachId) params.set('coachId', filterCoachId);
       return api.get(`/attendance/sessions?${params.toString()}`).then(r => r.data);
+    },
+    enabled: isAdmin && tab === 'history',
+  });
+
+  const { data: coachSessionSummary = [] } = useQuery<CoachSessionSummary[]>({
+    queryKey: ['coach-session-summary', venueId],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (venueId) params.set('venueId', venueId);
+      return api.get(`/attendance/sessions/coach-summary?${params.toString()}`).then(r => r.data);
     },
     enabled: isAdmin && tab === 'history',
   });
@@ -269,11 +285,44 @@ export default function AttendanceIndexPage() {
               className="w-full sm:w-72 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">All coaches</option>
-              {coaches.map(c => (
-                <option key={c.id} value={c.userId}>{c.name}</option>
-              ))}
+              {coaches.map(c => {
+                const count = coachSessionSummary.find(s => s.coachId === c.userId)?.sessionCount ?? 0;
+                return (
+                  <option key={c.id} value={c.userId}>{c.name} ({count} session{count !== 1 ? 's' : ''})</option>
+                );
+              })}
             </select>
           </div>
+
+          {coachSessionSummary.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                Sessions by Coach
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                {coachSessionSummary.map(summary => (
+                  <button
+                    key={summary.coachId}
+                    onClick={() => { setFilterCoachId(filterCoachId === summary.coachId ? '' : summary.coachId); setExpandedSession(null); }}
+                    className={`flex items-center justify-between px-3 py-2.5 rounded-lg border text-left transition-colors ${
+                      filterCoachId === summary.coachId
+                        ? 'bg-blue-50 border-blue-300 ring-1 ring-blue-300'
+                        : 'bg-white border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <span className="text-sm font-medium text-gray-800 truncate">{summary.coachName}</span>
+                    <span className={`ml-2 shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${
+                      filterCoachId === summary.coachId
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {summary.sessionCount}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {adminSessionHistory.length === 0 ? (
             <div className="bg-white rounded-xl p-8 text-center text-gray-400 border border-gray-100">
