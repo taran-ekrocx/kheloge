@@ -141,7 +141,8 @@ export class VenuesController {
     @Body() dto: CreateVenueBatchDto,
   ) {
     const { coachIds, fee, status, ...rest } = dto;
-    const batch = await this.batchesSvc.create({ ...rest, venueId, feeAmount: fee });
+    const isActive = status !== 'INACTIVE';
+    const batch = await this.batchesSvc.create({ ...rest, venueId, feeAmount: fee, isActive });
     if (coachIds?.length) {
       await this.batchesSvc.reassignCoaches(batch.id, coachIds);
     }
@@ -156,7 +157,12 @@ export class VenuesController {
     @Body() dto: UpdateVenueBatchDto,
   ) {
     const { coachIds, fee, status, sportId, ...rest } = dto;
-    await this.batchesSvc.update(batchId, { ...rest, ...(sportId ? { sportId } : {}) });
+    const isActive = status !== undefined ? status !== 'INACTIVE' : undefined;
+    await this.batchesSvc.update(batchId, {
+      ...rest,
+      ...(sportId ? { sportId } : {}),
+      ...(isActive !== undefined ? { isActive } : {}),
+    });
     if (coachIds !== undefined) {
       await this.batchesSvc.reassignCoaches(batchId, coachIds);
     }

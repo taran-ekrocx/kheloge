@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { IsString, IsOptional, IsInt, IsArray, IsEnum, IsDateString, IsNumber, Min } from 'class-validator';
+import { IsString, IsOptional, IsInt, IsArray, IsEnum, IsDateString, IsNumber, IsBoolean, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BatchDay, FeeFrequency } from '@kheloge/database';
 import { PrismaService } from '../../database/prisma.service';
@@ -19,6 +19,7 @@ export class CreateBatchDto {
   @ApiPropertyOptional() @IsOptional() @IsDateString() endDate?: string;
   @ApiPropertyOptional({ description: 'Coach user IDs to assign' }) @IsOptional() @IsArray() coachIds?: string[];
   @ApiPropertyOptional({ description: 'Monthly fee amount to create a default FeePlan' }) @IsOptional() @IsNumber() feeAmount?: number;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
 }
 
 export class UpdateBatchDto {
@@ -33,6 +34,7 @@ export class UpdateBatchDto {
   @ApiPropertyOptional() @IsOptional() @IsDateString() startDate?: string;
   @ApiPropertyOptional() @IsOptional() @IsDateString() endDate?: string;
   @ApiPropertyOptional({ description: 'Coach org-user IDs to assign' }) @IsOptional() @IsArray() coachIds?: string[];
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
 }
 
 export interface BatchFilters {

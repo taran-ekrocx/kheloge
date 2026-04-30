@@ -82,7 +82,8 @@ function BatchModal({
         : api.post(`/venues/${venueId}/batches`, payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['batches', venueId] });
+      queryClient.invalidateQueries({ queryKey: ['batches'] });
+      queryClient.invalidateQueries({ queryKey: ['batches-sa'] });
       onClose();
     },
   });
@@ -244,18 +245,37 @@ export default function BatchesPage() {
   const { venueId } = useVenue();
   const { role } = useAuth();
   const isCoach = role === 'COACH';
+  const isSuperAdmin = role === 'SUPER_ADMIN';
+  const isCityManager = role === 'CITY_MANAGER';
+  const needsVenueSelector = isSuperAdmin || isCityManager;
   const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Batch | undefined>();
   const [search, setSearch] = useState('');
   const [filterSport, setFilterSport] = useState('');
+  const [saVenueFilter, setSaVenueFilter] = useState('');
+
+  const { data: venues = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ['venues-list'],
+    queryFn: () => api.get('/venues').then(r => r.data),
+    enabled: needsVenueSelector,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const effectiveVenueId = needsVenueSelector ? saVenueFilter : venueId;
 
   const { data: batches = [], isLoading } = useQuery<Batch[]>({
-    queryKey: isCoach ? ['batches-all-coach'] : ['batches', venueId],
+    queryKey: isCoach
+      ? ['batches-all-coach']
+      : needsVenueSelector
+        ? ['batches-sa', saVenueFilter]
+        : ['batches', venueId],
     queryFn: isCoach
       ? () => api.get('/batches?status=active').then(r => r.data)
-      : () => api.get(`/venues/${venueId}/batches`).then(r => r.data),
-    enabled: isCoach ? true : !!venueId,
+      : needsVenueSelector
+        ? () => api.get(saVenueFilter ? `/batches?venueId=${saVenueFilter}` : '/batches').then(r => r.data)
+        : () => api.get(`/venues/${venueId}/batches`).then(r => r.data),
+    enabled: isCoach || needsVenueSelector ? true : !!venueId,
   });
 
   const { data: sports = [] } = useQuery<Sport[]>({
@@ -264,14 +284,17 @@ export default function BatchesPage() {
   });
 
   const { data: coaches = [] } = useQuery<Coach[]>({
-    queryKey: ['coaches', venueId],
-    queryFn: () => api.get(`/venues/${venueId}/coaches`).then(r => r.data),
-    enabled: !!venueId,
+    queryKey: ['coaches', effectiveVenueId],
+    queryFn: () => api.get(`/venues/${effectiveVenueId}/coaches`).then(r => r.data),
+    enabled: !!effectiveVenueId,
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.delete(`/venues/${venueId}/batches/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['batches', venueId] }),
+    mutationFn: (b: Batch) => api.delete(`/venues/${b.venue?.id || effectiveVenueId}/batches/${b.id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['batches', venueId] });
+      queryClient.invalidateQueries({ queryKey: ['batches-sa', saVenueFilter] });
+    },
   });
 
   const filtered = useMemo(() => {
@@ -295,7 +318,9 @@ export default function BatchesPage() {
         {!isCoach && (
           <button
             onClick={() => { setEditing(undefined); setShowModal(true); }}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
+            disabled={needsVenueSelector && !saVenueFilter}
+            title={needsVenueSelector && !saVenueFilter ? 'Select a venue to create a batch' : undefined}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus size={16} /> Create Batch
           </button>
@@ -315,6 +340,15 @@ export default function BatchesPage() {
         <div className="flex items-center gap-1.5 text-sm text-gray-500">
           <Filter size={14} /><span>Filter:</span>
         </div>
+        {needsVenueSelector && (
+          <select
+            value={saVenueFilter} onChange={(e) => setSaVenueFilter(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All Venues</option>
+            {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+          </select>
+        )}
         <select
           value={filterSport} onChange={(e) => setFilterSport(e.target.value)}
           className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -345,7 +379,7 @@ export default function BatchesPage() {
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Batch</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Sport</th>
-                {isCoach ? (
+                {isCoach || (needsVenueSelector && !saVenueFilter) ? (
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Venue</th>
                 ) : (
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Coach</th>
@@ -371,7 +405,7 @@ export default function BatchesPage() {
                       {b.sport?.name || '—'}
                     </span>
                   </td>
-                  {isCoach ? (
+                  {isCoach || (needsVenueSelector && !saVenueFilter) ? (
                     <td className="px-4 py-3 text-gray-600">{b.venue?.name || '—'}</td>
                   ) : (
                     <td className="px-4 py-3 text-gray-600">{b.coaches?.length ? b.coaches.map(c => c.name).join(', ') : '—'}</td>
@@ -402,7 +436,7 @@ export default function BatchesPage() {
                           <Edit2 size={15} />
                         </button>
                         <button
-                          onClick={() => { if (confirm(`Delete batch "${b.name}"?`)) deleteMutation.mutate(b.id); }}
+                          onClick={() => { if (confirm(`Delete batch "${b.name}"?`)) deleteMutation.mutate(b); }}
                           className="text-gray-400 hover:text-red-500 transition-colors"
                         >
                           <Trash2 size={15} />
@@ -417,10 +451,10 @@ export default function BatchesPage() {
         )}
       </div>
 
-      {showModal && venueId && (
+      {showModal && (effectiveVenueId || editing?.venue?.id) && (
         <BatchModal
           onClose={() => { setShowModal(false); setEditing(undefined); }}
-          venueId={venueId}
+          venueId={(editing?.venue?.id || effectiveVenueId)!}
           sports={sports}
           coaches={coaches}
           existing={editing}
