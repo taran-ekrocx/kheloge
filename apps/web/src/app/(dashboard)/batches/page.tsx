@@ -316,14 +316,25 @@ export default function BatchesPage() {
           <p className="text-gray-500 text-sm">{filtered.length} of {batches.length} batches</p>
         </div>
         {!isCoach && (
-          <button
-            onClick={() => { setEditing(undefined); setShowModal(true); }}
-            disabled={role === null || (needsVenueSelector && !saVenueFilter)}
-            title={needsVenueSelector && !saVenueFilter ? 'Select a venue to create a batch' : undefined}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Plus size={16} /> Create Batch
-          </button>
+          <div className="flex items-center gap-3">
+            {needsVenueSelector && (
+              <select
+                value={saVenueFilter} onChange={(e) => setSaVenueFilter(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select Venue</option>
+                {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+              </select>
+            )}
+            <button
+              onClick={() => { setEditing(undefined); setShowModal(true); }}
+              disabled={role === null || (needsVenueSelector && !saVenueFilter)}
+              title={needsVenueSelector && !saVenueFilter ? 'Select a venue first' : undefined}
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Plus size={16} /> Create Batch
+            </button>
+          </div>
         )}
       </div>
 
@@ -340,15 +351,6 @@ export default function BatchesPage() {
         <div className="flex items-center gap-1.5 text-sm text-gray-500">
           <Filter size={14} /><span>Filter:</span>
         </div>
-        {needsVenueSelector && (
-          <select
-            value={saVenueFilter} onChange={(e) => setSaVenueFilter(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">All Venues</option>
-            {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-          </select>
-        )}
         <select
           value={filterSport} onChange={(e) => setFilterSport(e.target.value)}
           className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
