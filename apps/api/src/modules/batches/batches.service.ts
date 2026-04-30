@@ -129,12 +129,13 @@ export class BatchesService {
   async update(id: string, dto: UpdateBatchDto) {
     const batch = await this.prisma.batch.findUnique({ where: { id } });
     if (!batch) throw new NotFoundException('Batch not found');
+    const { coachIds: _coachIds, ...fields } = dto;
     return this.prisma.batch.update({
       where: { id },
       data: {
-        ...dto,
-        startDate: dto.startDate ? new Date(dto.startDate) : undefined,
-        endDate: dto.endDate ? new Date(dto.endDate) : undefined,
+        ...fields,
+        startDate: fields.startDate ? new Date(fields.startDate) : undefined,
+        endDate: fields.endDate ? new Date(fields.endDate) : undefined,
       },
     });
   }
@@ -154,23 +155,26 @@ export class BatchesService {
     }
   }
 
-  async reassignCoaches(batchId: string, orgUserIds: string[]) {
+  async reassignCoaches(batchId: string, ids: string[]) {
     await this.prisma.batchCoach.deleteMany({ where: { batchId } });
 
-    if (orgUserIds.length > 0) {
+    if (ids.length > 0) {
+      // Try to resolve as OrganizationUser IDs first; unmatched IDs are treated as User IDs directly.
+      // This handles both the creation flow (orgUser.ids from frontend) and the edit flow
+      // (User.ids pre-populated from existing batch.coaches[].id).
       const orgUsers = await this.prisma.organizationUser.findMany({
-        where: { id: { in: orgUserIds } },
+        where: { id: { in: ids } },
         select: { id: true, userId: true },
       });
-      const userIdMap = new Map(orgUsers.map((ou) => [ou.id, ou.userId]));
+      const orgUserMap = new Map(orgUsers.map((ou) => [ou.id, ou.userId]));
+      const userIds = ids.map((id) => orgUserMap.get(id) ?? id);
       await this.prisma.batchCoach.createMany({
-        data: orgUserIds
-          .filter((orgUserId) => userIdMap.has(orgUserId))
-          .map((orgUserId, i) => ({
-            batchId,
-            coachId: userIdMap.get(orgUserId)!,
-            isPrimary: i === 0,
-          })),
+        data: userIds.map((coachId, i) => ({
+          batchId,
+          coachId,
+          isPrimary: i === 0,
+        })),
+        skipDuplicates: true,
       });
     }
   }
