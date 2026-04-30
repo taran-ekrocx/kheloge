@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
+import { useAuth } from '@/hooks/useAuth';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, Legend,
@@ -39,14 +40,14 @@ function StatCard({ label, value, sub }: { label: string; value: string | number
 
 // ─── Revenue Tab ─────────────────────────────────────────────────────────────
 
-function RevenueTab({ venueId, from, to }: { venueId: string; from: string; to: string }) {
+function RevenueTab({ venueId, from, to, isSuperAdmin }: { venueId: string; from: string; to: string; isSuperAdmin?: boolean }) {
   const { data: rows = [], isLoading } = useQuery<Array<{ period: string; total: number; count: number }>>({
     queryKey: ['reports-revenue', venueId, from, to],
     queryFn: () =>
       api
-        .get('/reports/revenue', { params: { venueId, from, to } })
+        .get('/reports/revenue', { params: { venueId: venueId || undefined, from, to } })
         .then((r) => r.data),
-    enabled: !!venueId,
+    enabled: isSuperAdmin ? true : !!venueId,
   });
 
   const totalRevenue = rows.reduce((s, r) => s + r.total, 0);
@@ -91,14 +92,14 @@ function RevenueTab({ venueId, from, to }: { venueId: string; from: string; to: 
 
 // ─── Enrolments Tab ──────────────────────────────────────────────────────────
 
-function EnrolmentsTab({ venueId, from, to }: { venueId: string; from: string; to: string }) {
+function EnrolmentsTab({ venueId, from, to, isSuperAdmin }: { venueId: string; from: string; to: string; isSuperAdmin?: boolean }) {
   const { data: rows = [], isLoading } = useQuery<Array<{ sport: string; total: number; active: number }>>({
     queryKey: ['reports-enrolments', venueId, from, to],
     queryFn: () =>
       api
-        .get('/reports/enrolments', { params: { venueId, from, to } })
+        .get('/reports/enrolments', { params: { venueId: venueId || undefined, from, to } })
         .then((r) => r.data),
-    enabled: !!venueId,
+    enabled: isSuperAdmin ? true : !!venueId,
   });
 
   const totalEnrolments = rows.reduce((s, r) => s + r.total, 0);
@@ -158,16 +159,16 @@ function EnrolmentsTab({ venueId, from, to }: { venueId: string; from: string; t
 
 // ─── Attendance Tab ───────────────────────────────────────────────────────────
 
-function AttendanceTab({ venueId, from, to }: { venueId: string; from: string; to: string }) {
+function AttendanceTab({ venueId, from, to, isSuperAdmin }: { venueId: string; from: string; to: string; isSuperAdmin?: boolean }) {
   const { data, isLoading } = useQuery<{
     PRESENT: number; ABSENT: number; LATE: number; EXCUSED: number; total: number; presentRate: number;
   }>({
     queryKey: ['reports-attendance', venueId, from, to],
     queryFn: () =>
       api
-        .get('/reports/attendance', { params: { venueId, from, to } })
+        .get('/reports/attendance', { params: { venueId: venueId || undefined, from, to } })
         .then((r) => r.data),
-    enabled: !!venueId,
+    enabled: isSuperAdmin ? true : !!venueId,
   });
 
   if (isLoading) return <Skeleton />;
@@ -252,15 +253,28 @@ const TABS: Array<{ id: Tab; label: string; icon: typeof TrendingUp }> = [
 
 export default function ReportsPage() {
   const { venueId } = useVenue();
+  const { role } = useAuth();
+  const isSuperAdmin = role === 'SUPER_ADMIN';
   const [tab, setTab] = useState<Tab>('revenue');
   const [from, setFrom] = useState(defaultRange(6).from);
   const [to, setTo] = useState(defaultRange(6).to);
+  const [saVenueFilter, setSaVenueFilter] = useState('');
+
+  const { data: venues = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ['venues-list'],
+    queryFn: () => api.get('/venues').then(r => r.data),
+    enabled: isSuperAdmin,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const effectiveVenueId = isSuperAdmin ? saVenueFilter : venueId;
 
   const handleExportCsv = useCallback(() => {
     const type = tab === 'attendance' ? 'revenue' : tab;
-    const url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/reports/export?type=${type}&from=${from}&to=${to}&venueId=${venueId}`;
+    const params = new URLSearchParams({ type, from, to });
+    if (effectiveVenueId) params.set('venueId', effectiveVenueId);
+    const url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/reports/export?${params.toString()}`;
     const token = localStorage.getItem('kheloge_access_token') || '';
-    // Trigger download via hidden anchor with auth header workaround (fetch + blob)
     fetch(url, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.blob())
       .then((blob) => {
@@ -270,13 +284,13 @@ export default function ReportsPage() {
         a.click();
         URL.revokeObjectURL(a.href);
       });
-  }, [tab, from, to, venueId]);
+  }, [tab, from, to, effectiveVenueId]);
 
   const handleExportPdf = useCallback(() => {
     window.print();
   }, []);
 
-  if (!venueId) {
+  if (!venueId && !isSuperAdmin) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -313,8 +327,8 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* Date Range */}
-      <div className="flex items-center gap-4 print:hidden">
+      {/* Date Range + Venue Filter */}
+      <div className="flex flex-wrap items-center gap-4 print:hidden">
         <div className="flex items-center gap-2">
           <label className="text-sm text-gray-600">From</label>
           <input
@@ -333,6 +347,16 @@ export default function ReportsPage() {
             className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
+        {isSuperAdmin && (
+          <select
+            value={saVenueFilter}
+            onChange={(e) => setSaVenueFilter(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All Venues</option>
+            {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+          </select>
+        )}
       </div>
 
       {/* Tabs */}
@@ -362,9 +386,9 @@ export default function ReportsPage() {
       </div>
 
       {/* Tab Content */}
-      {tab === 'revenue' && <RevenueTab venueId={venueId} from={from} to={to} />}
-      {tab === 'enrolments' && <EnrolmentsTab venueId={venueId} from={from} to={to} />}
-      {tab === 'attendance' && <AttendanceTab venueId={venueId} from={from} to={to} />}
+      {tab === 'revenue' && <RevenueTab venueId={effectiveVenueId} from={from} to={to} isSuperAdmin={isSuperAdmin} />}
+      {tab === 'enrolments' && <EnrolmentsTab venueId={effectiveVenueId} from={from} to={to} isSuperAdmin={isSuperAdmin} />}
+      {tab === 'attendance' && <AttendanceTab venueId={effectiveVenueId} from={from} to={to} isSuperAdmin={isSuperAdmin} />}
     </div>
   );
 }

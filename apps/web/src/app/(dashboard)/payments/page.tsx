@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
+import { useAuth } from '@/hooks/useAuth';
 import { CreditCard, Plus, Check } from 'lucide-react';
 import dayjs from 'dayjs';
 
@@ -81,26 +82,53 @@ function RecordPaymentModal({ invoice, onClose }: { invoice: Invoice; onClose: (
 
 export default function PaymentsPage() {
   const { venueId } = useVenue();
+  const { role } = useAuth();
+  const isSuperAdmin = role === 'SUPER_ADMIN';
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [saVenueFilter, setSaVenueFilter] = useState('');
 
-  const { data: dashboard } = useQuery({
-    queryKey: ['payments-dashboard', venueId],
-    queryFn: () => api.get(`/payments/dashboard/${venueId}`).then(r => r.data),
-    enabled: !!venueId,
+  const { data: venues = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ['venues-list'],
+    queryFn: () => api.get('/venues').then(r => r.data),
+    enabled: isSuperAdmin,
+    staleTime: 5 * 60 * 1000,
   });
 
-  // For demo: get all students then their invoices
+  const effectiveVenueId = isSuperAdmin ? saVenueFilter : venueId;
+
+  const { data: dashboard } = useQuery({
+    queryKey: ['payments-dashboard', effectiveVenueId],
+    queryFn: () => isSuperAdmin
+      ? api.get('/payments/dashboard').then(r => r.data)
+      : api.get(`/payments/dashboard/${venueId}`).then(r => r.data),
+    enabled: isSuperAdmin ? true : !!venueId,
+  });
+
   const { data: students = [] } = useQuery({
-    queryKey: ['students', venueId],
-    queryFn: () => api.get(`/venues/${venueId}/students`).then(r => r.data),
-    enabled: !!venueId,
+    queryKey: ['students', effectiveVenueId],
+    queryFn: () => isSuperAdmin
+      ? api.get(saVenueFilter ? `/venues/${saVenueFilter}/students` : '/students').then(r => r.data)
+      : api.get(`/venues/${venueId}/students`).then(r => r.data),
+    enabled: isSuperAdmin ? true : !!venueId,
   });
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">Payments</h2>
-        <p className="text-gray-500 text-sm">Fee collection and invoice management</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Payments</h2>
+          <p className="text-gray-500 text-sm">Fee collection and invoice management</p>
+        </div>
+        {isSuperAdmin && (
+          <select
+            value={saVenueFilter}
+            onChange={(e) => setSaVenueFilter(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All Venues</option>
+            {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+          </select>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

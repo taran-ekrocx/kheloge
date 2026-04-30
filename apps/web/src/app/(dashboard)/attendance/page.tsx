@@ -75,6 +75,7 @@ export default function AttendanceIndexPage() {
   const { venueId } = useVenue();
   const { role } = useAuth();
   const isCoach = role === 'COACH';
+  const isSuperAdmin = role === 'SUPER_ADMIN';
   const isAdmin = ['SUPER_ADMIN', 'CITY_MANAGER', 'VENUE_MANAGER'].includes(role || '');
   const router = useRouter();
   const [startingSession, setStartingSession] = useState<string | null>(null);
@@ -82,13 +83,29 @@ export default function AttendanceIndexPage() {
   const [historyBatchId, setHistoryBatchId] = useState<string | null>(null);
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
   const [filterCoachId, setFilterCoachId] = useState<string>('');
+  const [saVenueFilter, setSaVenueFilter] = useState('');
+
+  const { data: venues = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ['venues-list'],
+    queryFn: () => api.get('/venues').then(r => r.data),
+    enabled: isSuperAdmin,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const effectiveVenueId = isSuperAdmin ? saVenueFilter : venueId;
 
   const { data: batches = [], isLoading } = useQuery<Batch[]>({
-    queryKey: isCoach ? ['batches-all-coach'] : ['batches', venueId],
+    queryKey: isCoach
+      ? ['batches-all-coach']
+      : isSuperAdmin
+        ? ['batches-sa', saVenueFilter]
+        : ['batches', venueId],
     queryFn: isCoach
       ? () => api.get('/batches?status=active').then(r => r.data)
-      : () => api.get(`/venues/${venueId}/batches`).then(r => r.data),
-    enabled: isCoach ? true : !!venueId,
+      : isSuperAdmin
+        ? () => api.get(saVenueFilter ? `/batches?status=active&venueId=${saVenueFilter}` : '/batches?status=active').then(r => r.data)
+        : () => api.get(`/venues/${venueId}/batches`).then(r => r.data),
+    enabled: isCoach || isSuperAdmin ? true : !!venueId,
   });
 
   const { data: myActiveSession } = useQuery<ActiveSession | null>({
@@ -111,10 +128,10 @@ export default function AttendanceIndexPage() {
   });
 
   const { data: adminSessionHistory = [] } = useQuery<AdminSessionHistoryItem[]>({
-    queryKey: ['admin-session-history', venueId, filterCoachId],
+    queryKey: ['admin-session-history', effectiveVenueId, filterCoachId],
     queryFn: () => {
       const params = new URLSearchParams();
-      if (venueId) params.set('venueId', venueId);
+      if (effectiveVenueId) params.set('venueId', effectiveVenueId);
       if (filterCoachId) params.set('coachId', filterCoachId);
       return api.get(`/attendance/sessions?${params.toString()}`).then(r => r.data);
     },
@@ -122,10 +139,10 @@ export default function AttendanceIndexPage() {
   });
 
   const { data: coachSessionSummary = [] } = useQuery<CoachSessionSummary[]>({
-    queryKey: ['coach-session-summary', venueId],
+    queryKey: ['coach-session-summary', effectiveVenueId],
     queryFn: () => {
       const params = new URLSearchParams();
-      if (venueId) params.set('venueId', venueId);
+      if (effectiveVenueId) params.set('venueId', effectiveVenueId);
       return api.get(`/attendance/sessions/coach-summary?${params.toString()}`).then(r => r.data);
     },
     enabled: isAdmin && tab === 'history',
@@ -181,6 +198,18 @@ export default function AttendanceIndexPage() {
 
       {tab === 'today' && (
         <>
+          {isSuperAdmin && (
+            <div className="flex items-center gap-3">
+              <select
+                value={saVenueFilter}
+                onChange={(e) => setSaVenueFilter(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Venues</option>
+                {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+              </select>
+            </div>
+          )}
           {isLoading ? (
             <div className="text-gray-400">Loading batches...</div>
           ) : batches.length === 0 ? (
@@ -282,6 +311,19 @@ export default function AttendanceIndexPage() {
 
       {isAdmin && tab === 'history' && (
         <div className="space-y-4">
+          {isSuperAdmin && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Venue</label>
+              <select
+                value={saVenueFilter}
+                onChange={(e) => { setSaVenueFilter(e.target.value); setExpandedSession(null); }}
+                className="w-full sm:w-72 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Venues</option>
+                {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+              </select>
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Coach</label>
             <select

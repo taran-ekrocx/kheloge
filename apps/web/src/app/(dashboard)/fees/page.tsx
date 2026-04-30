@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
+import { useAuth } from '@/hooks/useAuth';
 import { Plus, Edit2, Check, Bell, FileText } from 'lucide-react';
 import dayjs from 'dayjs';
 
@@ -182,14 +183,16 @@ function FeePlanModal({
 
 // ── Fee Structures Tab ─────────────────────────────────────────────────────
 
-function FeeStructuresTab({ venueId }: { venueId: string }) {
+function FeeStructuresTab({ venueId, isSuperAdmin }: { venueId: string; isSuperAdmin?: boolean }) {
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<FeePlan | null>(null);
 
   const { data: feePlans = [], isLoading } = useQuery<FeePlan[]>({
     queryKey: ['fee-plans', venueId],
-    queryFn: () => api.get(`/payments/venues/${venueId}/fee-plans`).then((r) => r.data),
-    enabled: !!venueId,
+    queryFn: () => isSuperAdmin && !venueId
+      ? api.get('/payments/fee-plans').then((r) => r.data)
+      : api.get(`/payments/venues/${venueId}/fee-plans`).then((r) => r.data),
+    enabled: isSuperAdmin ? true : !!venueId,
   });
 
   return (
@@ -198,7 +201,9 @@ function FeeStructuresTab({ venueId }: { venueId: string }) {
         <p className="text-sm text-gray-500">{feePlans.length} fee structures</p>
         <button
           onClick={() => { setEditing(null); setShowModal(true); }}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
+          disabled={isSuperAdmin && !venueId}
+          title={isSuperAdmin && !venueId ? 'Select a venue to create a fee structure' : undefined}
+          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Plus size={15} />
           New Fee Structure
@@ -279,13 +284,15 @@ function FeeStructuresTab({ venueId }: { venueId: string }) {
 
 // ── Invoices Tab ───────────────────────────────────────────────────────────
 
-function InvoicesTab({ venueId }: { venueId: string }) {
+function InvoicesTab({ venueId, isSuperAdmin }: { venueId: string; isSuperAdmin?: boolean }) {
   const queryClient = useQueryClient();
 
   const { data: invoices = [], isLoading } = useQuery<Invoice[]>({
     queryKey: ['venue-invoices', venueId],
-    queryFn: () => api.get(`/payments/venues/${venueId}/invoices`).then((r) => r.data),
-    enabled: !!venueId,
+    queryFn: () => isSuperAdmin && !venueId
+      ? api.get('/payments/invoices').then((r) => r.data)
+      : api.get(`/payments/venues/${venueId}/invoices`).then((r) => r.data),
+    enabled: isSuperAdmin ? true : !!venueId,
   });
 
   const markPaidMutation = useMutation({
@@ -388,9 +395,21 @@ type Tab = 'structures' | 'invoices';
 
 export default function FeesPage() {
   const { venueId } = useVenue();
+  const { role } = useAuth();
+  const isSuperAdmin = role === 'SUPER_ADMIN';
   const [tab, setTab] = useState<Tab>('structures');
+  const [saVenueFilter, setSaVenueFilter] = useState('');
 
-  if (!venueId) {
+  const { data: venues = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ['venues-list'],
+    queryFn: () => api.get('/venues').then(r => r.data),
+    enabled: isSuperAdmin,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const effectiveVenueId = isSuperAdmin ? saVenueFilter : venueId;
+
+  if (!venueId && !isSuperAdmin) {
     return (
       <div className="flex items-center justify-center h-64 text-gray-400">
         No venue selected.
@@ -405,6 +424,16 @@ export default function FeesPage() {
           <h2 className="text-2xl font-bold text-gray-900">Fee Desk</h2>
           <p className="text-gray-500 text-sm">Manage fee structures and invoices</p>
         </div>
+        {isSuperAdmin && (
+          <select
+            value={saVenueFilter}
+            onChange={(e) => setSaVenueFilter(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All Venues</option>
+            {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+          </select>
+        )}
       </div>
 
       {/* Tabs */}
@@ -430,9 +459,9 @@ export default function FeesPage() {
       </div>
 
       {tab === 'structures' ? (
-        <FeeStructuresTab venueId={venueId} />
+        <FeeStructuresTab venueId={effectiveVenueId} isSuperAdmin={isSuperAdmin} />
       ) : (
-        <InvoicesTab venueId={venueId} />
+        <InvoicesTab venueId={effectiveVenueId} isSuperAdmin={isSuperAdmin} />
       )}
     </div>
   );
