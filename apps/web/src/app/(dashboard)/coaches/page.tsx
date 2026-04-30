@@ -4,7 +4,8 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
-import { Search, UserPlus, Filter, X, Edit2, Trash2, User, Plus } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { Search, UserPlus, Filter, X, Edit2, Trash2, User, Plus, ChevronDown } from 'lucide-react';
 import { STATE_NAMES, getDistricts, getCities } from '@/lib/india-locations';
 
 const COACH_STEP_LABELS = [
@@ -732,28 +733,39 @@ function CoachDetailModal({ coach, onClose }: { coach: Coach; onClose: () => voi
 
 export default function CoachesPage() {
   const { venueId } = useVenue();
+  const { role } = useAuth();
+  const isSuperAdmin = role === 'SUPER_ADMIN';
   const queryClient = useQueryClient();
+  const [saVenueFilter, setSaVenueFilter] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Coach | undefined>();
   const [viewing, setViewing] = useState<Coach | undefined>();
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
 
+  const { data: venues = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ['venues-list'],
+    queryFn: () => api.get('/venues').then(r => r.data),
+    enabled: isSuperAdmin,
+  });
+
+  const effectiveVenueId = isSuperAdmin ? saVenueFilter : venueId;
+
   const { data: coaches = [], isLoading } = useQuery<Coach[]>({
-    queryKey: ['coaches', venueId],
-    queryFn: () => api.get(`/venues/${venueId}/coaches`).then(r => r.data),
-    enabled: !!venueId,
+    queryKey: ['coaches', effectiveVenueId],
+    queryFn: () => api.get(`/venues/${effectiveVenueId}/coaches`).then(r => r.data),
+    enabled: !!effectiveVenueId,
   });
 
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
-      api.patch(`/venues/${venueId}/coaches/${id}`, { status }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['coaches', venueId] }),
+      api.patch(`/venues/${effectiveVenueId}/coaches/${id}`, { status }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['coaches', effectiveVenueId] }),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.delete(`/venues/${venueId}/coaches/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['coaches', venueId] }),
+    mutationFn: (id: string) => api.delete(`/venues/${effectiveVenueId}/coaches/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['coaches', effectiveVenueId] }),
   });
 
   const filtered = useMemo(() => {
@@ -772,12 +784,29 @@ export default function CoachesPage() {
           <h2 className="text-2xl font-bold text-gray-900">Coaches</h2>
           <p className="text-gray-500 text-sm">{filtered.length} of {coaches.length} coaches</p>
         </div>
-        <button
-          onClick={() => { setEditing(undefined); setShowModal(true); }}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
-        >
-          <UserPlus size={16} /> Add Coach
-        </button>
+        <div className="flex items-center gap-3">
+          {isSuperAdmin && (
+            <div className="relative">
+              <select
+                value={saVenueFilter}
+                onChange={(e) => setSaVenueFilter(e.target.value)}
+                className="appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 pr-8"
+              >
+                <option value="">All Venues</option>
+                {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+              </select>
+              <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            </div>
+          )}
+          <button
+            onClick={() => { setEditing(undefined); setShowModal(true); }}
+            disabled={isSuperAdmin && !saVenueFilter}
+            title={isSuperAdmin && !saVenueFilter ? 'Select a venue to add a coach' : undefined}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <UserPlus size={16} /> Add Coach
+          </button>
+        </div>
       </div>
 
       <div className="relative">
@@ -812,7 +841,12 @@ export default function CoachesPage() {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        {isLoading ? (
+        {!effectiveVenueId ? (
+          <div className="p-8 text-center">
+            <User size={36} className="mx-auto mb-3 text-gray-300" />
+            <p className="text-gray-400">Select a venue to view coaches.</p>
+          </div>
+        ) : isLoading ? (
           <div className="p-8 text-center text-gray-400">Loading coaches...</div>
         ) : filtered.length === 0 ? (
           <div className="p-8 text-center">
@@ -891,10 +925,10 @@ export default function CoachesPage() {
         )}
       </div>
 
-      {showModal && venueId && (
+      {showModal && effectiveVenueId && (
         <CoachModal
           onClose={() => { setShowModal(false); setEditing(undefined); }}
-          venueId={venueId}
+          venueId={effectiveVenueId}
           existing={editing}
         />
       )}
