@@ -198,49 +198,10 @@ export class CoachesService {
   async findAll(organizationId: string) {
     const orgUsers = await this.prisma.organizationUser.findMany({
       where: { organizationId, role: UserRole.COACH, isActive: true },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            phone: true,
-            photoUrl: true,
-            coachBatches: {
-              include: {
-                batch: {
-                  select: {
-                    id: true,
-                    name: true,
-                    sport: { select: { id: true, name: true } },
-                    venue: { select: { id: true, name: true } },
-                    startTime: true,
-                    endTime: true,
-                    days: true,
-                    isActive: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-        venue: { select: { id: true, name: true } },
-      },
+      include: VENUE_COACH_INCLUDE,
       orderBy: { createdAt: 'desc' },
     });
-
-    return orgUsers.map(({ user, venue, ...rest }) => ({
-      ...rest,
-      userId: user.id,
-      name: user.name,
-      phone: user.phone,
-      photoUrl: user.photoUrl,
-      venue,
-      batches: user.coachBatches.map((bc) => ({
-        batchId: bc.batchId,
-        isPrimary: bc.isPrimary,
-        ...bc.batch,
-      })),
-    }));
+    return orgUsers.map((ou) => this.mapOrgUser(ou));
   }
 
   async findOne(organizationId: string, orgUserId: string) {
@@ -462,6 +423,155 @@ export class CoachesService {
   async removeCoach(organizationId: string, venueId: string, orgUserId: string) {
     const orgUser = await this.prisma.organizationUser.findFirst({
       where: { id: orgUserId, organizationId, venueId, role: UserRole.COACH },
+    });
+    if (!orgUser) throw new NotFoundException('Coach not found');
+
+    await this.prisma.organizationUser.update({
+      where: { id: orgUserId },
+      data: { isActive: false },
+    });
+
+    return { success: true };
+  }
+
+  async createCoachGlobal(organizationId: string, dto: CreateCoachDto) {
+    dto.phone = normalizePhone(dto.phone);
+    let user = await this.prisma.user.findUnique({ where: { phone: dto.phone } });
+    if (!user) {
+      user = await this.prisma.user.create({
+        data: { phone: dto.phone, name: dto.name, email: dto.email ?? null },
+      });
+    } else {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { name: dto.name, ...(dto.email !== undefined ? { email: dto.email } : {}) },
+      });
+    }
+
+    const existing = await this.prisma.organizationUser.findFirst({
+      where: { userId: user.id, organizationId, venueId: null, role: UserRole.COACH, isActive: true },
+    });
+    if (existing) throw new ConflictException('Coach already exists in this organization');
+
+    const isActive = dto.status !== 'INACTIVE';
+    const orgUser = await this.prisma.organizationUser.create({
+      data: {
+        userId: user.id,
+        organizationId,
+        role: UserRole.COACH,
+        isActive,
+        ...(dto.state !== undefined ? { state: dto.state } : {}),
+        ...(dto.district !== undefined ? { district: dto.district } : {}),
+        ...(dto.city !== undefined ? { locationCity: dto.city } : {}),
+        ...(dto.region !== undefined ? { region: dto.region } : {}),
+      },
+      include: VENUE_COACH_INCLUDE,
+    });
+
+    if (dto.sportIds && dto.sportIds.length > 0) {
+      await this.prisma.coachSport.createMany({
+        data: dto.sportIds.map((sportId) => ({ coachId: user.id, sportId })),
+        skipDuplicates: true,
+      });
+    }
+
+    if (dto.profile) {
+      await this.prisma.coachProfile.create({
+        data: {
+          orgUserId: orgUser.id,
+          educationDetails: (dto.profile.educationDetails ?? []) as any,
+          sportSpecialization: dto.profile.sportSpecialization,
+          playingLevels: dto.profile.playingLevels ?? [],
+          achievements: dto.profile.achievements,
+          coachingExperience: (dto.profile.coachingExperience ?? []) as any,
+          keySkills: dto.profile.keySkills ?? [],
+          responsibilities: dto.profile.responsibilities ?? [],
+          expectedSalary: dto.profile.expectedSalary,
+          joiningAvailability: dto.profile.joiningAvailability,
+        },
+      });
+    }
+
+    const refreshed = await this.prisma.organizationUser.findFirst({
+      where: { id: orgUser.id },
+      include: VENUE_COACH_INCLUDE,
+    });
+    return this.mapOrgUser(refreshed);
+  }
+
+  async updateCoachGlobal(organizationId: string, orgUserId: string, dto: UpdateCoachDto) {
+    const orgUser = await this.prisma.organizationUser.findFirst({
+      where: { id: orgUserId, organizationId, role: UserRole.COACH },
+    });
+    if (!orgUser) throw new NotFoundException('Coach not found');
+
+    const userUpdate: any = {};
+    if (dto.name !== undefined) userUpdate.name = dto.name;
+    if (dto.phone !== undefined) userUpdate.phone = normalizePhone(dto.phone);
+    if (dto.email !== undefined) userUpdate.email = dto.email;
+    if (Object.keys(userUpdate).length > 0) {
+      await this.prisma.user.update({ where: { id: orgUser.userId }, data: userUpdate });
+    }
+
+    const orgUserUpdate: any = {};
+    if (dto.status !== undefined) orgUserUpdate.isActive = dto.status === 'ACTIVE';
+    if (dto.state !== undefined) orgUserUpdate.state = dto.state;
+    if (dto.district !== undefined) orgUserUpdate.district = dto.district;
+    if (dto.city !== undefined) orgUserUpdate.locationCity = dto.city;
+    if (dto.region !== undefined) orgUserUpdate.region = dto.region;
+    if (Object.keys(orgUserUpdate).length > 0) {
+      await this.prisma.organizationUser.update({ where: { id: orgUserId }, data: orgUserUpdate });
+    }
+
+    if (dto.sportIds !== undefined) {
+      await this.prisma.coachSport.deleteMany({ where: { coachId: orgUser.userId } });
+      if (dto.sportIds.length > 0) {
+        await this.prisma.coachSport.createMany({
+          data: dto.sportIds.map((sportId) => ({ coachId: orgUser.userId, sportId })),
+          skipDuplicates: true,
+        });
+      }
+    }
+
+    if (dto.profile !== undefined) {
+      await this.prisma.coachProfile.upsert({
+        where: { orgUserId },
+        create: {
+          orgUserId,
+          educationDetails: (dto.profile.educationDetails ?? []) as any,
+          sportSpecialization: dto.profile.sportSpecialization,
+          playingLevels: dto.profile.playingLevels ?? [],
+          achievements: dto.profile.achievements,
+          coachingExperience: (dto.profile.coachingExperience ?? []) as any,
+          keySkills: dto.profile.keySkills ?? [],
+          responsibilities: dto.profile.responsibilities ?? [],
+          expectedSalary: dto.profile.expectedSalary,
+          joiningAvailability: dto.profile.joiningAvailability,
+        },
+        update: {
+          ...(dto.profile.educationDetails !== undefined ? { educationDetails: dto.profile.educationDetails as any } : {}),
+          ...(dto.profile.sportSpecialization !== undefined ? { sportSpecialization: dto.profile.sportSpecialization } : {}),
+          ...(dto.profile.playingLevels !== undefined ? { playingLevels: dto.profile.playingLevels } : {}),
+          ...(dto.profile.achievements !== undefined ? { achievements: dto.profile.achievements } : {}),
+          ...(dto.profile.coachingExperience !== undefined ? { coachingExperience: dto.profile.coachingExperience as any } : {}),
+          ...(dto.profile.keySkills !== undefined ? { keySkills: dto.profile.keySkills } : {}),
+          ...(dto.profile.responsibilities !== undefined ? { responsibilities: dto.profile.responsibilities } : {}),
+          ...(dto.profile.expectedSalary !== undefined ? { expectedSalary: dto.profile.expectedSalary } : {}),
+          ...(dto.profile.joiningAvailability !== undefined ? { joiningAvailability: dto.profile.joiningAvailability } : {}),
+        },
+      });
+    }
+
+    const updated = await this.prisma.organizationUser.findFirst({
+      where: { id: orgUserId },
+      include: VENUE_COACH_INCLUDE,
+    });
+    return this.mapOrgUser(updated);
+  }
+
+  async removeCoachGlobal(organizationId: string, orgUserId: string) {
+    const orgUser = await this.prisma.organizationUser.findFirst({
+      where: { id: orgUserId, organizationId, role: UserRole.COACH },
     });
     if (!orgUser) throw new NotFoundException('Coach not found');
 
