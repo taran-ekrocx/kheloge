@@ -13,9 +13,12 @@ function storeAuthTokens(accessToken: string, refreshToken: string) {
   localStorage.setItem('kheloge_access_token', accessToken);
   localStorage.setItem('kheloge_refresh_token', refreshToken);
   // Auto-set venueId for venue-scoped roles (VENUE_MANAGER, COACH, etc.)
+  // Clear it for org-wide roles (SUPER_ADMIN, CITY_MANAGER) so stale venue data doesn't bleed across logins.
   const payload = parseJwt(accessToken);
   if (payload.venueId && typeof payload.venueId === 'string') {
     localStorage.setItem('kheloge_venue_id', payload.venueId);
+  } else {
+    localStorage.removeItem('kheloge_venue_id');
   }
 }
 
@@ -43,6 +46,7 @@ export const AuthService = {
   logout() {
     localStorage.removeItem('kheloge_access_token');
     localStorage.removeItem('kheloge_refresh_token');
+    localStorage.removeItem('kheloge_venue_id');
     window.location.href = '/login';
   },
 

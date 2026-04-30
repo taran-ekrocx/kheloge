@@ -33,7 +33,10 @@ const NAV_ADMIN = [
   { href: '/users', label: 'Team', icon: UsersRound },
 ];
 
-function VenueSelector({ isCoach }: { isCoach?: boolean }) {
+function VenueSelector({ role }: { role: string | null }) {
+  const isCoach = role === 'COACH';
+  const isSuperAdmin = role === 'SUPER_ADMIN';
+  const isCityManager = role === 'CITY_MANAGER';
   const { venueId, selectVenue } = useVenue();
 
   const { data: venues = [] } = useQuery<{ id: string; name: string }[]>({
@@ -42,14 +45,16 @@ function VenueSelector({ isCoach }: { isCoach?: boolean }) {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Auto-select first venue when none selected and venues loaded
+  // Auto-select first venue for venue-scoped roles only, and only once role is known.
+  // Guard on role !== null to prevent firing before the JWT is read from localStorage —
+  // otherwise SA/CM would get a venue set before isSuperAdmin becomes true.
   useEffect(() => {
-    if (!venueId && venues.length > 0) {
+    if (role !== null && !isSuperAdmin && !isCityManager && !venueId && venues.length > 0) {
       selectVenue(venues[0].id);
     }
-  }, [venueId, venues, selectVenue]);
+  }, [role, isSuperAdmin, isCityManager, venueId, venues, selectVenue]);
 
-  if (isCoach || venues.length <= 1) return null;
+  if (role === null || isCoach || isSuperAdmin || isCityManager || venues.length <= 1) return null;
 
   return (
     <div className="px-3 pb-3">
@@ -100,6 +105,7 @@ function NavGroup({ label, items, isCoach }: { label: string; items: typeof NAV_
 export function Sidebar() {
   const { role } = useAuth();
   const isCoach = role === 'COACH';
+  const isSuperAdmin = role === 'SUPER_ADMIN';
 
   return (
     <aside className="w-60 min-h-screen bg-white border-r border-gray-200 flex flex-col">
@@ -108,7 +114,7 @@ export function Sidebar() {
         <p className="text-xs text-gray-400 mt-0.5">Sports Management</p>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-4 overflow-y-auto">
-        <VenueSelector isCoach={isCoach} />
+        <VenueSelector role={role} />
         <NavGroup label="Operations" items={NAV_OPERATIONS} isCoach={isCoach} />
         {!isCoach && <NavGroup label="Administration" items={NAV_ADMIN} />}
       </nav>
