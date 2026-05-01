@@ -6,14 +6,13 @@ import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
 import { useAuth } from '@/hooks/useAuth';
 import { Search, UserPlus, Filter, X, Edit2, Trash2, User, Plus } from 'lucide-react';
-import { STATE_NAMES, getDistricts, getCities } from '@/lib/india-locations';
+import { STATE_NAMES, getDistricts } from '@/lib/india-locations';
 
 const COACH_STEP_LABELS = [
   'Basic Details',
   'Education & Certs',
   'Sports Background',
   'Experience & Skills',
-  'Responsibilities',
 ];
 
 const PLAYING_LEVELS = ['District', 'State', 'National', 'International'];
@@ -84,6 +83,13 @@ const STATUS_STYLES: Record<string, string> = {
   ACTIVE: 'bg-green-100 text-green-700',
   INACTIVE: 'bg-gray-100 text-gray-600',
 };
+
+function extractMobileDigits(raw: string): string | null {
+  const stripped = raw.replace(/\s/g, '').replace(/^\+/, '');
+  if (/^\d{10}$/.test(stripped)) return stripped;
+  if (/^91\d{10}$/.test(stripped)) return stripped.slice(2);
+  return null;
+}
 
 const EMPTY_EDUCATION: EducationDetail = { qualification: '', institute: '', year: '', remarks: '', sportsCertifications: '' };
 const EMPTY_EXP: CoachingExp = { organization: '', role: '', duration: '', responsibilities: '' };
@@ -207,7 +213,6 @@ function CoachModal({
   }));
 
   const districts = useMemo(() => form.state ? getDistricts(form.state) : [], [form.state]);
-  const cities = useMemo(() => form.state && form.district ? getCities(form.state, form.district) : [], [form.state, form.district]);
 
   const handleStateChange = (state: string) => setForm(f => ({ ...f, state, district: '', city: '' }));
   const handleDistrictChange = (district: string) => setForm(f => ({ ...f, district, city: '' }));
@@ -218,8 +223,8 @@ function CoachModal({
       if (!form.name.trim()) next.name = 'Full name is required';
       if (!form.phone.trim()) {
         next.phone = 'Mobile number is required';
-      } else if (!/^\d{10}$/.test(form.phone.replace(/\s/g, ''))) {
-        next.phone = 'Enter a valid 10-digit mobile number';
+      } else if (!extractMobileDigits(form.phone)) {
+        next.phone = 'Enter a valid 10-digit mobile number (with or without +91)';
       }
       if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
         next.email = 'Enter a valid email address';
@@ -252,7 +257,7 @@ function CoachModal({
     mutationFn: () => {
       const payload = {
         name: form.name,
-        phone: form.phone,
+        phone: `+91${extractMobileDigits(form.phone) ?? form.phone}`,
         email: form.email || undefined,
         status: form.status,
         state: form.state || undefined,
@@ -359,15 +364,6 @@ function CoachModal({
                 >
                   <option value="">Select District</option>
                   {districts.map(d => <option key={d.name} value={d.name}>{d.name}</option>)}
-                </select>
-                <select
-                  value={form.city}
-                  onChange={(e) => setForm(f => ({ ...f, city: e.target.value }))}
-                  disabled={!form.district}
-                  className={`${inputCls} disabled:bg-gray-50 disabled:text-gray-400`}
-                >
-                  <option value="">Select City</option>
-                  {cities.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
                 <input
                   placeholder="Region"
@@ -562,39 +558,6 @@ function CoachModal({
                   </label>
                 ))}
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Step 5: Responsibilities & Salary Expectation */}
-        {currentStep === 5 && (
-          <div className="space-y-4">
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Responsibilities to Handle</p>
-              <ul className="space-y-2">
-                {RESPONSIBILITIES.map((r) => (
-                  <li key={r} className="flex items-start gap-2 text-sm text-gray-700">
-                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />
-                    {r}
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="border-t pt-3 space-y-2">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Salary Expectation</p>
-              <input
-                placeholder="Expected Salary (INR)"
-                value={form.profile.expectedSalary}
-                onChange={(e) => setForm(f => ({ ...f, profile: { ...f.profile, expectedSalary: e.target.value } }))}
-                className={inputCls}
-              />
-              <input
-                placeholder="Joining Availability (e.g. Immediately, 1 month)"
-                value={form.profile.joiningAvailability}
-                onChange={(e) => setForm(f => ({ ...f, profile: { ...f.profile, joiningAvailability: e.target.value } }))}
-                className={inputCls}
-              />
             </div>
           </div>
         )}
