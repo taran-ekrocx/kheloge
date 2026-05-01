@@ -315,6 +315,7 @@ export default function BatchesPage() {
   const [editing, setEditing] = useState<Batch | undefined>();
   const [search, setSearch] = useState('');
   const [filterSport, setFilterSport] = useState('');
+  const [filterVenue, setFilterVenue] = useState('');
   const [saVenueFilter, setSaVenueFilter] = useState('');
 
   const { data: venues = [] } = useQuery<{ id: string; name: string }[]>({
@@ -361,16 +362,24 @@ export default function BatchesPage() {
     },
   });
 
+  const coachVenues = useMemo(() => {
+    if (!isCoach) return [];
+    const map = new Map<string, string>();
+    batches.forEach(b => { if (b.venue?.id) map.set(b.venue.id, b.venue.name); });
+    return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [batches, isCoach]);
+
   const filtered = useMemo(() => {
     return batches.filter(b => {
       const q = search.toLowerCase();
       if (q && !b.name.toLowerCase().includes(q)) return false;
       if (filterSport && b.sport?.id !== filterSport) return false;
+      if (filterVenue && b.venue?.id !== filterVenue) return false;
       return true;
     });
-  }, [batches, search, filterSport]);
+  }, [batches, search, filterSport, filterVenue]);
 
-  const hasFilters = !!filterSport;
+  const hasFilters = !!(filterSport || filterVenue);
 
   return (
     <div className="space-y-5">
@@ -422,9 +431,18 @@ export default function BatchesPage() {
           <option value="">All Sports</option>
           {sports.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
+        {isCoach && coachVenues.length > 0 && (
+          <select
+            value={filterVenue} onChange={(e) => setFilterVenue(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All Venues</option>
+            {coachVenues.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+          </select>
+        )}
         {hasFilters && (
           <button
-            onClick={() => { setFilterSport(''); }}
+            onClick={() => { setFilterSport(''); setFilterVenue(''); }}
             className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
           >
             <X size={13} /> Clear
