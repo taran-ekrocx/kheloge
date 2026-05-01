@@ -45,14 +45,15 @@ function VenueSelector({ role, jwtVenueId }: { role: string | null; jwtVenueId: 
     staleTime: 5 * 60 * 1000,
   });
 
-  // Coaches: seed from the venueId baked into their JWT so we use their assigned
-  // venue rather than whichever venue is first in the org list.
-  // Other venue-scoped roles: fall back to first venue in the list.
   useEffect(() => {
-    if (role === null || isSuperAdmin || isCityManager || venueId) return;
-    if (isCoach && jwtVenueId) {
-      selectVenue(jwtVenueId);
-    } else if (!isCoach && venues.length > 0) {
+    if (role === null || isSuperAdmin || isCityManager) return;
+
+    if (isCoach) {
+      // Always enforce the coach's JWT venue (corrects stale localStorage from prior sessions).
+      // Fall back to first venue in the list if the JWT has no venueId (e.g. older org records).
+      const target = jwtVenueId ?? (venues.length > 0 ? venues[0].id : null);
+      if (target && venueId !== target) selectVenue(target);
+    } else if (!venueId && venues.length > 0) {
       selectVenue(venues[0].id);
     }
   }, [role, isSuperAdmin, isCityManager, isCoach, jwtVenueId, venueId, venues, selectVenue]);
