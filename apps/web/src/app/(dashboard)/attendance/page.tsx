@@ -270,6 +270,7 @@ export default function AttendanceIndexPage() {
                         activeSessionId={myActiveSession?.id ?? null}
                         withinTime={isWithinBatchTime(batch.startTime, batch.endTime)}
                         sessionEndedToday={endedTodayBatchIds.has(batch.id)}
+                        noStudents={(batch._count?.enrollments ?? 0) === 0}
                         onStartSession={(id) => { setStartingSession(id); startSessionMutation.mutate(id); }}
                       />
                     ))}
@@ -523,7 +524,7 @@ function SessionList({
 
 function BatchRow({
   batch, highlight, isCoach, startingSession, activeSessionBatchId, activeSessionId, onStartSession,
-  withinTime = true, sessionEndedToday = false,
+  withinTime = true, sessionEndedToday = false, noStudents = false,
 }: {
   batch: Batch;
   highlight?: boolean;
@@ -534,6 +535,7 @@ function BatchRow({
   onStartSession?: (id: string) => void;
   withinTime?: boolean;
   sessionEndedToday?: boolean;
+  noStudents?: boolean;
 }) {
   const hasOtherActiveSession = !!activeSessionBatchId && activeSessionBatchId !== batch.id;
   const thisSessionActive = activeSessionBatchId === batch.id;
@@ -590,9 +592,10 @@ function BatchRow({
             ) : (
               <button
                 onClick={(e) => { e.preventDefault(); onStartSession?.(batch.id); }}
-                disabled={startingSession === batch.id || hasOtherActiveSession || !withinTime || sessionEndedToday}
+                disabled={startingSession === batch.id || hasOtherActiveSession || !withinTime || sessionEndedToday || noStudents}
                 title={
-                  sessionEndedToday ? 'Session already completed for today'
+                  noStudents ? 'No students enrolled in this batch'
+                    : sessionEndedToday ? 'Session already completed for today'
                     : !withinTime ? 'Outside batch schedule time'
                     : hasOtherActiveSession ? 'End your current session before starting a new one'
                     : undefined
