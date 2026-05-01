@@ -53,15 +53,24 @@ interface BatchOption {
 const STEP_LABELS = ['Student Details', 'Contact Info', 'Sports Enrollment', 'Medical Info'];
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
-function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: string }) {
+interface Venue { id: string; name: string; }
+
+function AddStudentModal({ onClose, venueId, isSuperAdmin }: { onClose: () => void; venueId: string; isSuperAdmin: boolean }) {
   const queryClient = useQueryClient();
   const [currentStep, setCurrentStep] = useState(1);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [selectedVenueId, setSelectedVenueId] = useState(venueId);
   const [form, setForm] = useState({
     name: '', dob: '', gender: '', bloodGroup: '',
     address: '', phone: '', guardianName: '', guardianPhone: '', guardianEmail: '',
     sportId: '', trainingLevel: '', batchId: '', previousExperience: '',
     hasMedicalCondition: 'no', medicalConditionDetails: '', emergencyContactName: '', emergencyContactPhone: '',
+  });
+
+  const { data: allVenues = [] } = useQuery<Venue[]>({
+    queryKey: ['venues'],
+    queryFn: () => api.get('/venues').then((r) => r.data),
+    enabled: isSuperAdmin,
   });
 
   const { data: allSports = [] } = useQuery<Sport[]>({
@@ -70,9 +79,9 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
   });
 
   const { data: allBatches = [] } = useQuery<BatchOption[]>({
-    queryKey: ['batches', venueId],
-    queryFn: () => api.get(`/venues/${venueId}/batches`).then((r) => r.data),
-    enabled: !!venueId,
+    queryKey: ['batches', selectedVenueId],
+    queryFn: () => api.get(`/venues/${selectedVenueId}/batches`).then((r) => r.data),
+    enabled: !!selectedVenueId,
   });
 
   const visibleBatches = form.sportId
@@ -91,7 +100,10 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
 
   const validateStep = (step: number): boolean => {
     const next: Record<string, string> = {};
-    if (step === 1 && !form.name.trim()) next.name = 'Full name is required';
+    if (step === 1) {
+      if (!form.name.trim()) next.name = 'Full name is required';
+      if (isSuperAdmin && !selectedVenueId) next.venue = 'Please select a venue';
+    }
     if (step === 2 && !form.guardianPhone.trim()) next.guardianPhone = 'Parent mobile is required';
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -109,7 +121,7 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
       if (form.emergencyContactPhone) {
         guardians.push({ name: form.emergencyContactName || 'Emergency Contact', phone: form.emergencyContactPhone, relation: 'Emergency Contact', isPrimary: false });
       }
-      return api.post(`/venues/${venueId}/students`, {
+      return api.post(`/venues/${selectedVenueId}/students`, {
         name: form.name,
         dob: form.dob || undefined,
         phone: form.phone || undefined,
@@ -122,7 +134,8 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['students', venueId] });
+      queryClient.invalidateQueries({ queryKey: ['students', selectedVenueId] });
+      queryClient.invalidateQueries({ queryKey: ['students-global'] });
       onClose();
     },
   });
@@ -138,31 +151,37 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
         </div>
 
-        {!venueId && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3 text-sm text-yellow-800">
-            Please select a venue from the header before adding a student.
+        {/* Progress indicator */}
+        <div className="mb-5">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-gray-500">Step {currentStep} of 4</span>
+            <span className="text-xs font-medium text-blue-600">{STEP_LABELS[currentStep - 1]}</span>
           </div>
-        )}
+          <div className="flex gap-1">
+            {STEP_LABELS.map((_, i) => (
+              <div key={i} className={`flex-1 h-1.5 rounded-full transition-colors ${i + 1 <= currentStep ? 'bg-blue-600' : 'bg-gray-200'}`} />
+            ))}
+          </div>
+        </div>
 
-        {venueId && (
-          <>
-            {/* Progress indicator */}
-            <div className="mb-5 mt-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-gray-500">Step {currentStep} of 4</span>
-                <span className="text-xs font-medium text-blue-600">{STEP_LABELS[currentStep - 1]}</span>
-              </div>
-              <div className="flex gap-1">
-                {STEP_LABELS.map((_, i) => (
-                  <div key={i} className={`flex-1 h-1.5 rounded-full transition-colors ${i + 1 <= currentStep ? 'bg-blue-600' : 'bg-gray-200'}`} />
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-3">
+        <div className="space-y-3">
               {/* Step 1: Student Details */}
               {currentStep === 1 && (
                 <>
+                  {isSuperAdmin && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Venue *</label>
+                      <select
+                        value={selectedVenueId}
+                        onChange={(e) => { setSelectedVenueId(e.target.value); setForm(f => ({ ...f, batchId: '', sportId: '' })); }}
+                        className={`${f}${errors.venue ? ' border-red-400' : ''}`}
+                      >
+                        <option value="">Select Venue</option>
+                        {allVenues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                      </select>
+                      {errors.venue && <p className={err}>{errors.venue}</p>}
+                    </div>
+                  )}
                   <div>
                     <input placeholder="Full Name *" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={`${f} ${errors.name ? 'border-red-400' : ''}`} />
                     {errors.name && <p className={err}>{errors.name}</p>}
@@ -281,36 +300,26 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
               )}
             </div>
 
-            {mutation.isError && <p className="text-red-500 text-sm mt-3">Failed to add student. Please try again.</p>}
+        {mutation.isError && <p className="text-red-500 text-sm mt-3">Failed to add student. Please try again.</p>}
 
-            <div className="flex gap-3 mt-6">
-              <button
-                type="button"
-                onClick={currentStep === 1 ? onClose : handleBack}
-                className="flex-1 border rounded-lg py-2 text-sm font-medium hover:bg-gray-50"
-              >
-                {currentStep === 1 ? 'Cancel' : 'Back'}
-              </button>
-              {currentStep < 4 ? (
-                <button type="button" onClick={handleNext} className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700">
-                  Next
-                </button>
-              ) : (
-                <button type="button" onClick={() => mutation.mutate()} disabled={mutation.isPending} className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
-                  {mutation.isPending ? 'Submitting...' : 'Submit'}
-                </button>
-              )}
-            </div>
-          </>
-        )}
-
-        {!venueId && (
-          <div className="flex justify-end mt-4">
-            <button type="button" onClick={onClose} className="border rounded-lg px-4 py-2 text-sm font-medium hover:bg-gray-50">
-              Close
+        <div className="flex gap-3 mt-6">
+          <button
+            type="button"
+            onClick={currentStep === 1 ? onClose : handleBack}
+            className="flex-1 border rounded-lg py-2 text-sm font-medium hover:bg-gray-50"
+          >
+            {currentStep === 1 ? 'Cancel' : 'Back'}
+          </button>
+          {currentStep < 4 ? (
+            <button type="button" onClick={handleNext} className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700">
+              Next
             </button>
-          </div>
-        )}
+          ) : (
+            <button type="button" onClick={() => mutation.mutate()} disabled={mutation.isPending} className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+              {mutation.isPending ? 'Submitting...' : 'Submit'}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -602,7 +611,7 @@ export default function StudentsPage() {
         )}
       </div>
 
-      {showAdd && <AddStudentModal onClose={() => setShowAdd(false)} venueId={venueId} />}
+      {showAdd && <AddStudentModal onClose={() => setShowAdd(false)} venueId={venueId} isSuperAdmin={isSuperAdmin} />}
     </div>
   );
 }
