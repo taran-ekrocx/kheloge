@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
+import { useAuth } from '@/hooks/useAuth';
 import { Search, UserPlus, ChevronRight, Download, CreditCard, User, Filter, X } from 'lucide-react';
 import Link from 'next/link';
 
@@ -137,161 +138,179 @@ function AddStudentModal({ onClose, venueId }: { onClose: () => void; venueId: s
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
         </div>
 
-        {/* Progress indicator */}
-        <div className="mb-5">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-gray-500">Step {currentStep} of 4</span>
-            <span className="text-xs font-medium text-blue-600">{STEP_LABELS[currentStep - 1]}</span>
+        {!venueId && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3 text-sm text-yellow-800">
+            Please select a venue from the header before adding a student.
           </div>
-          <div className="flex gap-1">
-            {STEP_LABELS.map((_, i) => (
-              <div key={i} className={`flex-1 h-1.5 rounded-full transition-colors ${i + 1 <= currentStep ? 'bg-blue-600' : 'bg-gray-200'}`} />
-            ))}
-          </div>
-        </div>
+        )}
 
-        <div className="space-y-3">
-          {/* Step 1: Student Details */}
-          {currentStep === 1 && (
-            <>
-              <div>
-                <input placeholder="Full Name *" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={`${f} ${errors.name ? 'border-red-400' : ''}`} />
-                {errors.name && <p className={err}>{errors.name}</p>}
+        {venueId && (
+          <>
+            {/* Progress indicator */}
+            <div className="mb-5 mt-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-gray-500">Step {currentStep} of 4</span>
+                <span className="text-xs font-medium text-blue-600">{STEP_LABELS[currentStep - 1]}</span>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Date of Birth</label>
-                <input type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} className={f} />
+              <div className="flex gap-1">
+                {STEP_LABELS.map((_, i) => (
+                  <div key={i} className={`flex-1 h-1.5 rounded-full transition-colors ${i + 1 <= currentStep ? 'bg-blue-600' : 'bg-gray-200'}`} />
+                ))}
               </div>
-              {age !== null && (
-                <p className="text-sm text-gray-500 bg-gray-50 rounded-lg px-3 py-2">Age: <span className="font-medium text-gray-700">{age} years</span></p>
-              )}
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-2">Gender</label>
-                <div className="flex gap-5">
-                  {['Male', 'Female', 'Other'].map((g) => (
-                    <label key={g} className="flex items-center gap-1.5 text-sm cursor-pointer">
-                      <input type="radio" name="gender" value={g} checked={form.gender === g} onChange={() => setForm({ ...form, gender: g })} className="accent-blue-600" />
-                      {g}
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Blood Group</label>
-                <select value={form.bloodGroup} onChange={(e) => setForm({ ...form, bloodGroup: e.target.value })} className={f}>
-                  <option value="">Select Blood Group</option>
-                  {BLOOD_GROUPS.map((bg) => <option key={bg} value={bg}>{bg}</option>)}
-                </select>
-              </div>
-            </>
-          )}
+            </div>
 
-          {/* Step 2: Contact Information */}
-          {currentStep === 2 && (
-            <>
-              <input placeholder="Address" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className={f} />
-              <input placeholder="Student Mobile (Optional)" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className={f} />
-              <div className="border-t pt-3">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Parent / Guardian</p>
-                <div className="space-y-3">
-                  <input placeholder="Parent/Guardian Name" value={form.guardianName} onChange={(e) => setForm({ ...form, guardianName: e.target.value })} className={f} />
+            <div className="space-y-3">
+              {/* Step 1: Student Details */}
+              {currentStep === 1 && (
+                <>
                   <div>
-                    <input placeholder="Parent Mobile *" value={form.guardianPhone} onChange={(e) => setForm({ ...form, guardianPhone: e.target.value })} className={`${f} ${errors.guardianPhone ? 'border-red-400' : ''}`} />
-                    {errors.guardianPhone && <p className={err}>{errors.guardianPhone}</p>}
+                    <input placeholder="Full Name *" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={`${f} ${errors.name ? 'border-red-400' : ''}`} />
+                    {errors.name && <p className={err}>{errors.name}</p>}
                   </div>
-                  <input type="email" placeholder="Parent Email ID" value={form.guardianEmail} onChange={(e) => setForm({ ...form, guardianEmail: e.target.value })} className={f} />
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* Step 3: Sports Enrollment */}
-          {currentStep === 3 && (
-            <>
-              {allSports.length > 0 && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Sport Applied For</label>
-                  <select value={form.sportId} onChange={(e) => setForm({ ...form, sportId: e.target.value, batchId: '' })} className={f}>
-                    <option value="">Select Sport</option>
-                    {allSports.map((sport) => <option key={sport.id} value={sport.id}>{sport.name}</option>)}
-                  </select>
-                </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Date of Birth</label>
+                    <input type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} className={f} />
+                  </div>
+                  {age !== null && (
+                    <p className="text-sm text-gray-500 bg-gray-50 rounded-lg px-3 py-2">Age: <span className="font-medium text-gray-700">{age} years</span></p>
+                  )}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-2">Gender</label>
+                    <div className="flex gap-5">
+                      {['Male', 'Female', 'Other'].map((g) => (
+                        <label key={g} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                          <input type="radio" name="gender" value={g} checked={form.gender === g} onChange={() => setForm({ ...form, gender: g })} className="accent-blue-600" />
+                          {g}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Blood Group</label>
+                    <select value={form.bloodGroup} onChange={(e) => setForm({ ...form, bloodGroup: e.target.value })} className={f}>
+                      <option value="">Select Blood Group</option>
+                      {BLOOD_GROUPS.map((bg) => <option key={bg} value={bg}>{bg}</option>)}
+                    </select>
+                  </div>
+                </>
               )}
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-2">Training Level</label>
-                <div className="flex gap-4">
-                  {['Beginner', 'Intermediate', 'Advanced'].map((level) => (
-                    <label key={level} className="flex items-center gap-1.5 text-sm cursor-pointer">
-                      <input type="radio" name="trainingLevel" value={level} checked={form.trainingLevel === level} onChange={() => setForm({ ...form, trainingLevel: level })} className="accent-blue-600" />
-                      {level}
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Batch</label>
-                <select value={form.batchId} onChange={(e) => setForm({ ...form, batchId: e.target.value })} className={f}>
-                  <option value="">{form.sportId ? 'Select Batch' : 'Select Sport first'}</option>
-                  {visibleBatches.map((batch) => (
-                    <option key={batch.id} value={batch.id}>{batch.name}{!form.sportId && batch.sport?.name ? ` · ${batch.sport.name}` : ''}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Previous Experience (if any)</label>
-                <textarea placeholder="Describe any previous sports experience..." value={form.previousExperience} onChange={(e) => setForm({ ...form, previousExperience: e.target.value })} className={`${f} resize-none`} rows={3} />
-              </div>
-            </>
-          )}
 
-          {/* Step 4: Medical Information */}
-          {currentStep === 4 && (
-            <>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-2">Any Medical Condition?</label>
-                <div className="flex gap-5">
-                  {[{ v: 'yes', l: 'Yes' }, { v: 'no', l: 'No' }].map(({ v, l }) => (
-                    <label key={v} className="flex items-center gap-1.5 text-sm cursor-pointer">
-                      <input type="radio" name="medicalCondition" value={v} checked={form.hasMedicalCondition === v} onChange={() => setForm({ ...form, hasMedicalCondition: v })} className="accent-blue-600" />
-                      {l}
-                    </label>
-                  ))}
-                </div>
-              </div>
-              {form.hasMedicalCondition === 'yes' && (
-                <textarea placeholder="Please specify the medical condition..." value={form.medicalConditionDetails} onChange={(e) => setForm({ ...form, medicalConditionDetails: e.target.value })} className={`${f} resize-none`} rows={3} />
+              {/* Step 2: Contact Information */}
+              {currentStep === 2 && (
+                <>
+                  <input placeholder="Address" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className={f} />
+                  <input placeholder="Student Mobile (Optional)" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className={f} />
+                  <div className="border-t pt-3">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Parent / Guardian</p>
+                    <div className="space-y-3">
+                      <input placeholder="Parent/Guardian Name" value={form.guardianName} onChange={(e) => setForm({ ...form, guardianName: e.target.value })} className={f} />
+                      <div>
+                        <input placeholder="Parent Mobile *" value={form.guardianPhone} onChange={(e) => setForm({ ...form, guardianPhone: e.target.value })} className={`${f} ${errors.guardianPhone ? 'border-red-400' : ''}`} />
+                        {errors.guardianPhone && <p className={err}>{errors.guardianPhone}</p>}
+                      </div>
+                      <input type="email" placeholder="Parent Email ID" value={form.guardianEmail} onChange={(e) => setForm({ ...form, guardianEmail: e.target.value })} className={f} />
+                    </div>
+                  </div>
+                </>
               )}
-              <div className="border-t pt-3">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Emergency Contact</p>
-                <div className="space-y-3">
-                  <input placeholder="Emergency Contact Person" value={form.emergencyContactName} onChange={(e) => setForm({ ...form, emergencyContactName: e.target.value })} className={f} />
-                  <input placeholder="Emergency Contact Number" value={form.emergencyContactPhone} onChange={(e) => setForm({ ...form, emergencyContactPhone: e.target.value })} className={f} />
-                </div>
-              </div>
-            </>
-          )}
-        </div>
 
-        {mutation.isError && <p className="text-red-500 text-sm mt-3">Failed to add student. Please try again.</p>}
+              {/* Step 3: Sports Enrollment */}
+              {currentStep === 3 && (
+                <>
+                  {allSports.length > 0 && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Sport Applied For</label>
+                      <select value={form.sportId} onChange={(e) => setForm({ ...form, sportId: e.target.value, batchId: '' })} className={f}>
+                        <option value="">Select Sport</option>
+                        {allSports.map((sport) => <option key={sport.id} value={sport.id}>{sport.name}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-2">Training Level</label>
+                    <div className="flex gap-4">
+                      {['Beginner', 'Intermediate', 'Advanced'].map((level) => (
+                        <label key={level} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                          <input type="radio" name="trainingLevel" value={level} checked={form.trainingLevel === level} onChange={() => setForm({ ...form, trainingLevel: level })} className="accent-blue-600" />
+                          {level}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Batch</label>
+                    <select value={form.batchId} onChange={(e) => setForm({ ...form, batchId: e.target.value })} className={f}>
+                      <option value="">{form.sportId ? 'Select Batch' : 'Select Sport first'}</option>
+                      {visibleBatches.map((batch) => (
+                        <option key={batch.id} value={batch.id}>{batch.name}{!form.sportId && batch.sport?.name ? ` · ${batch.sport.name}` : ''}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Previous Experience (if any)</label>
+                    <textarea placeholder="Describe any previous sports experience..." value={form.previousExperience} onChange={(e) => setForm({ ...form, previousExperience: e.target.value })} className={`${f} resize-none`} rows={3} />
+                  </div>
+                </>
+              )}
 
-        <div className="flex gap-3 mt-6">
-          <button
-            type="button"
-            onClick={currentStep === 1 ? onClose : handleBack}
-            className="flex-1 border rounded-lg py-2 text-sm font-medium hover:bg-gray-50"
-          >
-            {currentStep === 1 ? 'Cancel' : 'Back'}
-          </button>
-          {currentStep < 4 ? (
-            <button type="button" onClick={handleNext} className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700">
-              Next
+              {/* Step 4: Medical Information */}
+              {currentStep === 4 && (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-2">Any Medical Condition?</label>
+                    <div className="flex gap-5">
+                      {[{ v: 'yes', l: 'Yes' }, { v: 'no', l: 'No' }].map(({ v, l }) => (
+                        <label key={v} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                          <input type="radio" name="medicalCondition" value={v} checked={form.hasMedicalCondition === v} onChange={() => setForm({ ...form, hasMedicalCondition: v })} className="accent-blue-600" />
+                          {l}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  {form.hasMedicalCondition === 'yes' && (
+                    <textarea placeholder="Please specify the medical condition..." value={form.medicalConditionDetails} onChange={(e) => setForm({ ...form, medicalConditionDetails: e.target.value })} className={`${f} resize-none`} rows={3} />
+                  )}
+                  <div className="border-t pt-3">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Emergency Contact</p>
+                    <div className="space-y-3">
+                      <input placeholder="Emergency Contact Person" value={form.emergencyContactName} onChange={(e) => setForm({ ...form, emergencyContactName: e.target.value })} className={f} />
+                      <input placeholder="Emergency Contact Number" value={form.emergencyContactPhone} onChange={(e) => setForm({ ...form, emergencyContactPhone: e.target.value })} className={f} />
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {mutation.isError && <p className="text-red-500 text-sm mt-3">Failed to add student. Please try again.</p>}
+
+            <div className="flex gap-3 mt-6">
+              <button
+                type="button"
+                onClick={currentStep === 1 ? onClose : handleBack}
+                className="flex-1 border rounded-lg py-2 text-sm font-medium hover:bg-gray-50"
+              >
+                {currentStep === 1 ? 'Cancel' : 'Back'}
+              </button>
+              {currentStep < 4 ? (
+                <button type="button" onClick={handleNext} className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700">
+                  Next
+                </button>
+              ) : (
+                <button type="button" onClick={() => mutation.mutate()} disabled={mutation.isPending} className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+                  {mutation.isPending ? 'Submitting...' : 'Submit'}
+                </button>
+              )}
+            </div>
+          </>
+        )}
+
+        {!venueId && (
+          <div className="flex justify-end mt-4">
+            <button type="button" onClick={onClose} className="border rounded-lg px-4 py-2 text-sm font-medium hover:bg-gray-50">
+              Close
             </button>
-          ) : (
-            <button type="button" onClick={() => mutation.mutate()} disabled={mutation.isPending} className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
-              {mutation.isPending ? 'Submitting...' : 'Submit'}
-            </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -333,6 +352,8 @@ async function downloadIdCard(venueId: string, studentId: string, studentName: s
 
 export default function StudentsPage() {
   const { venueId } = useVenue();
+  const { role } = useAuth();
+  const isSuperAdmin = role === 'SUPER_ADMIN';
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
@@ -343,9 +364,11 @@ export default function StudentsPage() {
   const [bulkLoading, setBulkLoading] = useState(false);
 
   const { data: students = [], isLoading } = useQuery<Student[]>({
-    queryKey: ['students', venueId],
-    queryFn: () => api.get(`/venues/${venueId}/students`).then((r) => r.data),
-    enabled: !!venueId,
+    queryKey: isSuperAdmin ? ['students-global'] : ['students', venueId],
+    queryFn: isSuperAdmin
+      ? () => api.get('/students').then((r) => r.data)
+      : () => api.get(`/venues/${venueId}/students`).then((r) => r.data),
+    enabled: isSuperAdmin ? true : !!venueId,
   });
 
   const statusMutation = useMutation({
@@ -579,7 +602,7 @@ export default function StudentsPage() {
         )}
       </div>
 
-      {showAdd && venueId && <AddStudentModal onClose={() => setShowAdd(false)} venueId={venueId} />}
+      {showAdd && <AddStudentModal onClose={() => setShowAdd(false)} venueId={venueId} />}
     </div>
   );
 }
