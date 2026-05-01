@@ -33,6 +33,7 @@ export default function StudentDetailPage() {
   const { venueId } = useVenue();
   const { role } = useAuth();
   const isSuperAdmin = role === 'SUPER_ADMIN';
+  const isCoach = role === 'COACH';
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>('profile');
   const [editingProfile, setEditingProfile] = useState(false);
@@ -146,14 +147,18 @@ export default function StudentDetailPage() {
                 <User size={24} className="text-gray-400" />
               </div>
             )}
-            <button
-              onClick={() => photoInputRef.current?.click()}
-              disabled={photoLoading}
-              className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
-            >
-              <Camera size={16} className="text-white" />
-            </button>
-            <input ref={photoInputRef} type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
+            {!isCoach && (
+              <>
+                <button
+                  onClick={() => photoInputRef.current?.click()}
+                  disabled={photoLoading}
+                  className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                >
+                  <Camera size={16} className="text-white" />
+                </button>
+                <input ref={photoInputRef} type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
+              </>
+            )}
           </div>
           <div className="flex-1">
             <h2 className="text-2xl font-bold text-gray-900">{student.name}</h2>
@@ -193,14 +198,14 @@ export default function StudentDetailPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold text-gray-700">Personal Information</p>
-              {!editingProfile ? (
+              {!isCoach && !editingProfile ? (
                 <button
                   onClick={startEditProfile}
                   className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium"
                 >
                   <Pencil size={13} /> Edit
                 </button>
-              ) : (
+              ) : !isCoach && editingProfile ? (
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setEditingProfile(false)}

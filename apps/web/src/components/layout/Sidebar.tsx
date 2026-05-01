@@ -16,7 +16,7 @@ import {
 
 const NAV_OPERATIONS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/students', label: 'Students', icon: Users, hideForCoach: true },
+  { href: '/students', label: 'Students', icon: Users },
   { href: '/batches', label: 'Batches', icon: Calendar },
   { href: '/coaches', label: 'Coaches', icon: UserCheck, hideForCoach: true },
   { href: '/attendance', label: 'Attendance', icon: CheckSquare },

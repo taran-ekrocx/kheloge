@@ -342,6 +342,7 @@ export default function StudentsPage() {
   const { venueId } = useVenue();
   const { role } = useAuth();
   const isSuperAdmin = role === 'SUPER_ADMIN';
+  const isCoach = role === 'COACH';
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
@@ -426,13 +427,15 @@ export default function StudentsPage() {
           <h2 className="text-2xl font-bold text-gray-900">Students</h2>
           <p className="text-gray-500 text-sm">{filtered.length} of {students.length} students</p>
         </div>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
-        >
-          <UserPlus size={16} />
-          Add Student
-        </button>
+        {!isCoach && (
+          <button
+            onClick={() => setShowAdd(true)}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
+          >
+            <UserPlus size={16} />
+            Add Student
+          </button>
+        )}
       </div>
 
       {/* Search */}
@@ -567,7 +570,7 @@ export default function StudentsPage() {
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[s.status] ?? 'bg-gray-100 text-gray-600'}`}>
                           {STATUS_LABELS[s.status] ?? s.status}
                         </span>
-                        {(s.status === 'INACTIVE' || s.status === 'ON_HOLD') && (
+                        {!isCoach && (s.status === 'INACTIVE' || s.status === 'ON_HOLD') && (
                           <button
                             onClick={() => statusMutation.mutate({ id: s.id, status: 'ACTIVE' })}
                             className="text-xs text-blue-600 hover:text-blue-800 font-medium"
@@ -590,7 +593,7 @@ export default function StudentsPage() {
         )}
       </div>
 
-      {showAdd && <AddStudentModal onClose={() => setShowAdd(false)} venueId={venueId} isSuperAdmin={isSuperAdmin} />}
+      {showAdd && !isCoach && <AddStudentModal onClose={() => setShowAdd(false)} venueId={venueId} isSuperAdmin={isSuperAdmin} />}
     </div>
   );
 }
