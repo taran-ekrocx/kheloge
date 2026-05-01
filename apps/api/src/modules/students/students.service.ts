@@ -107,6 +107,45 @@ export class StudentsService {
     });
   }
 
+  async findAllForOrg(orgId: string, opts: { search?: string; status?: StudentStatus | 'all'; sportId?: string; batchId?: string } = {}) {
+    const { search, status, sportId, batchId } = opts;
+    return this.prisma.student.findMany({
+      where: {
+        OR: [
+          { organizationId: orgId },
+          { venue: { organizationId: orgId } },
+        ],
+        ...(!status || status === 'all'
+          ? { status: { notIn: [StudentStatus.INACTIVE] } }
+          : { status: status as StudentStatus }),
+        ...(search && {
+          AND: [
+            {
+              OR: [
+                { name: { contains: search, mode: 'insensitive' } },
+                { phone: { contains: search } },
+                { email: { contains: search, mode: 'insensitive' } },
+              ],
+            },
+          ],
+        }),
+        ...(sportId || batchId
+          ? {
+              enrollments: {
+                some: {
+                  isActive: true,
+                  ...(batchId && { batchId }),
+                  ...(sportId && { batch: { sportId } }),
+                },
+              },
+            }
+          : {}),
+      },
+      include: { guardians: true, enrollments: { include: { batch: { include: { sport: true } } } } },
+      orderBy: { name: 'asc' },
+    });
+  }
+
   async findOne(id: string) {
     const student = await this.prisma.student.findUnique({
       where: { id },
@@ -122,12 +161,13 @@ export class StudentsService {
     return student;
   }
 
-  async create(venueId: string, dto: CreateStudentDto) {
+  async create(venueId: string | undefined, orgId: string, dto: CreateStudentDto) {
     const { guardians, dob, cityId, sportInterest, status, batchIds, ...rest } = dto;
     const student = await this.prisma.student.create({
       data: {
         ...rest,
-        venueId,
+        venueId: venueId ?? null,
+        organizationId: orgId,
         status: status ?? StudentStatus.ENQUIRY,
         dob: dob ? new Date(dob) : undefined,
         guardians: guardians ? { create: guardians } : undefined,

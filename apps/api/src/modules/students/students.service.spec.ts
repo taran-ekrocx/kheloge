@@ -78,7 +78,7 @@ describe('StudentsService', () => {
       const created = makeStudent();
       (prisma.student.create as jest.Mock).mockResolvedValue(created);
 
-      const result = await service.create('venue_1', {
+      const result = await service.create('venue_1', 'org_1', {
         name: 'Arjun Mehta',
         phone: '+919000000001',
       });
@@ -100,7 +100,7 @@ describe('StudentsService', () => {
       const created = makeStudent({ id: 'stu_dob' });
       (prisma.student.create as jest.Mock).mockResolvedValue(created);
 
-      await service.create('venue_1', { name: 'Test', dob: '2010-05-15' });
+      await service.create('venue_1', 'org_1', { name: 'Test', dob: '2010-05-15' });
 
       const callArg = (prisma.student.create as jest.Mock).mock.calls[0][0];
       expect(callArg.data.dob).toBeInstanceOf(Date);

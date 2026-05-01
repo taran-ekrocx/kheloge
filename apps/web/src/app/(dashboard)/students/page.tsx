@@ -53,24 +53,15 @@ interface BatchOption {
 const STEP_LABELS = ['Student Details', 'Contact Info', 'Sports Enrollment', 'Medical Info'];
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
-interface Venue { id: string; name: string; }
-
 function AddStudentModal({ onClose, venueId, isSuperAdmin }: { onClose: () => void; venueId: string; isSuperAdmin: boolean }) {
   const queryClient = useQueryClient();
   const [currentStep, setCurrentStep] = useState(1);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [selectedVenueId, setSelectedVenueId] = useState(venueId);
   const [form, setForm] = useState({
     name: '', dob: '', gender: '', bloodGroup: '',
     address: '', phone: '', guardianName: '', guardianPhone: '', guardianEmail: '',
     sportId: '', trainingLevel: '', batchId: '', previousExperience: '',
     hasMedicalCondition: 'no', medicalConditionDetails: '', emergencyContactName: '', emergencyContactPhone: '',
-  });
-
-  const { data: allVenues = [] } = useQuery<Venue[]>({
-    queryKey: ['venues'],
-    queryFn: () => api.get('/venues').then((r) => r.data),
-    enabled: isSuperAdmin,
   });
 
   const { data: allSports = [] } = useQuery<Sport[]>({
@@ -79,9 +70,9 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin }: { onClose: () => vo
   });
 
   const { data: allBatches = [] } = useQuery<BatchOption[]>({
-    queryKey: ['batches', selectedVenueId],
-    queryFn: () => api.get(`/venues/${selectedVenueId}/batches`).then((r) => r.data),
-    enabled: !!selectedVenueId,
+    queryKey: ['batches', venueId],
+    queryFn: () => api.get(`/venues/${venueId}/batches`).then((r) => r.data),
+    enabled: !!venueId && !isSuperAdmin,
   });
 
   const visibleBatches = form.sportId
@@ -100,10 +91,7 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin }: { onClose: () => vo
 
   const validateStep = (step: number): boolean => {
     const next: Record<string, string> = {};
-    if (step === 1) {
-      if (!form.name.trim()) next.name = 'Full name is required';
-      if (isSuperAdmin && !selectedVenueId) next.venue = 'Please select a venue';
-    }
+    if (step === 1 && !form.name.trim()) next.name = 'Full name is required';
     if (step === 2 && !form.guardianPhone.trim()) next.guardianPhone = 'Parent mobile is required';
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -121,7 +109,7 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin }: { onClose: () => vo
       if (form.emergencyContactPhone) {
         guardians.push({ name: form.emergencyContactName || 'Emergency Contact', phone: form.emergencyContactPhone, relation: 'Emergency Contact', isPrimary: false });
       }
-      return api.post(`/venues/${selectedVenueId}/students`, {
+      const payload = {
         name: form.name,
         dob: form.dob || undefined,
         phone: form.phone || undefined,
@@ -131,10 +119,13 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin }: { onClose: () => vo
         batchIds: form.batchId ? [form.batchId] : [],
         guardians: guardians.length > 0 ? guardians : undefined,
         status: 'ACTIVE',
-      });
+      };
+      return isSuperAdmin
+        ? api.post('/students', payload)
+        : api.post(`/venues/${venueId}/students`, payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['students', selectedVenueId] });
+      queryClient.invalidateQueries({ queryKey: ['students', venueId] });
       queryClient.invalidateQueries({ queryKey: ['students-global'] });
       onClose();
     },
@@ -168,20 +159,6 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin }: { onClose: () => vo
               {/* Step 1: Student Details */}
               {currentStep === 1 && (
                 <>
-                  {isSuperAdmin && (
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Venue *</label>
-                      <select
-                        value={selectedVenueId}
-                        onChange={(e) => { setSelectedVenueId(e.target.value); setForm(f => ({ ...f, batchId: '', sportId: '' })); }}
-                        className={`${f}${errors.venue ? ' border-red-400' : ''}`}
-                      >
-                        <option value="">Select Venue</option>
-                        {allVenues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-                      </select>
-                      {errors.venue && <p className={err}>{errors.venue}</p>}
-                    </div>
-                  )}
                   <div>
                     <input placeholder="Full Name *" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={`${f} ${errors.name ? 'border-red-400' : ''}`} />
                     {errors.name && <p className={err}>{errors.name}</p>}

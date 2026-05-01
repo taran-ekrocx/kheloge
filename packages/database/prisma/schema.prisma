@@ -124,6 +124,7 @@ model Organization {
   venues      Venue[]
   users       OrganizationUser[]
   sports      Sport[]
+  students    Student[]
 
   @@map("organizations")
 }
@@ -356,7 +357,8 @@ model BatchCoach {
 
 model Student {
   id             String        @id @default(cuid())
-  venueId        String
+  venueId        String?
+  organizationId String?
   name           String
   phone          String?
   email          String?
@@ -374,7 +376,8 @@ model Student {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  venue          Venue          @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  venue          Venue?         @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  organization   Organization?  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   guardians      Guardian[]
   enrollments    Enrollment[]
   attendances    Attendance[]

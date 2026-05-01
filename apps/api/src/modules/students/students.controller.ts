@@ -37,8 +37,8 @@ export class StudentsController {
 
   @Post()
   @Roles(UserRole.SUPER_ADMIN, UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER)
-  create(@Param('venueId') venueId: string, @Body() dto: CreateStudentDto) {
-    return this.students.create(venueId, dto);
+  create(@Param('venueId') venueId: string, @Body() dto: CreateStudentDto, @Request() req) {
+    return this.students.create(venueId, req.user.orgId, dto);
   }
 
   @Patch(':id')
