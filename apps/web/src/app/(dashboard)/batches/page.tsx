@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
@@ -46,6 +46,82 @@ const DEFAULT_FORM = {
   startTime: '', endTime: '', days: [] as string[], status: 'ACTIVE',
   startDate: '', endDate: '',
 };
+
+function CoachMultiSelect({ coaches, selected, onChange }: {
+  coaches: Coach[]; selected: string[]; onChange: (ids: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const filtered = coaches.filter(c => c.name.toLowerCase().includes(search.toLowerCase()));
+  const selectedCoaches = coaches.filter(c => selected.includes(c.id));
+
+  function toggle(id: string) {
+    onChange(selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id]);
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <div
+        onClick={() => setOpen(o => !o)}
+        className="w-full min-h-[38px] border rounded-lg px-3 py-2 text-sm cursor-pointer flex flex-wrap gap-1 items-center bg-white hover:border-blue-400 transition-colors"
+      >
+        {selectedCoaches.length === 0 ? (
+          <span className="text-gray-400">Search and assign coaches...</span>
+        ) : (
+          selectedCoaches.map(c => (
+            <span key={c.id} className="flex items-center gap-1 bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full">
+              {c.name}
+              <button type="button" onClick={(e) => { e.stopPropagation(); toggle(c.id); }} className="hover:text-blue-900 font-medium">×</button>
+            </span>
+          ))
+        )}
+      </div>
+      {open && (
+        <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg flex flex-col" style={{ maxHeight: 220 }}>
+          <div className="p-2 border-b border-gray-100">
+            <input
+              autoFocus
+              type="text"
+              placeholder="Search coaches..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              onClick={e => e.stopPropagation()}
+              className="w-full text-sm px-2 py-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-400"
+            />
+          </div>
+          <div className="overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="text-xs text-gray-400 p-3 text-center">No coaches found</p>
+            ) : (
+              filtered.map(c => (
+                <div
+                  key={c.id}
+                  onClick={() => toggle(c.id)}
+                  className={`flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 transition-colors ${selected.includes(c.id) ? 'bg-blue-50' : ''}`}
+                >
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${selected.includes(c.id) ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
+                    {selected.includes(c.id) && <span className="text-white text-[10px] leading-none">✓</span>}
+                  </div>
+                  <span>{c.name}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function BatchModal({
   onClose, venueId, sports, coaches, existing,
@@ -95,13 +171,6 @@ function BatchModal({
     }));
   };
 
-  const toggleCoach = (id: string) => {
-    setForm(f => ({
-      ...f,
-      coachIds: f.coachIds.includes(id) ? f.coachIds.filter(c => c !== id) : [...f.coachIds, id],
-    }));
-  };
-
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
@@ -127,27 +196,14 @@ function BatchModal({
             <option value="">Select Sport *</option>
             {sports.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
-          {coaches.length > 0 && (
-            <div>
-              <p className="text-xs font-medium text-gray-600 mb-2">Assign Coaches</p>
-              <div className="flex flex-wrap gap-2">
-                {coaches.map(c => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => toggleCoach(c.id)}
-                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                      form.coachIds.includes(c.id)
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'border-gray-200 text-gray-600 hover:border-blue-300'
-                    }`}
-                  >
-                    {c.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          <div>
+            <p className="text-xs font-medium text-gray-600 mb-2">Assign Coaches</p>
+            <CoachMultiSelect
+              coaches={coaches}
+              selected={form.coachIds}
+              onChange={(ids) => setForm(f => ({ ...f, coachIds: ids }))}
+            />
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <input
               required type="number" min="1" placeholder="Capacity *"
