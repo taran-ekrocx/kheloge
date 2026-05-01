@@ -167,9 +167,9 @@ function AnalyticsTab({ venues }: { venues: Venue[] }) {
   });
 
   const { data: students = [], isFetching: studentsFetching } = useQuery<unknown[]>({
-    queryKey: ['analytics-students', selectedVenueId],
-    queryFn: () => api.get(`/venues/${selectedVenueId}/students`, { params: { status: 'all' } }).then(r => r.data),
-    enabled,
+    queryKey: ['analytics-students', selectedVenueId, selectedMonth],
+    queryFn: () => api.get(`/venues/${selectedVenueId}/students`, { params: { status: 'all', from, to } }).then(r => r.data),
+    enabled: enabled && !!from,
   });
 
   const { data: revenue = [], isFetching: revenueFetching } = useQuery<RevenueRow[]>({
@@ -225,7 +225,7 @@ function AnalyticsTab({ venues }: { venues: Venue[] }) {
           <StatCard
             label="Total Students"
             value={students.length}
-            sublabel="Active students across batches"
+            sublabel={`Enrolled in batches — ${monthLabel}`}
             icon={Users}
             color="green"
           />

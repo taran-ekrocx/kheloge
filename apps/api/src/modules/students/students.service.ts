@@ -54,8 +54,8 @@ export class StudentsService {
     private fileUpload: FileUploadService,
   ) {}
 
-  async findAll(venueId: string, opts: { search?: string; status?: StudentStatus | 'all'; sportId?: string; batchId?: string; coachUserId?: string } = {}) {
-    const { search, status, sportId, batchId, coachUserId } = opts;
+  async findAll(venueId: string, opts: { search?: string; status?: StudentStatus | 'all'; sportId?: string; batchId?: string; coachUserId?: string; from?: string; to?: string } = {}) {
+    const { search, status, sportId, batchId, coachUserId, from, to } = opts;
 
     // When a coach queries, resolve their batch IDs to scope the student list
     let coachBatchIds: string[] | undefined;
@@ -90,13 +90,20 @@ export class StudentsService {
                 },
               },
             }
-          : sportId || batchId
+          : sportId || batchId || from || to
             ? {
                 enrollments: {
                   some: {
-                    isActive: true,
                     ...(batchId && { batchId }),
                     ...(sportId && { batch: { sportId } }),
+                    // Active during the requested month: joined before month end and not left before month start
+                    ...(from && { joinedAt: { lte: new Date(to ?? from) } }),
+                    ...(from && {
+                      OR: [
+                        { isActive: true },
+                        { leftAt: { gte: new Date(from) } },
+                      ],
+                    }),
                   },
                 },
               }

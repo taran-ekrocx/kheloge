@@ -24,9 +24,11 @@ export class StudentsController {
     @Query('status') status?: StudentStatus | 'all',
     @Query('sportId') sportId?: string,
     @Query('batchId') batchId?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
   ) {
     const coachUserId = req.user.role === UserRole.COACH ? req.user.id : undefined;
-    return this.students.findAll(venueId, { search, status, sportId, batchId, coachUserId });
+    return this.students.findAll(venueId, { search, status, sportId, batchId, coachUserId, from, to });
   }
 
   @Get(':id')
