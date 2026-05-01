@@ -139,11 +139,22 @@ export default function AttendanceIndexPage() {
   }, [todaysSessions]);
 
   const { data: sessionHistory = [] } = useQuery<(SessionHistoryItem & { batch?: { id: string; name: string; sport: { name: string } } })[]>({
-    queryKey: ['session-history', historyBatchId],
+    queryKey: historyBatchId
+      ? ['session-history', historyBatchId]
+      : ['session-history-all', batches.map(b => b.id).join(',')],
     queryFn: historyBatchId
       ? () => api.get(`/attendance/batches/${historyBatchId}/sessions`).then(r => r.data)
-      : () => api.get('/attendance/sessions').then(r => r.data),
-    enabled: tab === 'history' && isCoach,
+      : () => Promise.all(
+          batches.map(b =>
+            api.get(`/attendance/batches/${b.id}/sessions`)
+              .then((r: any) => (r.data as SessionHistoryItem[]).map(s => ({
+                ...s,
+                batch: { id: b.id, name: b.name, sport: b.sport },
+              })))
+              .catch(() => [])
+          )
+        ).then(results => results.flat().sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())),
+    enabled: tab === 'history' && isCoach && (!!historyBatchId || batches.length > 0),
   });
 
   const { data: coaches = [] } = useQuery<Coach[]>({
