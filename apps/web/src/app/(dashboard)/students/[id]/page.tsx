@@ -198,29 +198,31 @@ export default function StudentDetailPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold text-gray-700">Personal Information</p>
-              {!isCoach && !editingProfile ? (
-                <button
-                  onClick={startEditProfile}
-                  className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium"
-                >
-                  <Pencil size={13} /> Edit
-                </button>
-              ) : !isCoach && editingProfile ? (
-                <div className="flex items-center gap-2">
+              {!isCoach && (
+                editingProfile ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setEditingProfile(false)}
+                      className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
+                    >
+                      <X size={13} /> Cancel
+                    </button>
+                    <button
+                      onClick={() => updateMutation.mutate(editForm)}
+                      disabled={updateMutation.isPending}
+                      className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50"
+                    >
+                      <Check size={13} /> {updateMutation.isPending ? 'Saving...' : 'Save'}
+                    </button>
+                  </div>
+                ) : (
                   <button
-                    onClick={() => setEditingProfile(false)}
-                    className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
+                    onClick={startEditProfile}
+                    className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium"
                   >
-                    <X size={13} /> Cancel
+                    <Pencil size={13} /> Edit
                   </button>
-                  <button
-                    onClick={() => updateMutation.mutate(editForm)}
-                    disabled={updateMutation.isPending}
-                    className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50"
-                  >
-                    <Check size={13} /> {updateMutation.isPending ? 'Saving...' : 'Save'}
-                  </button>
-                </div>
+                )
               )}
             </div>
 
