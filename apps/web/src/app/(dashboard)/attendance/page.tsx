@@ -130,6 +130,7 @@ export default function AttendanceIndexPage() {
     queryKey: ['coach-today-sessions', today],
     queryFn: () => api.get(`/attendance/sessions?date=${today}`).then(r => r.data),
     enabled: isCoach,
+    refetchInterval: 30000,
   });
 
   const endedTodayBatchIds = useMemo(() => {
@@ -608,7 +609,7 @@ function BatchRow({
                 disabled={startingSession === batch.id || hasOtherActiveSession || !withinTime || sessionEndedToday || noStudents}
                 title={
                   noStudents ? 'No students enrolled in this batch'
-                    : sessionEndedToday ? 'Session already completed for today'
+                    : sessionEndedToday ? 'Session closed for today'
                     : !withinTime ? 'Outside batch schedule time'
                     : hasOtherActiveSession ? 'End your current session before starting a new one'
                     : undefined
@@ -616,7 +617,7 @@ function BatchRow({
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Play size={12} />
-                {startingSession === batch.id ? 'Starting...' : sessionEndedToday ? 'Session Ended' : 'Start Session'}
+                {startingSession === batch.id ? 'Starting...' : sessionEndedToday ? 'Session Closed' : 'Start Session'}
               </button>
             )
           ) : null
