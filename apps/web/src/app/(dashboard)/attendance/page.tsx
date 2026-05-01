@@ -138,10 +138,12 @@ export default function AttendanceIndexPage() {
     return ids;
   }, [todaysSessions]);
 
-  const { data: sessionHistory = [] } = useQuery<SessionHistoryItem[]>({
+  const { data: sessionHistory = [] } = useQuery<(SessionHistoryItem & { batch?: { id: string; name: string; sport: { name: string } } })[]>({
     queryKey: ['session-history', historyBatchId],
-    queryFn: () => api.get(`/attendance/batches/${historyBatchId}/sessions`).then(r => r.data),
-    enabled: !!historyBatchId && tab === 'history' && isCoach,
+    queryFn: historyBatchId
+      ? () => api.get(`/attendance/batches/${historyBatchId}/sessions`).then(r => r.data)
+      : () => api.get('/attendance/sessions').then(r => r.data),
+    enabled: tab === 'history' && isCoach,
   });
 
   const { data: coaches = [] } = useQuery<Coach[]>({
@@ -305,13 +307,13 @@ export default function AttendanceIndexPage() {
       {isCoach && tab === 'history' && (
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Select Batch</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Batch</label>
             <select
               value={historyBatchId || ''}
               onChange={e => { setHistoryBatchId(e.target.value || null); setExpandedSession(null); }}
               className="w-full sm:w-72 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">Choose a batch...</option>
+              <option value="">All Batches</option>
               {batches.map(b => (
                 <option key={b.id} value={b.id}>
                   {b.name} · {b.sport?.name}{b.venue?.name ? ` · ${b.venue.name}` : ''}
@@ -320,13 +322,9 @@ export default function AttendanceIndexPage() {
             </select>
           </div>
 
-          {!historyBatchId ? (
+          {pastSessions.length === 0 ? (
             <div className="bg-white rounded-xl p-8 text-center text-gray-400 border border-gray-100">
-              Select a batch to view session history.
-            </div>
-          ) : pastSessions.length === 0 ? (
-            <div className="bg-white rounded-xl p-8 text-center text-gray-400 border border-gray-100">
-              No completed sessions yet for this batch.
+              No completed sessions yet{historyBatchId ? ' for this batch' : ''}.
             </div>
           ) : (
             <SessionList
@@ -334,6 +332,8 @@ export default function AttendanceIndexPage() {
               expandedSession={expandedSession}
               expandedAttendance={expandedAttendance}
               onToggleSession={(id) => setExpandedSession(expandedSession === id ? null : id)}
+              showBatch={!historyBatchId}
+              hideCoachName
             />
           )}
         </div>
@@ -433,12 +433,14 @@ function SessionList({
   expandedAttendance,
   onToggleSession,
   showBatch,
+  hideCoachName,
 }: {
   sessions: (SessionHistoryItem & { batch?: { id: string; name: string; sport: { name: string } } })[];
   expandedSession: string | null;
   expandedAttendance: SessionAttendanceRecord[] | undefined;
   onToggleSession: (id: string) => void;
   showBatch?: boolean;
+  hideCoachName?: boolean;
 }) {
   return (
     <div className="space-y-3">
@@ -467,7 +469,7 @@ function SessionList({
                   <p className="text-xs text-gray-500">
                     {dayjs(s.startedAt).format('h:mm A')} – {s.endedAt ? dayjs(s.endedAt).format('h:mm A') : '—'}
                     {duration !== null && <span className="ml-1">· {duration}m</span>}
-                    <span className="ml-2 text-gray-400">Coach: {s.coach?.name}</span>
+                    {!hideCoachName && <span className="ml-2 text-gray-400">Coach: {s.coach?.name}</span>}
                     {showBatch && s.batch?.sport && (
                       <span className="ml-2 text-gray-400">· {s.batch.sport.name}</span>
                     )}
