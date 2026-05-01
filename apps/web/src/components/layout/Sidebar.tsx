@@ -33,7 +33,7 @@ const NAV_ADMIN = [
   { href: '/users', label: 'Team', icon: UsersRound },
 ];
 
-function VenueSelector({ role }: { role: string | null }) {
+function VenueSelector({ role, jwtVenueId }: { role: string | null; jwtVenueId: string | null }) {
   const isCoach = role === 'COACH';
   const isSuperAdmin = role === 'SUPER_ADMIN';
   const isCityManager = role === 'CITY_MANAGER';
@@ -45,14 +45,17 @@ function VenueSelector({ role }: { role: string | null }) {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Auto-select first venue for venue-scoped roles only, and only once role is known.
-  // Guard on role !== null to prevent firing before the JWT is read from localStorage —
-  // otherwise SA/CM would get a venue set before isSuperAdmin becomes true.
+  // Coaches: seed from the venueId baked into their JWT so we use their assigned
+  // venue rather than whichever venue is first in the org list.
+  // Other venue-scoped roles: fall back to first venue in the list.
   useEffect(() => {
-    if (role !== null && !isSuperAdmin && !isCityManager && !venueId && venues.length > 0) {
+    if (role === null || isSuperAdmin || isCityManager || venueId) return;
+    if (isCoach && jwtVenueId) {
+      selectVenue(jwtVenueId);
+    } else if (!isCoach && venues.length > 0) {
       selectVenue(venues[0].id);
     }
-  }, [role, isSuperAdmin, isCityManager, venueId, venues, selectVenue]);
+  }, [role, isSuperAdmin, isCityManager, isCoach, jwtVenueId, venueId, venues, selectVenue]);
 
   if (role === null || isCoach || isSuperAdmin || isCityManager || venues.length <= 1) return null;
 
@@ -103,7 +106,7 @@ function NavGroup({ label, items, isCoach }: { label: string; items: typeof NAV_
 }
 
 export function Sidebar() {
-  const { role } = useAuth();
+  const { role, venueId: jwtVenueId } = useAuth();
   const isCoach = role === 'COACH';
   const isSuperAdmin = role === 'SUPER_ADMIN';
 
@@ -114,7 +117,7 @@ export function Sidebar() {
         <p className="text-xs text-gray-400 mt-0.5">Sports Management</p>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-4 overflow-y-auto">
-        <VenueSelector role={role} />
+        <VenueSelector role={role} jwtVenueId={jwtVenueId} />
         <NavGroup label="Operations" items={NAV_OPERATIONS} isCoach={isCoach} />
         {!isCoach && <NavGroup label="Administration" items={NAV_ADMIN} />}
       </nav>
