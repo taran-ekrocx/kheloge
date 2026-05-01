@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
 import { useAuth } from '@/hooks/useAuth';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, User, Calendar, CreditCard, Camera, FileText, Download } from 'lucide-react';
+import { ArrowLeft, User, Calendar, CreditCard, Camera, FileText, Download, Pencil, X, Check } from 'lucide-react';
 import Link from 'next/link';
 import dayjs from 'dayjs';
 
@@ -35,6 +35,8 @@ export default function StudentDetailPage() {
   const isSuperAdmin = role === 'SUPER_ADMIN';
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>('profile');
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [editForm, setEditForm] = useState({ name: '', phone: '', email: '', dob: '', address: '' });
   const [photoLoading, setPhotoLoading] = useState(false);
   const [idCardLoading, setIdCardLoading] = useState(false);
   const [invoiceLoading, setInvoiceLoading] = useState<string | null>(null);
@@ -66,8 +68,22 @@ export default function StudentDetailPage() {
 
   const updateMutation = useMutation({
     mutationFn: (data: Record<string, string>) => api.patch(studentBase, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['student', id] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['student', id] });
+      setEditingProfile(false);
+    },
   });
+
+  function startEditProfile() {
+    setEditForm({
+      name: student?.name || '',
+      phone: student?.phone || '',
+      email: student?.email || '',
+      dob: student?.dob ? dayjs(student.dob).format('YYYY-MM-DD') : '',
+      address: student?.address || '',
+    });
+    setEditingProfile(true);
+  }
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -175,21 +191,100 @@ export default function StudentDetailPage() {
         {/* Profile tab */}
         {tab === 'profile' && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div><p className="text-xs text-gray-400">Name</p><p className="font-medium">{student.name}</p></div>
-              <div><p className="text-xs text-gray-400">Phone</p><p className="font-medium">{student.phone || '—'}</p></div>
-              <div><p className="text-xs text-gray-400">Email</p><p className="font-medium">{student.email || '—'}</p></div>
-              <div>
-                <p className="text-xs text-gray-400">Date of Birth</p>
-                <p className="font-medium">{student.dob ? dayjs(student.dob).format('DD MMM YYYY') : '—'}</p>
-              </div>
-              {student.address && (
-                <div className="col-span-2">
-                  <p className="text-xs text-gray-400">Address</p>
-                  <p className="font-medium">{student.address}</p>
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-gray-700">Personal Information</p>
+              {!editingProfile ? (
+                <button
+                  onClick={startEditProfile}
+                  className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  <Pencil size={13} /> Edit
+                </button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setEditingProfile(false)}
+                    className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
+                  >
+                    <X size={13} /> Cancel
+                  </button>
+                  <button
+                    onClick={() => updateMutation.mutate(editForm)}
+                    disabled={updateMutation.isPending}
+                    className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50"
+                  >
+                    <Check size={13} /> {updateMutation.isPending ? 'Saving...' : 'Save'}
+                  </button>
                 </div>
               )}
             </div>
+
+            {!editingProfile ? (
+              <div className="grid grid-cols-2 gap-4">
+                <div><p className="text-xs text-gray-400">Name</p><p className="font-medium">{student.name}</p></div>
+                <div><p className="text-xs text-gray-400">Phone</p><p className="font-medium">{student.phone || '—'}</p></div>
+                <div><p className="text-xs text-gray-400">Email</p><p className="font-medium">{student.email || '—'}</p></div>
+                <div>
+                  <p className="text-xs text-gray-400">Date of Birth</p>
+                  <p className="font-medium">{student.dob ? dayjs(student.dob).format('DD MMM YYYY') : '—'}</p>
+                </div>
+                {student.address && (
+                  <div className="col-span-2">
+                    <p className="text-xs text-gray-400">Address</p>
+                    <p className="font-medium">{student.address}</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <label className="text-xs text-gray-500 mb-1 block">Name</label>
+                  <input
+                    value={editForm.name}
+                    onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Phone</label>
+                  <input
+                    value={editForm.phone}
+                    onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Email</label>
+                  <input
+                    type="email"
+                    value={editForm.email}
+                    onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Date of Birth</label>
+                  <input
+                    type="date"
+                    value={editForm.dob}
+                    onChange={e => setEditForm(f => ({ ...f, dob: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="text-xs text-gray-500 mb-1 block">Address</label>
+                  <input
+                    value={editForm.address}
+                    onChange={e => setEditForm(f => ({ ...f, address: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                {updateMutation.isError && (
+                  <p className="col-span-2 text-xs text-red-500">Failed to save. Please try again.</p>
+                )}
+              </div>
+            )}
+
             <hr className="border-gray-100" />
             <div>
               <p className="text-sm font-medium text-gray-700 mb-2">Enrolled Batches</p>
