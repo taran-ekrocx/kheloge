@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { UserRole, StudentStatus } from '@kheloge/database';
@@ -23,6 +23,12 @@ export class GlobalStudentsController {
     @Query('batchId') batchId?: string,
   ) {
     return this.students.findAllForOrg(req.user.orgId, { search, status, sportId, batchId });
+  }
+
+  @Get(':id')
+  @Roles(UserRole.SUPER_ADMIN)
+  findOne(@Param('id') id: string) {
+    return this.students.findOne(id);
   }
 
   @Post()

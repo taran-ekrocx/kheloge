@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
+import { useAuth } from '@/hooks/useAuth';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, User, Calendar, CreditCard, Camera, FileText, Download } from 'lucide-react';
 import Link from 'next/link';
@@ -30,6 +31,8 @@ async function downloadPdf(url: string, filename: string) {
 export default function StudentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { venueId } = useVenue();
+  const { role } = useAuth();
+  const isSuperAdmin = role === 'SUPER_ADMIN';
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>('profile');
   const [photoLoading, setPhotoLoading] = useState(false);
@@ -39,8 +42,10 @@ export default function StudentDetailPage() {
 
   const { data: student, isLoading } = useQuery({
     queryKey: ['student', id],
-    queryFn: () => api.get(`/venues/${venueId}/students/${id}`).then((r) => r.data),
-    enabled: !!venueId && !!id,
+    queryFn: () => isSuperAdmin
+      ? api.get(`/students/${id}`).then((r) => r.data)
+      : api.get(`/venues/${venueId}/students/${id}`).then((r) => r.data),
+    enabled: !!id && (isSuperAdmin || !!venueId),
   });
 
   const { data: attendanceStats } = useQuery({
@@ -55,19 +60,23 @@ export default function StudentDetailPage() {
     enabled: tab === 'payments' && !!id,
   });
 
+  const studentBase = isSuperAdmin
+    ? `/students/${id}`
+    : `/venues/${venueId}/students/${id}`;
+
   const updateMutation = useMutation({
-    mutationFn: (data: Record<string, string>) => api.patch(`/venues/${venueId}/students/${id}`, data),
+    mutationFn: (data: Record<string, string>) => api.patch(studentBase, data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['student', id] }),
   });
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !venueId) return;
+    if (!file) return;
     setPhotoLoading(true);
     try {
       const formData = new FormData();
       formData.append('file', file);
-      await api.post(`/venues/${venueId}/students/${id}/photo`, formData, {
+      await api.post(`${studentBase}/photo`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       queryClient.invalidateQueries({ queryKey: ['student', id] });
@@ -80,7 +89,7 @@ export default function StudentDetailPage() {
   const handleIdCardDownload = async () => {
     setIdCardLoading(true);
     try {
-      await downloadPdf(`/venues/${venueId}/students/${id}/id-card`, `id-card-${student?.name?.replace(/\s+/g, '-') ?? id}.pdf`);
+      await downloadPdf(`${studentBase}/id-card`, `id-card-${student?.name?.replace(/\s+/g, '-') ?? id}.pdf`);
     } finally {
       setIdCardLoading(false);
     }
@@ -95,7 +104,7 @@ export default function StudentDetailPage() {
     }
   };
 
-  if (isLoading || !venueId) return <div className="p-8 text-gray-400">Loading...</div>;
+  if (isLoading || (!isSuperAdmin && !venueId)) return <div className="p-8 text-gray-400">Loading...</div>;
   if (!student) return <div className="p-8 text-gray-400">Student not found.</div>;
 
   const tabs = [
