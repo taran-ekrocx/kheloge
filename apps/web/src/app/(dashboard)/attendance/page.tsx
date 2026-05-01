@@ -538,26 +538,28 @@ function BatchRow({
           ))}
         </div>
         {isCoach ? (
-          thisSessionActive ? (
-            <Link
-              href={`/attendance/${batch.id}?sessionId=${activeSessionId}`}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Play size={12} />
-              Resume
-            </Link>
-          ) : (
-            <button
-              onClick={(e) => { e.preventDefault(); onStartSession?.(batch.id); }}
-              disabled={startingSession === batch.id || hasOtherActiveSession}
-              title={hasOtherActiveSession ? 'End your current session before starting a new one' : undefined}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Play size={12} />
-              {startingSession === batch.id ? 'Starting...' : 'Start Session'}
-            </button>
-          )
+          highlight ? (
+            thisSessionActive ? (
+              <Link
+                href={`/attendance/${batch.id}?sessionId=${activeSessionId}`}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Play size={12} />
+                Resume
+              </Link>
+            ) : (
+              <button
+                onClick={(e) => { e.preventDefault(); onStartSession?.(batch.id); }}
+                disabled={startingSession === batch.id || hasOtherActiveSession}
+                title={hasOtherActiveSession ? 'End your current session before starting a new one' : undefined}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Play size={12} />
+                {startingSession === batch.id ? 'Starting...' : 'Start Session'}
+              </button>
+            )
+          ) : null
         ) : (
           <ChevronRight size={16} className="text-gray-400" />
         )}
