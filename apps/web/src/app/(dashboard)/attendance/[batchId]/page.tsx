@@ -25,6 +25,7 @@ export default function AttendancePage() {
   const [elapsed, setElapsed] = useState('');
   const [comment, setComment] = useState('');
   const [showToast, setShowToast] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const initializedRef = useRef(false);
 
   const { data: batch } = useQuery({
@@ -110,6 +111,10 @@ export default function AttendancePage() {
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
     },
+    onError: () => {
+      setErrorMsg('Failed to save attendance. Please try again.');
+      setTimeout(() => setErrorMsg(null), 4000);
+    },
   });
 
   const endSessionMutation = useMutation({
@@ -117,6 +122,10 @@ export default function AttendancePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['attendance-session', sessionId] });
       queryClient.invalidateQueries({ queryKey: ['attendance-active-session', batchId] });
+    },
+    onError: () => {
+      setErrorMsg('Failed to end session. Please try again.');
+      setTimeout(() => setErrorMsg(null), 4000);
     },
   });
 
@@ -324,6 +333,14 @@ export default function AttendancePage() {
         <div className="fixed bottom-5 right-5 flex items-center gap-2 bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg text-sm font-medium z-50">
           <Check size={16} />
           Attendance saved successfully!
+        </div>
+      )}
+
+      {/* Error toast */}
+      {errorMsg && (
+        <div className="fixed bottom-5 right-5 flex items-center gap-2 bg-red-600 text-white px-4 py-3 rounded-lg shadow-lg text-sm font-medium z-50">
+          <X size={16} />
+          {errorMsg}
         </div>
       )}
     </div>

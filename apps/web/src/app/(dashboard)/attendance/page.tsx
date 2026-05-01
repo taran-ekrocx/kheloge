@@ -1,12 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
 import { useAuth } from '@/hooks/useAuth';
-import { Calendar, Clock, Users, ChevronRight, Play, ChevronDown, ChevronUp } from 'lucide-react';
+import { Calendar, Clock, Users, ChevronRight, Play, ChevronDown, ChevronUp, X } from 'lucide-react';
 import Link from 'next/link';
 import dayjs from 'dayjs';
 
@@ -18,6 +18,15 @@ const DAY_SHORT: Record<string, string> = {
 const TODAY_DOW = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'][
   new Date().getDay()
 ];
+
+function isWithinBatchTime(startTime: string, endTime: string): boolean {
+  const now = dayjs();
+  const [sh, sm] = startTime.split(':').map(Number);
+  const [eh, em] = endTime.split(':').map(Number);
+  const start = dayjs().startOf('day').add(sh * 60 + sm, 'minute');
+  const end = dayjs().startOf('day').add(eh * 60 + em, 'minute');
+  return now.isAfter(start) && now.isBefore(end);
+}
 
 type Tab = 'today' | 'history';
 
@@ -78,8 +87,10 @@ export default function AttendanceIndexPage() {
   const isSuperAdmin = role === 'SUPER_ADMIN';
   const isAdmin = ['SUPER_ADMIN', 'CITY_MANAGER', 'VENUE_MANAGER'].includes(role || '');
   const router = useRouter();
+  const today = dayjs().format('YYYY-MM-DD');
   const [startingSession, setStartingSession] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('today');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [historyBatchId, setHistoryBatchId] = useState<string | null>(null);
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
   const [filterCoachId, setFilterCoachId] = useState<string>('');
@@ -114,6 +125,18 @@ export default function AttendanceIndexPage() {
     enabled: isCoach,
     refetchInterval: 30000,
   });
+
+  const { data: todaysSessions = [] } = useQuery<{ batchId: string; endedAt: string | null }[]>({
+    queryKey: ['coach-today-sessions', today],
+    queryFn: () => api.get(`/attendance/sessions?date=${today}`).then(r => r.data),
+    enabled: isCoach,
+  });
+
+  const endedTodayBatchIds = useMemo(() => {
+    const ids = new Set<string>();
+    todaysSessions.forEach(s => { if (s.endedAt) ids.add(s.batchId); });
+    return ids;
+  }, [todaysSessions]);
 
   const { data: sessionHistory = [] } = useQuery<SessionHistoryItem[]>({
     queryKey: ['session-history', historyBatchId],
@@ -158,6 +181,10 @@ export default function AttendanceIndexPage() {
     mutationFn: (batchId: string) => api.post('/attendance/sessions', { batchId }).then(r => r.data),
     onSuccess: (session) => {
       router.push(`/attendance/${session.batchId}?sessionId=${session.id}`);
+    },
+    onError: () => {
+      setErrorMsg('Failed to start session. Please try again.');
+      setTimeout(() => setErrorMsg(null), 4000);
     },
     onSettled: () => setStartingSession(null),
   });
@@ -241,6 +268,8 @@ export default function AttendanceIndexPage() {
                         startingSession={startingSession}
                         activeSessionBatchId={myActiveSession?.batchId ?? null}
                         activeSessionId={myActiveSession?.id ?? null}
+                        withinTime={isWithinBatchTime(batch.startTime, batch.endTime)}
+                        sessionEndedToday={endedTodayBatchIds.has(batch.id)}
                         onStartSession={(id) => { setStartingSession(id); startSessionMutation.mutate(id); }}
                       />
                     ))}
@@ -306,6 +335,13 @@ export default function AttendanceIndexPage() {
               onToggleSession={(id) => setExpandedSession(expandedSession === id ? null : id)}
             />
           )}
+        </div>
+      )}
+
+      {errorMsg && (
+        <div className="fixed bottom-5 right-5 flex items-center gap-2 bg-red-600 text-white px-4 py-3 rounded-lg shadow-lg text-sm font-medium z-50">
+          <X size={16} />
+          {errorMsg}
         </div>
       )}
 
@@ -487,6 +523,7 @@ function SessionList({
 
 function BatchRow({
   batch, highlight, isCoach, startingSession, activeSessionBatchId, activeSessionId, onStartSession,
+  withinTime = true, sessionEndedToday = false,
 }: {
   batch: Batch;
   highlight?: boolean;
@@ -495,6 +532,8 @@ function BatchRow({
   activeSessionBatchId?: string | null;
   activeSessionId?: string | null;
   onStartSession?: (id: string) => void;
+  withinTime?: boolean;
+  sessionEndedToday?: boolean;
 }) {
   const hasOtherActiveSession = !!activeSessionBatchId && activeSessionBatchId !== batch.id;
   const thisSessionActive = activeSessionBatchId === batch.id;
@@ -551,8 +590,13 @@ function BatchRow({
             ) : (
               <button
                 onClick={(e) => { e.preventDefault(); onStartSession?.(batch.id); }}
-                disabled={startingSession === batch.id || hasOtherActiveSession}
-                title={hasOtherActiveSession ? 'End your current session before starting a new one' : undefined}
+                disabled={startingSession === batch.id || hasOtherActiveSession || !withinTime || sessionEndedToday}
+                title={
+                  sessionEndedToday ? 'Session already completed for today'
+                    : !withinTime ? 'Outside batch schedule time'
+                    : hasOtherActiveSession ? 'End your current session before starting a new one'
+                    : undefined
+                }
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Play size={12} />
