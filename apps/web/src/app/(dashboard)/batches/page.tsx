@@ -14,7 +14,7 @@ const DAY_SHORT: Record<string, string> = {
 };
 
 interface Sport { id: string; name: string; }
-interface Coach { id: string; name: string; phone?: string; }
+interface Coach { id: string; userId?: string; name: string; phone?: string; }
 interface Batch {
   id: string;
   name: string;
@@ -132,7 +132,13 @@ function BatchModal({
   const [form, setForm] = useState(existing ? {
     name: existing.name,
     sportId: existing.sport?.id || '',
-    coachIds: existing.coaches?.map(c => c.id) ?? [],
+    coachIds: (() => {
+      // batch.coaches[].id is User.id; coaches list uses orgUser.id
+      // Map via userId to get the correct orgUser IDs for the multiselect
+      const existingUserIds = new Set(existing.coaches?.map(c => c.id) ?? []);
+      const mapped = coaches.filter(c => existingUserIds.has(c.userId ?? '')).map(c => c.id);
+      return mapped.length > 0 ? mapped : (existing.coaches?.map(c => c.id) ?? []);
+    })(),
     capacity: String(existing.capacity),
     fee: String(existing.fee || ''),
     startTime: existing.startTime,
@@ -340,9 +346,11 @@ export default function BatchesPage() {
   });
 
   const { data: coaches = [] } = useQuery<Coach[]>({
-    queryKey: ['coaches', effectiveVenueId],
-    queryFn: () => api.get(`/venues/${effectiveVenueId}/coaches`).then(r => r.data),
-    enabled: !!effectiveVenueId,
+    queryKey: isSuperAdmin ? ['coaches-all'] : ['coaches', effectiveVenueId],
+    queryFn: isSuperAdmin
+      ? () => api.get('/coaches').then(r => r.data)
+      : () => api.get(`/venues/${effectiveVenueId}/coaches`).then(r => r.data),
+    enabled: isSuperAdmin ? true : !!effectiveVenueId,
   });
 
   const deleteMutation = useMutation({
