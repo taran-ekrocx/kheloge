@@ -13,6 +13,9 @@ interface Venue {
   name: string;
   address?: string;
   phone?: string;
+  email?: string;
+  latitude?: number;
+  longitude?: number;
   openTime?: string;
   closeTime?: string;
   isActive: boolean;
@@ -30,6 +33,9 @@ function VenueFormModal({ onClose, existing }: { onClose: () => void; existing?:
     name: existing?.name || '',
     address: existing?.address || '',
     phone: existing?.phone || '',
+    email: existing?.email || '',
+    latitude: existing?.latitude?.toString() || '',
+    longitude: existing?.longitude?.toString() || '',
     openTime: existing?.openTime || '06:00',
     closeTime: existing?.closeTime || '21:00',
     sportIds: existing?.sports?.map(vs => vs.sport.id) ?? [],
@@ -41,8 +47,14 @@ function VenueFormModal({ onClose, existing }: { onClose: () => void; existing?:
   });
 
   const mutation = useMutation({
-    mutationFn: (data: typeof form) =>
-      existing ? api.patch(`/venues/${existing.id}`, data) : api.post('/venues', data),
+    mutationFn: (data: typeof form) => {
+      const payload = {
+        ...data,
+        latitude: data.latitude !== '' ? parseFloat(data.latitude) : undefined,
+        longitude: data.longitude !== '' ? parseFloat(data.longitude) : undefined,
+      };
+      return existing ? api.patch(`/venues/${existing.id}`, payload) : api.post('/venues', payload);
+    },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['venues'] }); onClose(); },
   });
 
@@ -61,6 +73,11 @@ function VenueFormModal({ onClose, existing }: { onClose: () => void; existing?:
           <input required placeholder="Venue Name *" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           <input placeholder="Address" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           <input placeholder="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <input required type="email" placeholder="Email *" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <div className="grid grid-cols-2 gap-3">
+            <input type="number" step="any" placeholder="Latitude (optional)" value={form.latitude} onChange={(e) => setForm({ ...form, latitude: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <input type="number" step="any" placeholder="Longitude (optional)" value={form.longitude} onChange={(e) => setForm({ ...form, longitude: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-gray-500 mb-1 block">Opening Time</label>

@@ -162,6 +162,8 @@ model Venue {
   address        String?
   phone          String?
   email          String?
+  latitude       Float?
+  longitude      Float?
   logoUrl        String?
   primaryColor   String?
   isActive       Boolean      @default(true)
