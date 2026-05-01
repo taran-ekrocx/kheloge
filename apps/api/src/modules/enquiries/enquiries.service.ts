@@ -25,6 +25,14 @@ export class EnquiriesService {
     });
   }
 
+  async findAllForOrg(orgId: string, stage?: EnquiryStage) {
+    return this.prisma.enquiry.findMany({
+      where: { venue: { organizationId: orgId }, ...(stage && { stage }) },
+      include: { comments: { include: { author: { select: { name: true } } } } },
+      orderBy: { updatedAt: 'desc' },
+    });
+  }
+
   async create(venueId: string, dto: CreateEnquiryDto) {
     return this.prisma.enquiry.create({
       data: {
@@ -46,10 +54,13 @@ export class EnquiriesService {
   }
 
   async convertToStudent(enquiryId: string, batchId: string) {
-    const enquiry = await this.prisma.enquiry.findUniqueOrThrow({ where: { id: enquiryId } });
+    const enquiry = await this.prisma.enquiry.findUniqueOrThrow({
+      where: { id: enquiryId },
+      include: { venue: { select: { organizationId: true } } },
+    });
     const student = await this.prisma.student.create({
       data: {
-        venueId: enquiry.venueId,
+        organizationId: enquiry.venue.organizationId,
         name: enquiry.name,
         phone: enquiry.phone || undefined,
         email: enquiry.email || undefined,

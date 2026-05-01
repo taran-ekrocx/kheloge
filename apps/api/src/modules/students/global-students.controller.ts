@@ -26,7 +26,7 @@ export class GlobalStudentsController {
   }
 
   @Get(':id')
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER, UserRole.COACH)
   findOne(@Param('id') id: string) {
     return this.students.findOne(id);
   }

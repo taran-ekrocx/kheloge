@@ -45,10 +45,10 @@ export default function StudentDetailPage() {
 
   const { data: student, isLoading } = useQuery({
     queryKey: ['student', id],
-    queryFn: () => isSuperAdmin
+    queryFn: () => (isSuperAdmin || isCoach)
       ? api.get(`/students/${id}`).then((r) => r.data)
       : api.get(`/venues/${venueId}/students/${id}`).then((r) => r.data),
-    enabled: !!id && (isSuperAdmin || !!venueId),
+    enabled: !!id && (isSuperAdmin || isCoach || !!venueId),
   });
 
   const { data: attendanceStats } = useQuery({
@@ -63,7 +63,7 @@ export default function StudentDetailPage() {
     enabled: tab === 'payments' && !!id,
   });
 
-  const studentBase = isSuperAdmin
+  const studentBase = (isSuperAdmin || isCoach)
     ? `/students/${id}`
     : `/venues/${venueId}/students/${id}`;
 
@@ -121,7 +121,7 @@ export default function StudentDetailPage() {
     }
   };
 
-  if (isLoading || (!isSuperAdmin && !venueId)) return <div className="p-8 text-gray-400">Loading...</div>;
+  if (isLoading || (!isSuperAdmin && !isCoach && !venueId)) return <div className="p-8 text-gray-400">Loading...</div>;
   if (!student) return <div className="p-8 text-gray-400">Student not found.</div>;
 
   const tabs = [

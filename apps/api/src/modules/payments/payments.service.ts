@@ -155,14 +155,15 @@ export class PaymentsService {
   }
 
   async getDashboard(venueId: string) {
+    const venueStudentFilter = { enrollments: { some: { batch: { venueId } } } };
     const [students, payments, overdueInvoices] = await Promise.all([
-      this.prisma.student.findMany({ where: { venueId }, select: { id: true } }),
+      this.prisma.student.findMany({ where: venueStudentFilter, select: { id: true } }),
       this.prisma.payment.findMany({
-        where: { student: { venueId }, paidAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } },
+        where: { student: venueStudentFilter, paidAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } },
         select: { amount: true },
       }),
       this.prisma.invoice.findMany({
-        where: { student: { venueId }, status: PaymentStatus.OVERDUE },
+        where: { student: venueStudentFilter, status: PaymentStatus.OVERDUE },
         select: { amount: true },
       }),
     ]);
@@ -213,7 +214,7 @@ export class PaymentsService {
 
   async getVenueInvoices(venueId: string) {
     return this.prisma.invoice.findMany({
-      where: { student: { venueId } },
+      where: { student: { enrollments: { some: { batch: { venueId } } } } },
       include: {
         student: { select: { id: true, name: true, phone: true } },
         feePlan: { select: { name: true, frequency: true } },
@@ -244,23 +245,23 @@ export class PaymentsService {
 
     const [totalStudents, activeStudents, activeBatches, monthlyPayments, pendingInvoices, overdueInvoices, recentEnrollments, recentPayments] =
       await Promise.all([
-        this.prisma.student.count({ where: { venue: { organizationId } } }),
-        this.prisma.student.count({ where: { venue: { organizationId }, status: 'ACTIVE' } }),
+        this.prisma.student.count({ where: { organizationId } }),
+        this.prisma.student.count({ where: { organizationId, status: 'ACTIVE' } }),
         this.prisma.batch.count({ where: { venue: { organizationId }, isActive: true } }),
         this.prisma.payment.findMany({
-          where: { student: { venue: { organizationId } }, paidAt: { gte: monthStart } },
+          where: { student: { organizationId }, paidAt: { gte: monthStart } },
           select: { amount: true },
         }),
         this.prisma.invoice.findMany({
-          where: { student: { venue: { organizationId } }, status: PaymentStatus.PENDING },
+          where: { student: { organizationId }, status: PaymentStatus.PENDING },
           select: { amount: true },
         }),
         this.prisma.invoice.findMany({
-          where: { student: { venue: { organizationId } }, status: PaymentStatus.OVERDUE },
+          where: { student: { organizationId }, status: PaymentStatus.OVERDUE },
           select: { amount: true },
         }),
         this.prisma.enrollment.findMany({
-          where: { student: { venue: { organizationId } } },
+          where: { student: { organizationId } },
           orderBy: { createdAt: 'desc' },
           take: 10,
           include: {
@@ -269,7 +270,7 @@ export class PaymentsService {
           },
         }),
         this.prisma.payment.findMany({
-          where: { student: { venue: { organizationId } } },
+          where: { student: { organizationId } },
           orderBy: { paidAt: 'desc' },
           take: 10,
           include: { student: { select: { name: true } } },
@@ -315,21 +316,22 @@ export class PaymentsService {
 
   async getKpiDashboard(venueId: string) {
     const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const venueStudentFilter = { enrollments: { some: { batch: { venueId } } } };
 
     const [students, activeBatches, monthlyPayments, pendingInvoices, recentEnrollments, recentPayments] =
       await Promise.all([
-        this.prisma.student.count({ where: { venueId, status: 'ACTIVE' } }),
+        this.prisma.student.count({ where: { ...venueStudentFilter, status: 'ACTIVE' } }),
         this.prisma.batch.count({ where: { venueId, isActive: true } }),
         this.prisma.payment.findMany({
-          where: { student: { venueId }, paidAt: { gte: monthStart } },
+          where: { student: venueStudentFilter, paidAt: { gte: monthStart } },
           select: { amount: true },
         }),
         this.prisma.invoice.findMany({
-          where: { student: { venueId }, status: { in: [PaymentStatus.PENDING, PaymentStatus.OVERDUE] } },
+          where: { student: venueStudentFilter, status: { in: [PaymentStatus.PENDING, PaymentStatus.OVERDUE] } },
           select: { amount: true },
         }),
         this.prisma.enrollment.findMany({
-          where: { student: { venueId } },
+          where: { batch: { venueId } },
           orderBy: { createdAt: 'desc' },
           take: 10,
           include: {
@@ -338,7 +340,7 @@ export class PaymentsService {
           },
         }),
         this.prisma.payment.findMany({
-          where: { student: { venueId } },
+          where: { student: venueStudentFilter },
           orderBy: { paidAt: 'desc' },
           take: 10,
           include: { student: { select: { name: true } } },
@@ -370,5 +372,117 @@ export class PaymentsService {
         type: 'payment' as const,
       })),
     };
+  }
+
+  async getGlobalKpiDashboard(orgId: string) {
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const studentOrgFilter = { organizationId: orgId };
+
+    const [students, activeBatches, monthlyPayments, pendingInvoices, recentEnrollments, recentPayments] =
+      await Promise.all([
+        this.prisma.student.count({ where: { ...studentOrgFilter, status: 'ACTIVE' } }),
+        this.prisma.batch.count({ where: { venue: { organizationId: orgId }, isActive: true } }),
+        this.prisma.payment.findMany({
+          where: { student: studentOrgFilter, paidAt: { gte: monthStart } },
+          select: { amount: true },
+        }),
+        this.prisma.invoice.findMany({
+          where: { student: studentOrgFilter, status: { in: [PaymentStatus.PENDING, PaymentStatus.OVERDUE] } },
+          select: { amount: true },
+        }),
+        this.prisma.enrollment.findMany({
+          where: { student: studentOrgFilter },
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+          include: {
+            student: { select: { name: true } },
+            batch: { select: { name: true, sport: { select: { name: true } } } },
+          },
+        }),
+        this.prisma.payment.findMany({
+          where: { student: studentOrgFilter },
+          orderBy: { paidAt: 'desc' },
+          take: 10,
+          include: { student: { select: { name: true } } },
+        }),
+      ]);
+
+    const monthlyRevenue = monthlyPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+    const pendingFees = pendingInvoices.reduce((sum, i) => sum + Number(i.amount), 0);
+
+    return {
+      totalStudents: students,
+      activeBatches,
+      monthlyRevenue,
+      pendingFees,
+      recentEnrollments: recentEnrollments.map((e) => ({
+        id: e.id,
+        studentName: e.student.name,
+        batchName: e.batch.name,
+        sportName: e.batch.sport.name,
+        createdAt: e.createdAt,
+        type: 'enrollment' as const,
+      })),
+      recentPayments: recentPayments.map((p) => ({
+        id: p.id,
+        studentName: p.student.name,
+        amount: Number(p.amount),
+        mode: p.mode,
+        paidAt: p.paidAt,
+        type: 'payment' as const,
+      })),
+    };
+  }
+
+  async getGlobalPaymentsDashboard(orgId: string) {
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const [students, payments, overdueInvoices] = await Promise.all([
+      this.prisma.student.count({ where: { organizationId: orgId } }),
+      this.prisma.payment.findMany({
+        where: { student: { organizationId: orgId }, paidAt: { gte: monthStart } },
+        select: { amount: true },
+      }),
+      this.prisma.invoice.findMany({
+        where: { student: { organizationId: orgId }, status: PaymentStatus.OVERDUE },
+        select: { amount: true },
+      }),
+    ]);
+    const collected = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+    const overdue = overdueInvoices.reduce((sum, i) => sum + Number(i.amount), 0);
+    return { collected, overdue, totalStudents: students };
+  }
+
+  async getOrgFeePlans(orgId: string) {
+    const batches = await this.prisma.batch.findMany({
+      where: { venue: { organizationId: orgId } },
+      select: {
+        id: true,
+        name: true,
+        sport: { select: { name: true } },
+        feePlans: true,
+        _count: { select: { enrollments: { where: { isActive: true } } } },
+      },
+    });
+    return batches.flatMap((b) =>
+      b.feePlans.map((fp) => ({
+        ...fp,
+        batchName: b.name,
+        sportName: b.sport.name,
+        activeStudents: b._count.enrollments,
+      })),
+    );
+  }
+
+  async getOrgInvoices(orgId: string) {
+    return this.prisma.invoice.findMany({
+      where: { student: { organizationId: orgId } },
+      include: {
+        student: { select: { id: true, name: true, phone: true } },
+        feePlan: { select: { name: true, frequency: true } },
+        payments: { select: { id: true, amount: true, paidAt: true, mode: true } },
+      },
+      orderBy: { dueDate: 'desc' },
+      take: 200,
+    });
   }
 }

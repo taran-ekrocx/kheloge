@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
+import { useAuth } from '@/hooks/useAuth';
 import { Plus } from 'lucide-react';
 
 const STAGES = [
@@ -56,18 +57,25 @@ function EnquiryCard({ enquiry, onAdvance }: { enquiry: Enquiry; onAdvance: () =
 
 export default function EnquiriesPage() {
   const { venueId } = useVenue();
+  const { role } = useAuth();
+  const isSuperAdmin = role === 'SUPER_ADMIN';
   const queryClient = useQueryClient();
 
   const { data: enquiries = [], isLoading } = useQuery<Enquiry[]>({
-    queryKey: ['enquiries', venueId],
-    queryFn: () => api.get(`/venues/${venueId}/enquiries`).then(r => r.data),
-    enabled: !!venueId,
+    queryKey: isSuperAdmin ? ['enquiries-global'] : ['enquiries', venueId],
+    queryFn: isSuperAdmin
+      ? () => api.get('/enquiries').then(r => r.data)
+      : () => api.get(`/venues/${venueId}/enquiries`).then(r => r.data),
+    enabled: isSuperAdmin ? true : !!venueId,
   });
 
   const advanceMutation = useMutation({
     mutationFn: ({ id, stage }: { id: string; stage: string }) =>
       api.patch(`/venues/${venueId}/enquiries/${id}/stage`, { stage }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['enquiries', venueId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['enquiries', venueId] });
+      queryClient.invalidateQueries({ queryKey: ['enquiries-global'] });
+    },
   });
 
   const byStage = STAGES.reduce<Record<string, Enquiry[]>>((acc, { key }) => {

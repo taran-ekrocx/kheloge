@@ -177,7 +177,6 @@ model Venue {
   sports         VenueSport[]
   batches        Batch[]
   users          OrganizationUser[]
-  students       Student[]
   enquiries      Enquiry[]
   holidays       VenueHoliday[]
 
@@ -359,7 +358,6 @@ model BatchCoach {
 
 model Student {
   id             String        @id @default(cuid())
-  venueId        String?
   organizationId String?
   name           String
   phone          String?
@@ -378,7 +376,6 @@ model Student {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  venue          Venue?         @relation(fields: [venueId], references: [id], onDelete: Cascade)
   organization   Organization?  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   guardians      Guardian[]
   enrollments    Enrollment[]

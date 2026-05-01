@@ -16,7 +16,7 @@ export class InvoicesHttpService {
 
   async findAll(organizationId: string, filters: InvoiceListFilters = {}) {
     const where: any = {
-      student: { venue: { organizationId } },
+      student: { organizationId },
     };
 
     if (filters.status) {
@@ -48,7 +48,7 @@ export class InvoicesHttpService {
 
   async markPaid(organizationId: string, invoiceId: string, mode: PaymentMode = PaymentMode.CASH) {
     const invoice = await this.prisma.invoice.findFirst({
-      where: { id: invoiceId, student: { venue: { organizationId } } },
+      where: { id: invoiceId, student: { organizationId } },
       include: { student: true },
     });
     if (!invoice) throw new NotFoundException('Invoice not found');

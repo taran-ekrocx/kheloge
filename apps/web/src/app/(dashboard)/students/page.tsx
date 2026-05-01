@@ -353,11 +353,13 @@ export default function StudentsPage() {
   const [bulkLoading, setBulkLoading] = useState(false);
 
   const { data: students = [], isLoading } = useQuery<Student[]>({
-    queryKey: isSuperAdmin ? ['students-global'] : ['students', venueId],
+    queryKey: isSuperAdmin ? ['students-global'] : isCoach ? ['coach-students'] : ['students', venueId],
     queryFn: isSuperAdmin
       ? () => api.get('/students').then((r) => r.data)
-      : () => api.get(`/venues/${venueId}/students`).then((r) => r.data),
-    enabled: isSuperAdmin ? true : !!venueId,
+      : isCoach
+        ? () => api.get('/coaches/me/students').then((r) => r.data)
+        : () => api.get(`/venues/${venueId}/students`).then((r) => r.data),
+    enabled: isSuperAdmin || isCoach ? true : !!venueId,
   });
 
   const statusMutation = useMutation({

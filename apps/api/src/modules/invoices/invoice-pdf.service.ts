@@ -23,13 +23,11 @@ export class InvoicePdfService {
       where: { id: invoiceId },
       include: {
         student: {
-          include: {
-            venue: {
-              include: { organization: true },
-            },
-          },
+          include: { organization: true },
         },
-        feePlan: true,
+        feePlan: {
+          include: { batch: { include: { venue: true } } },
+        },
         payments: {
           where: { status: PaymentStatus.PAID },
           orderBy: { paidAt: 'desc' },
@@ -39,8 +37,8 @@ export class InvoicePdfService {
 
     if (!invoice) throw new NotFoundException('Invoice not found');
 
-    const org = invoice.student.venue.organization;
-    const venue = invoice.student.venue;
+    const org = invoice.student.organization;
+    const venue = invoice.feePlan.batch?.venue ?? null;
 
     return new Promise<Buffer>((resolve, reject) => {
       const doc = new PDFDocument({ size: 'A4', margin: 50 });
@@ -50,18 +48,18 @@ export class InvoicePdfService {
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
-      const brand = venue.primaryColor ?? '#1d4ed8';
+      const brand = venue?.primaryColor ?? '#1d4ed8';
 
       // ── Header ──────────────────────────────────────────────
       doc
         .fontSize(24)
         .fillColor(brand)
         .font('Helvetica-Bold')
-        .text(org.name, { align: 'center' })
+        .text(org?.name ?? 'Kheloge', { align: 'center' })
         .font('Helvetica')
         .moveDown(0.2);
 
-      if (org.address) {
+      if (org?.address) {
         doc
           .fontSize(9)
           .fillColor('#6b7280')
@@ -69,8 +67,8 @@ export class InvoicePdfService {
       }
 
       const contactParts: string[] = [];
-      if (org.phone) contactParts.push(org.phone);
-      if (org.email) contactParts.push(org.email);
+      if (org?.phone) contactParts.push(org.phone);
+      if (org?.email) contactParts.push(org.email);
       if (contactParts.length) {
         doc
           .fontSize(9)
@@ -274,7 +272,7 @@ export class InvoicePdfService {
         .fillColor('#9ca3af')
         .text('This is a computer-generated invoice.', { align: 'center' });
 
-      if (venue.name) {
+      if (venue?.name) {
         doc.text(`Issued by ${venue.name}`, { align: 'center' });
       }
 

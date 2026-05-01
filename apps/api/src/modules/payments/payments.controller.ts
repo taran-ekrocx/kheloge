@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Param, Body, UseGuards, Res, RawBodyRequest, Req, Headers } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, UseGuards, Res, RawBodyRequest, Req, Headers, Request } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { FastifyReply, FastifyRequest } from 'fastify';
@@ -19,6 +19,30 @@ export class PaymentsController {
     private receipts: ReceiptService,
     private invoicePdf: InvoicePdfService,
   ) {}
+
+  @Get('kpi')
+  @Roles(UserRole.SUPER_ADMIN)
+  getGlobalKpi(@Request() req) {
+    return this.payments.getGlobalKpiDashboard(req.user.orgId);
+  }
+
+  @Get('dashboard')
+  @Roles(UserRole.SUPER_ADMIN)
+  getGlobalDashboard(@Request() req) {
+    return this.payments.getGlobalPaymentsDashboard(req.user.orgId);
+  }
+
+  @Get('fee-plans')
+  @Roles(UserRole.SUPER_ADMIN)
+  getOrgFeePlans(@Request() req) {
+    return this.payments.getOrgFeePlans(req.user.orgId);
+  }
+
+  @Get('invoices')
+  @Roles(UserRole.SUPER_ADMIN)
+  getOrgInvoices(@Request() req) {
+    return this.payments.getOrgInvoices(req.user.orgId);
+  }
 
   @Get('dashboard/:venueId')
   @Roles(UserRole.SUPER_ADMIN, UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER, UserRole.ACCOUNTANT)

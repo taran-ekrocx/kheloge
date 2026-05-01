@@ -33,7 +33,7 @@ const NAV_ADMIN = [
   { href: '/users', label: 'Team', icon: UsersRound },
 ];
 
-function VenueSelector({ role, jwtVenueId }: { role: string | null; jwtVenueId: string | null }) {
+function VenueSelector({ role }: { role: string | null }) {
   const isCoach = role === 'COACH';
   const isSuperAdmin = role === 'SUPER_ADMIN';
   const isCityManager = role === 'CITY_MANAGER';
@@ -43,20 +43,14 @@ function VenueSelector({ role, jwtVenueId }: { role: string | null; jwtVenueId: 
     queryKey: ['venues-list'],
     queryFn: () => api.get('/venues').then((r) => r.data),
     staleTime: 5 * 60 * 1000,
+    enabled: !isCoach,
   });
 
+  // Auto-select first venue for venue-scoped roles (not coaches — they scope via batches).
   useEffect(() => {
-    if (role === null || isSuperAdmin || isCityManager) return;
-
-    if (isCoach) {
-      // Always enforce the coach's JWT venue (corrects stale localStorage from prior sessions).
-      // Fall back to first venue in the list if the JWT has no venueId (e.g. older org records).
-      const target = jwtVenueId ?? (venues.length > 0 ? venues[0].id : null);
-      if (target && venueId !== target) selectVenue(target);
-    } else if (!venueId && venues.length > 0) {
-      selectVenue(venues[0].id);
-    }
-  }, [role, isSuperAdmin, isCityManager, isCoach, jwtVenueId, venueId, venues, selectVenue]);
+    if (role === null || isSuperAdmin || isCityManager || isCoach || venueId) return;
+    if (venues.length > 0) selectVenue(venues[0].id);
+  }, [role, isSuperAdmin, isCityManager, isCoach, venueId, venues, selectVenue]);
 
   if (role === null || isCoach || isSuperAdmin || isCityManager || venues.length <= 1) return null;
 
@@ -107,7 +101,7 @@ function NavGroup({ label, items, isCoach }: { label: string; items: typeof NAV_
 }
 
 export function Sidebar() {
-  const { role, venueId: jwtVenueId } = useAuth();
+  const { role } = useAuth();
   const isCoach = role === 'COACH';
   const isSuperAdmin = role === 'SUPER_ADMIN';
 
@@ -118,7 +112,7 @@ export function Sidebar() {
         <p className="text-xs text-gray-400 mt-0.5">Sports Management</p>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-4 overflow-y-auto">
-        <VenueSelector role={role} jwtVenueId={jwtVenueId} />
+        <VenueSelector role={role} />
         <NavGroup label="Operations" items={NAV_OPERATIONS} isCoach={isCoach} />
         {!isCoach && <NavGroup label="Administration" items={NAV_ADMIN} />}
       </nav>

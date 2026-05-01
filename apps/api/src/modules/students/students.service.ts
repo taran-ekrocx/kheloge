@@ -54,7 +54,7 @@ export class StudentsService {
     private fileUpload: FileUploadService,
   ) {}
 
-  async findAll(venueId: string, opts: { search?: string; status?: StudentStatus | 'all'; sportId?: string; batchId?: string; coachUserId?: string; from?: string; to?: string } = {}) {
+  async findAll(venueId: string | undefined, orgId: string, opts: { search?: string; status?: StudentStatus | 'all'; sportId?: string; batchId?: string; coachUserId?: string; from?: string; to?: string } = {}) {
     const { search, status, sportId, batchId, coachUserId, from, to } = opts;
 
     // When a coach queries, resolve their batch IDs to scope the student list
@@ -69,7 +69,7 @@ export class StudentsService {
 
     return this.prisma.student.findMany({
       where: {
-        venueId,
+        organizationId: orgId,
         ...(!status || status === 'all'
           ? { status: { notIn: [StudentStatus.INACTIVE] } }
           : { status: status as StudentStatus }),
@@ -80,6 +80,7 @@ export class StudentsService {
             { email: { contains: search, mode: 'insensitive' } },
           ],
         }),
+        // Coach: filter by their assigned batches (implicitly venue-scoped via batch)
         ...(coachBatchIds
           ? {
               enrollments: {
@@ -90,13 +91,14 @@ export class StudentsService {
                 },
               },
             }
-          : sportId || batchId || from || to
+          // Admin/manager: filter through batch→venue relationship
+          : venueId || sportId || batchId || from || to
             ? {
                 enrollments: {
                   some: {
                     ...(batchId && { batchId }),
+                    ...(venueId && { batch: { venueId } }),
                     ...(sportId && { batch: { sportId } }),
-                    // Active during the requested month: joined before month end and not left before month start
                     ...(from && { joinedAt: { lte: new Date(to ?? from) } }),
                     ...(from && {
                       OR: [
@@ -114,26 +116,53 @@ export class StudentsService {
     });
   }
 
-  async findAllForOrg(orgId: string, opts: { search?: string; status?: StudentStatus | 'all'; sportId?: string; batchId?: string } = {}) {
+  async findByCoach(coachUserId: string, opts: { search?: string; status?: StudentStatus | 'all'; sportId?: string; batchId?: string } = {}) {
     const { search, status, sportId, batchId } = opts;
+    const batchCoaches = await this.prisma.batchCoach.findMany({
+      where: { coachId: coachUserId },
+      select: { batchId: true },
+    });
+    const coachBatchIds = batchCoaches.map((bc) => bc.batchId);
+
     return this.prisma.student.findMany({
       where: {
-        OR: [
-          { organizationId: orgId },
-          { venue: { organizationId: orgId } },
-        ],
         ...(!status || status === 'all'
           ? { status: { notIn: [StudentStatus.INACTIVE] } }
           : { status: status as StudentStatus }),
         ...(search && {
-          AND: [
-            {
-              OR: [
-                { name: { contains: search, mode: 'insensitive' } },
-                { phone: { contains: search } },
-                { email: { contains: search, mode: 'insensitive' } },
-              ],
-            },
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { phone: { contains: search } },
+            { email: { contains: search, mode: 'insensitive' } },
+          ],
+        }),
+        enrollments: {
+          some: {
+            isActive: true,
+            batchId: { in: coachBatchIds },
+            ...(sportId && { batch: { sportId } }),
+            ...(batchId && { batchId }),
+          },
+        },
+      },
+      include: { guardians: true, enrollments: { include: { batch: { include: { sport: true } } } } },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async findAllForOrg(orgId: string, opts: { search?: string; status?: StudentStatus | 'all'; sportId?: string; batchId?: string } = {}) {
+    const { search, status, sportId, batchId } = opts;
+    return this.prisma.student.findMany({
+      where: {
+        organizationId: orgId,
+        ...(!status || status === 'all'
+          ? { status: { notIn: [StudentStatus.INACTIVE] } }
+          : { status: status as StudentStatus }),
+        ...(search && {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { phone: { contains: search } },
+            { email: { contains: search, mode: 'insensitive' } },
           ],
         }),
         ...(sportId || batchId
@@ -173,7 +202,6 @@ export class StudentsService {
     const student = await this.prisma.student.create({
       data: {
         ...rest,
-        venueId: venueId ?? null,
         organizationId: orgId,
         status: status ?? StudentStatus.ENQUIRY,
         dob: dob ? new Date(dob) : undefined,
@@ -277,11 +305,11 @@ export class StudentsService {
   async generateQrCode(id: string): Promise<Buffer> {
     const student = await this.prisma.student.findUnique({
       where: { id },
-      select: { id: true, name: true, venueId: true },
+      select: { id: true, name: true },
     });
     if (!student) throw new NotFoundException('Student not found');
 
-    const payload = JSON.stringify({ studentId: student.id, name: student.name, venueId: student.venueId });
+    const payload = JSON.stringify({ studentId: student.id, name: student.name });
     return QRCode.toBuffer(payload, { type: 'png', width: 300, margin: 2 });
   }
 
@@ -294,10 +322,10 @@ export class StudentsService {
     const student = await this.prisma.student.findUnique({
       where: { id },
       include: {
-        venue: { include: { organization: true } },
+        organization: true,
         enrollments: {
           where: { isActive: true },
-          include: { batch: { include: { sport: true } } },
+          include: { batch: { include: { sport: true, venue: true } } },
           take: 1,
           orderBy: { createdAt: 'desc' },
         },
@@ -306,13 +334,13 @@ export class StudentsService {
     if (!student) throw new NotFoundException('Student not found');
 
     // Build QR payload (same as check-in endpoint)
-    const qrPayload = JSON.stringify({ studentId: student.id, name: student.name, venueId: student.venueId });
+    const qrPayload = JSON.stringify({ studentId: student.id, name: student.name });
     const qrBuffer = await QRCode.toBuffer(qrPayload, { type: 'png', width: 200, margin: 1 });
 
-    const org = student.venue.organization;
-    const venue = student.venue;
     const enrollment = student.enrollments[0] ?? null;
-    const brand = venue.primaryColor ?? '#1d4ed8';
+    const venue = enrollment?.batch?.venue ?? null;
+    const org = student.organization;
+    const brand = venue?.primaryColor ?? '#1d4ed8';
 
     // A6 portrait: 105mm × 148mm → ~298 × 420 pts
     return new Promise<Buffer>((resolve, reject) => {
@@ -337,7 +365,7 @@ export class StudentsService {
         .fontSize(14)
         .fillColor('#ffffff')
         .font('Helvetica-Bold')
-        .text(org.name, margin, 10, { width: innerW, align: 'center' });
+        .text(org?.name ?? 'Kheloge', margin, 10, { width: innerW, align: 'center' });
 
       doc
         .fontSize(7)
@@ -383,7 +411,7 @@ export class StudentsService {
       doc
         .fontSize(8)
         .fillColor('#6b7280')
-        .text(venue.name, margin, detailY, { width: innerW, align: 'center' });
+        .text(venue?.name ?? '', margin, detailY, { width: innerW, align: 'center' });
       detailY += 12;
 
       const enrolledStr = student.enrolledAt.toLocaleDateString('en-IN', {

@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { UserRole } from '@kheloge/database';
+import { normalizePhone } from '../../common/utils/phone';
 
 export interface InviteUserDto {
   phone: string;
@@ -46,6 +47,7 @@ export class UsersService {
   }
 
   async invite(organizationId: string, dto: InviteUserDto) {
+    dto.phone = normalizePhone(dto.phone);
     // Find or create the user by phone
     let user = await this.prisma.user.findUnique({ where: { phone: dto.phone } });
     if (!user) {

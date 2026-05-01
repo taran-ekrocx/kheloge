@@ -246,12 +246,12 @@ async function main() {
       const phone = `+91${randomBetween(7000000000, 9999999999)}`;
       const dob = new Date(randomBetween(2005, 2015), randomBetween(0, 11), randomBetween(1, 28));
 
-      const existingStudent = await prisma.student.findFirst({ where: { venueId: venue.id, phone } });
+      const existingStudent = await prisma.student.findFirst({ where: { phone } });
       if (existingStudent) continue;
 
       const student = await prisma.student.create({
         data: {
-          venueId: venue.id,
+          organizationId: org.id,
           name,
           phone,
           email: `${name.toLowerCase().replace(/ /g, '.')}.${i}@demo.com`,
