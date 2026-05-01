@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
 import { useAuth } from '@/hooks/useAuth';
 import { Plus, Search, Filter, X, Edit2, Trash2 } from 'lucide-react';
+import Link from 'next/link';
 
 const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
 const DAY_SHORT: Record<string, string> = {
@@ -483,7 +484,11 @@ export default function BatchesPage() {
             <tbody className="divide-y divide-gray-50">
               {filtered.map((b) => (
                 <tr key={b.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3 font-medium text-gray-900">{b.name}</td>
+                  <td className="px-4 py-3">
+                    <Link href={`/batches/${b.id}`} className="font-medium text-gray-900 hover:text-blue-600 transition-colors">
+                      {b.name}
+                    </Link>
+                  </td>
                   <td className="px-4 py-3">
                     <span className="bg-blue-50 text-blue-600 text-xs px-2 py-0.5 rounded-full font-medium">
                       {b.sport?.name || '—'}
