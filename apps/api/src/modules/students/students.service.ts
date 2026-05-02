@@ -291,6 +291,18 @@ export class StudentsService {
     });
   }
 
+  async addGuardian(studentId: string, dto: { name: string; phone: string; email?: string; relation: string; isPrimary?: boolean }) {
+    return this.prisma.guardian.create({ data: { ...dto, studentId } });
+  }
+
+  async updateGuardian(guardianId: string, dto: Partial<{ name: string; phone: string; email: string; relation: string; isPrimary: boolean }>) {
+    return this.prisma.guardian.update({ where: { id: guardianId }, data: dto });
+  }
+
+  async deleteGuardian(guardianId: string) {
+    return this.prisma.guardian.delete({ where: { id: guardianId } });
+  }
+
   async deactivate(id: string) {
     return this.prisma.student.update({
       where: { id },

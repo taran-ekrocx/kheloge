@@ -54,4 +54,22 @@ export class GlobalStudentsController {
   unenroll(@Param('id') id: string, @Param('batchId') batchId: string) {
     return this.students.unenroll(id, batchId);
   }
+
+  @Post(':id/guardians')
+  @Roles(UserRole.SUPER_ADMIN)
+  addGuardian(@Param('id') id: string, @Body() dto: { name: string; phone: string; email?: string; relation: string; isPrimary?: boolean }) {
+    return this.students.addGuardian(id, dto);
+  }
+
+  @Patch(':id/guardians/:guardianId')
+  @Roles(UserRole.SUPER_ADMIN)
+  updateGuardian(@Param('guardianId') guardianId: string, @Body() dto: Partial<{ name: string; phone: string; email: string; relation: string; isPrimary: boolean }>) {
+    return this.students.updateGuardian(guardianId, dto);
+  }
+
+  @Delete(':id/guardians/:guardianId')
+  @Roles(UserRole.SUPER_ADMIN)
+  deleteGuardian(@Param('guardianId') guardianId: string) {
+    return this.students.deleteGuardian(guardianId);
+  }
 }

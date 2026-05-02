@@ -75,6 +75,12 @@ export default function StudentDetailPage() {
     enabled: editingProfile && (isSuperAdmin || !!venueId),
   });
 
+  const { data: sports = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ['sports'],
+    queryFn: () => api.get('/sports').then((r) => r.data),
+    enabled: editingProfile,
+  });
+
   const updateMutation = useMutation({
     mutationFn: (data: Record<string, string>) => api.patch(studentBase, data),
     onSuccess: () => {
@@ -90,6 +96,32 @@ export default function StudentDetailPage() {
 
   const unenrollMutation = useMutation({
     mutationFn: (batchId: string) => api.delete(`${studentBase}/enroll/${batchId}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['student', id] }),
+  });
+
+  const [guardianForm, setGuardianForm] = useState({ name: '', phone: '', email: '', relation: 'Guardian', isPrimary: false });
+  const [editingGuardianId, setEditingGuardianId] = useState<string | null>(null);
+  const [editGuardianForm, setEditGuardianForm] = useState({ name: '', phone: '', email: '', relation: '' });
+
+  const addGuardianMutation = useMutation({
+    mutationFn: (data: typeof guardianForm) => api.post(`${studentBase}/guardians`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['student', id] });
+      setGuardianForm({ name: '', phone: '', email: '', relation: 'Guardian', isPrimary: false });
+    },
+  });
+
+  const updateGuardianMutation = useMutation({
+    mutationFn: ({ guardianId, data }: { guardianId: string; data: typeof editGuardianForm }) =>
+      api.patch(`${studentBase}/guardians/${guardianId}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['student', id] });
+      setEditingGuardianId(null);
+    },
+  });
+
+  const deleteGuardianMutation = useMutation({
+    mutationFn: (guardianId: string) => api.delete(`${studentBase}/guardians/${guardianId}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['student', id] }),
   });
 
@@ -399,11 +431,16 @@ export default function StudentDetailPage() {
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">Sport Applied For</label>
-                  <input
+                  <select
                     value={editForm.sportInterest}
                     onChange={e => setEditForm(f => ({ ...f, sportInterest: e.target.value }))}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="">— Select sport —</option>
+                    {sports.map(s => (
+                      <option key={s.id} value={s.name}>{s.name}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">Training Level</label>
@@ -482,19 +519,111 @@ export default function StudentDetailPage() {
                 );
               })()}
             </div>
-            {student.guardians?.length > 0 && (
+            {(student.guardians?.length > 0 || (editingProfile && !isCoach)) && (
               <div>
                 <hr className="border-gray-100 mb-4" />
                 <p className="text-sm font-medium text-gray-700 mb-2">Parent / Guardian Contact</p>
                 <div className="space-y-2">
-                  {student.guardians.map((g: { id: string; name: string; relation: string; phone: string }) => (
-                    <div key={g.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg text-sm">
-                      <span className="font-medium text-gray-900">{g.name}</span>
-                      <span className="text-xs text-gray-400 capitalize">{g.relation}</span>
-                      <span className="ml-auto text-gray-600">{g.phone}</span>
+                  {student.guardians?.map((g: { id: string; name: string; relation: string; phone: string; email?: string }) => (
+                    <div key={g.id}>
+                      {editingProfile && !isCoach && editingGuardianId === g.id ? (
+                        <div className="p-2 bg-gray-50 rounded-lg space-y-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <input
+                              placeholder="Name"
+                              value={editGuardianForm.name}
+                              onChange={e => setEditGuardianForm(f => ({ ...f, name: e.target.value }))}
+                              className="border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                            <input
+                              placeholder="Phone"
+                              value={editGuardianForm.phone}
+                              onChange={e => setEditGuardianForm(f => ({ ...f, phone: e.target.value }))}
+                              className="border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                            <input
+                              placeholder="Email"
+                              value={editGuardianForm.email}
+                              onChange={e => setEditGuardianForm(f => ({ ...f, email: e.target.value }))}
+                              className="border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                            <input
+                              placeholder="Relation"
+                              value={editGuardianForm.relation}
+                              onChange={e => setEditGuardianForm(f => ({ ...f, relation: e.target.value }))}
+                              className="border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => updateGuardianMutation.mutate({ guardianId: g.id, data: editGuardianForm })}
+                              disabled={updateGuardianMutation.isPending}
+                              className="text-xs text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50"
+                            >Save</button>
+                            <button onClick={() => setEditingGuardianId(null)} className="text-xs text-gray-500 hover:text-gray-700">Cancel</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg text-sm">
+                          <span className="font-medium text-gray-900">{g.name}</span>
+                          <span className="text-xs text-gray-400 capitalize">{g.relation}</span>
+                          <span className="text-gray-600">{g.phone}</span>
+                          {editingProfile && !isCoach && (
+                            <div className="ml-auto flex gap-2">
+                              <button
+                                onClick={() => { setEditingGuardianId(g.id); setEditGuardianForm({ name: g.name, phone: g.phone, email: g.email || '', relation: g.relation }); }}
+                                className="text-xs text-blue-500 hover:text-blue-700"
+                              >Edit</button>
+                              <button
+                                onClick={() => deleteGuardianMutation.mutate(g.id)}
+                                disabled={deleteGuardianMutation.isPending}
+                                className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
+                              >Remove</button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
+                {editingProfile && !isCoach && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-xs text-gray-500 font-medium">Add Guardian</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        placeholder="Name"
+                        value={guardianForm.name}
+                        onChange={e => setGuardianForm(f => ({ ...f, name: e.target.value }))}
+                        className="border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <input
+                        placeholder="Phone *"
+                        value={guardianForm.phone}
+                        onChange={e => setGuardianForm(f => ({ ...f, phone: e.target.value }))}
+                        className="border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <input
+                        placeholder="Email"
+                        value={guardianForm.email}
+                        onChange={e => setGuardianForm(f => ({ ...f, email: e.target.value }))}
+                        className="border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <input
+                        placeholder="Relation"
+                        value={guardianForm.relation}
+                        onChange={e => setGuardianForm(f => ({ ...f, relation: e.target.value }))}
+                        className="border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <button
+                      onClick={() => { if (guardianForm.name && guardianForm.phone) addGuardianMutation.mutate(guardianForm); }}
+                      disabled={!guardianForm.name || !guardianForm.phone || addGuardianMutation.isPending}
+                      className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      Add Guardian
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
