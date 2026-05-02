@@ -37,7 +37,7 @@ export default function StudentDetailPage() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>('profile');
   const [editingProfile, setEditingProfile] = useState(false);
-  const [editForm, setEditForm] = useState({ name: '', phone: '', email: '', dob: '', address: '' });
+  const [editForm, setEditForm] = useState({ name: '', phone: '', email: '', dob: '', address: '', city: '', state: '', district: '', region: '', medicalNotes: '', status: '' });
   const [photoLoading, setPhotoLoading] = useState(false);
   const [idCardLoading, setIdCardLoading] = useState(false);
   const [invoiceLoading, setInvoiceLoading] = useState<string | null>(null);
@@ -82,6 +82,12 @@ export default function StudentDetailPage() {
       email: student?.email || '',
       dob: student?.dob ? dayjs(student.dob).format('YYYY-MM-DD') : '',
       address: student?.address || '',
+      city: student?.city || '',
+      state: student?.state || '',
+      district: student?.district || '',
+      region: student?.region || '',
+      medicalNotes: student?.medicalNotes || '',
+      status: student?.status || '',
     });
     setEditingProfile(true);
   }
@@ -235,10 +241,36 @@ export default function StudentDetailPage() {
                   <p className="text-xs text-gray-400">Date of Birth</p>
                   <p className="font-medium">{student.dob ? dayjs(student.dob).format('DD MMM YYYY') : '—'}</p>
                 </div>
+                <div>
+                  <p className="text-xs text-gray-400">Status</p>
+                  <p className="font-medium">{student.status}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400">Enrolled At</p>
+                  <p className="font-medium">{student.enrolledAt ? dayjs(student.enrolledAt).format('DD MMM YYYY') : '—'}</p>
+                </div>
                 {student.address && (
                   <div className="col-span-2">
                     <p className="text-xs text-gray-400">Address</p>
                     <p className="font-medium">{student.address}</p>
+                  </div>
+                )}
+                {(student.city || student.state) && (
+                  <>
+                    <div><p className="text-xs text-gray-400">City</p><p className="font-medium">{student.city || '—'}</p></div>
+                    <div><p className="text-xs text-gray-400">State</p><p className="font-medium">{student.state || '—'}</p></div>
+                  </>
+                )}
+                {(student.district || student.region) && (
+                  <>
+                    <div><p className="text-xs text-gray-400">District</p><p className="font-medium">{student.district || '—'}</p></div>
+                    <div><p className="text-xs text-gray-400">Region</p><p className="font-medium">{student.region || '—'}</p></div>
+                  </>
+                )}
+                {student.medicalNotes && (
+                  <div className="col-span-2">
+                    <p className="text-xs text-gray-400">Medical Notes</p>
+                    <p className="font-medium">{student.medicalNotes}</p>
                   </div>
                 )}
               </div>
@@ -278,12 +310,65 @@ export default function StudentDetailPage() {
                     className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Status</label>
+                  <select
+                    value={editForm.status}
+                    onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    {['ENQUIRY', 'TRIAL', 'ACTIVE', 'INACTIVE', 'GRADUATED', 'ON_HOLD'].map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
                 <div className="col-span-2">
                   <label className="text-xs text-gray-500 mb-1 block">Address</label>
                   <input
                     value={editForm.address}
                     onChange={e => setEditForm(f => ({ ...f, address: e.target.value }))}
                     className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">City</label>
+                  <input
+                    value={editForm.city}
+                    onChange={e => setEditForm(f => ({ ...f, city: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">State</label>
+                  <input
+                    value={editForm.state}
+                    onChange={e => setEditForm(f => ({ ...f, state: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">District</label>
+                  <input
+                    value={editForm.district}
+                    onChange={e => setEditForm(f => ({ ...f, district: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Region</label>
+                  <input
+                    value={editForm.region}
+                    onChange={e => setEditForm(f => ({ ...f, region: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="text-xs text-gray-500 mb-1 block">Medical Notes</label>
+                  <textarea
+                    value={editForm.medicalNotes}
+                    onChange={e => setEditForm(f => ({ ...f, medicalNotes: e.target.value }))}
+                    rows={3}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                   />
                 </div>
                 {updateMutation.isError && (
