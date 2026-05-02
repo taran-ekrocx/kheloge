@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Search, Filter, X, Edit2, Trash2 } from 'lucide-react';
+import { Plus, Search, Filter, X, Edit2, Trash2, Eye } from 'lucide-react';
 import Link from 'next/link';
 
 const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
@@ -516,22 +516,31 @@ export default function BatchesPage() {
                     </>
                   )}
                   <td className="px-4 py-3">
-                    {!isCoach && (
-                      <div className="flex items-center gap-2 justify-end">
-                        <button
-                          onClick={() => { setEditing(b); setShowModal(true); }}
-                          className="text-gray-400 hover:text-blue-600 transition-colors"
-                        >
-                          <Edit2 size={15} />
-                        </button>
-                        <button
-                          onClick={() => { if (confirm(`Delete batch "${b.name}"?`)) deleteMutation.mutate(b); }}
-                          className="text-gray-400 hover:text-red-500 transition-colors"
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2 justify-end">
+                      <Link
+                        href={`/batches/${b.id}`}
+                        className="text-gray-400 hover:text-blue-600 transition-colors"
+                        title="View batch"
+                      >
+                        <Eye size={15} />
+                      </Link>
+                      {!isCoach && (
+                        <>
+                          <button
+                            onClick={() => { setEditing(b); setShowModal(true); }}
+                            className="text-gray-400 hover:text-blue-600 transition-colors"
+                          >
+                            <Edit2 size={15} />
+                          </button>
+                          <button
+                            onClick={() => { if (confirm(`Delete batch "${b.name}"?`)) deleteMutation.mutate(b); }}
+                            className="text-gray-400 hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
