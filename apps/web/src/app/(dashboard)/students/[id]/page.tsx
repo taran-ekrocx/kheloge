@@ -37,7 +37,7 @@ export default function StudentDetailPage() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>('profile');
   const [editingProfile, setEditingProfile] = useState(false);
-  const [editForm, setEditForm] = useState({ name: '', phone: '', email: '', dob: '', address: '', city: '', state: '', district: '', region: '', medicalNotes: '', status: '' });
+  const [editForm, setEditForm] = useState({ name: '', phone: '', email: '', dob: '', address: '', city: '', state: '', district: '', region: '', medicalNotes: '', status: '', sportInterest: '', trainingLevel: '' });
   const [photoLoading, setPhotoLoading] = useState(false);
   const [idCardLoading, setIdCardLoading] = useState(false);
   const [invoiceLoading, setInvoiceLoading] = useState<string | null>(null);
@@ -67,12 +67,30 @@ export default function StudentDetailPage() {
     ? `/students/${id}`
     : `/venues/${venueId}/students/${id}`;
 
+  const { data: allBatches = [] } = useQuery<{ id: string; name: string; sport: { name: string } }[]>({
+    queryKey: isSuperAdmin ? ['batches-global'] : ['batches', venueId],
+    queryFn: isSuperAdmin
+      ? () => api.get('/batches').then((r) => r.data)
+      : () => api.get(`/venues/${venueId}/batches`).then((r) => r.data),
+    enabled: editingProfile && (isSuperAdmin || !!venueId),
+  });
+
   const updateMutation = useMutation({
     mutationFn: (data: Record<string, string>) => api.patch(studentBase, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['student', id] });
       setEditingProfile(false);
     },
+  });
+
+  const enrollMutation = useMutation({
+    mutationFn: (batchId: string) => api.post(`${studentBase}/enrol`, { batchId }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['student', id] }),
+  });
+
+  const unenrollMutation = useMutation({
+    mutationFn: (batchId: string) => api.delete(`${studentBase}/enroll/${batchId}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['student', id] }),
   });
 
   function startEditProfile() {
@@ -88,6 +106,8 @@ export default function StudentDetailPage() {
       region: student?.region || '',
       medicalNotes: student?.medicalNotes || '',
       status: student?.status || '',
+      sportInterest: student?.sportInterest || '',
+      trainingLevel: student?.trainingLevel || '',
     });
     setEditingProfile(true);
   }
@@ -267,6 +287,12 @@ export default function StudentDetailPage() {
                     <div><p className="text-xs text-gray-400">Region</p><p className="font-medium">{student.region || '—'}</p></div>
                   </>
                 )}
+                {(student.sportInterest || student.trainingLevel) && (
+                  <>
+                    <div><p className="text-xs text-gray-400">Sport Applied For</p><p className="font-medium">{student.sportInterest || '—'}</p></div>
+                    <div><p className="text-xs text-gray-400">Training Level</p><p className="font-medium">{student.trainingLevel || '—'}</p></div>
+                  </>
+                )}
                 {student.medicalNotes && (
                   <div className="col-span-2">
                     <p className="text-xs text-gray-400">Medical Notes</p>
@@ -371,6 +397,27 @@ export default function StudentDetailPage() {
                     className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                   />
                 </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Sport Applied For</label>
+                  <input
+                    value={editForm.sportInterest}
+                    onChange={e => setEditForm(f => ({ ...f, sportInterest: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Training Level</label>
+                  <select
+                    value={editForm.trainingLevel}
+                    onChange={e => setEditForm(f => ({ ...f, trainingLevel: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="">— Select —</option>
+                    {['Beginner', 'Intermediate', 'Advanced'].map(l => (
+                      <option key={l} value={l}>{l}</option>
+                    ))}
+                  </select>
+                </div>
                 {updateMutation.isError && (
                   <p className="col-span-2 text-xs text-red-500">Failed to save. Please try again.</p>
                 )}
@@ -384,16 +431,56 @@ export default function StudentDetailPage() {
                 <ul className="space-y-2">
                   {student.enrollments
                     .filter((e: { isActive: boolean }) => e.isActive)
-                    .map((e: { id: string; batch: { name: string; sport: { name: string } } }) => (
+                    .map((e: { id: string; batchId: string; batch: { id: string; name: string; sport: { name: string } } }) => (
                       <li key={e.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
                         <span className="font-medium text-sm">{e.batch?.name}</span>
                         <span className="text-xs text-gray-400">{e.batch?.sport?.name}</span>
+                        {editingProfile && !isCoach && (
+                          <button
+                            onClick={() => unenrollMutation.mutate(e.batch?.id ?? e.batchId)}
+                            disabled={unenrollMutation.isPending}
+                            className="ml-auto text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
+                          >
+                            Remove
+                          </button>
+                        )}
                       </li>
                     ))}
                 </ul>
               ) : (
                 <p className="text-sm text-gray-400">Not enrolled in any batch.</p>
               )}
+              {editingProfile && !isCoach && allBatches.length > 0 && (() => {
+                const enrolledBatchIds = new Set(
+                  student.enrollments?.filter((e: { isActive: boolean }) => e.isActive).map((e: { batchId: string }) => e.batchId) ?? []
+                );
+                const available = allBatches.filter(b => !enrolledBatchIds.has(b.id));
+                if (!available.length) return null;
+                return (
+                  <div className="mt-2 flex gap-2">
+                    <select
+                      id="batch-add-select"
+                      className="flex-1 border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      defaultValue=""
+                    >
+                      <option value="" disabled>Add to batch…</option>
+                      {available.map(b => (
+                        <option key={b.id} value={b.id}>{b.name} ({b.sport?.name})</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => {
+                        const sel = document.getElementById('batch-add-select') as HTMLSelectElement;
+                        if (sel.value) { enrollMutation.mutate(sel.value); sel.value = ''; }
+                      }}
+                      disabled={enrollMutation.isPending}
+                      className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      Add
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
             {student.guardians?.length > 0 && (
               <div>

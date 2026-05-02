@@ -21,6 +21,7 @@ export interface CreateStudentDto {
   region?: string;
   cityId?: string;
   sportInterest?: string;
+  trainingLevel?: string;
   status?: StudentStatus;
   batchIds?: string[];
   guardians?: Array<{ name: string; phone: string; email?: string; relation: string; isPrimary?: boolean }>;
@@ -198,7 +199,7 @@ export class StudentsService {
   }
 
   async create(venueId: string | undefined, orgId: string, dto: CreateStudentDto) {
-    const { guardians, dob, cityId, sportInterest, status, batchIds, ...rest } = dto;
+    const { guardians, dob, cityId, batchIds, status, ...rest } = dto;
     const student = await this.prisma.student.create({
       data: {
         ...rest,
@@ -260,7 +261,7 @@ export class StudentsService {
   }
 
   async update(id: string, dto: Partial<CreateStudentDto>) {
-    const { guardians, dob, ...rest } = dto;
+    const { guardians, dob, cityId, batchIds, ...rest } = dto;
     return this.prisma.student.update({
       where: { id },
       data: { ...rest, dob: dob ? new Date(dob) : undefined },
