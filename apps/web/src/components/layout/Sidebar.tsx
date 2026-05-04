@@ -21,7 +21,7 @@ const NAV_OPERATIONS = [
   { href: '/coaches', label: 'Coaches', icon: UserCheck, hideForCoach: true },
   { href: '/attendance', label: 'Attendance', icon: CheckSquare },
   { href: '/fees', label: 'Fees', icon: Receipt, hideForCoach: true },
-  { href: '/payments', label: 'Payments', icon: CreditCard, hideForCoach: true },
+  { href: '/payments', label: 'Payments', icon: CreditCard },
   { href: '/enquiries', label: 'Enquiries', icon: MessageSquare, hideForCoach: true },
   { href: '/reports', label: 'Reports', icon: BarChart2, hideForCoach: true },
 ];
