@@ -426,4 +426,102 @@ export class AttendanceService {
       orderBy: { date: 'desc' },
     });
   }
+
+  async getMonthlySummary(
+    year: number,
+    month: number,
+    batchId: string | undefined,
+    venueId: string | undefined,
+    coachId: string | undefined,
+    requesterId: string,
+    requesterRole: UserRole,
+  ) {
+    const startDate = new Date(Date.UTC(year, month - 1, 1));
+    const endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+
+    const sessionWhere: any = {
+      date: { gte: startDate, lte: endDate },
+      endedAt: { not: null },
+    };
+
+    if (requesterRole === UserRole.COACH) {
+      sessionWhere.coachId = requesterId;
+    } else if (coachId) {
+      sessionWhere.coachId = coachId;
+    }
+
+    if (batchId) {
+      sessionWhere.batchId = batchId;
+    } else if (venueId) {
+      sessionWhere.batch = { venueId };
+    }
+
+    const sessions = await this.prisma.attendanceSession.findMany({
+      where: sessionWhere,
+      select: {
+        id: true,
+        batchId: true,
+        batch: { select: { id: true, name: true, sport: { select: { name: true } } } },
+      },
+    });
+
+    if (sessions.length === 0) return [];
+
+    const sessionIds = sessions.map((s) => s.id);
+    const sessionMap = new Map(sessions.map((s) => [s.id, s]));
+
+    const attendances = await this.prisma.attendance.findMany({
+      where: { sessionId: { in: sessionIds } },
+      include: { student: { select: { id: true, name: true } } },
+    });
+
+    const summaryMap = new Map<
+      string,
+      {
+        studentId: string;
+        studentName: string;
+        batchId: string;
+        batchName: string;
+        sportName: string;
+        totalSessions: number;
+        present: number;
+        absent: number;
+      }
+    >();
+
+    attendances.forEach((a) => {
+      if (!a.sessionId) return;
+      const session = sessionMap.get(a.sessionId);
+      if (!session) return;
+
+      const key = `${a.studentId}:${session.batchId}`;
+      if (!summaryMap.has(key)) {
+        summaryMap.set(key, {
+          studentId: a.studentId,
+          studentName: a.student.name,
+          batchId: session.batchId,
+          batchName: session.batch.name,
+          sportName: session.batch.sport?.name ?? '',
+          totalSessions: 0,
+          present: 0,
+          absent: 0,
+        });
+      }
+
+      const entry = summaryMap.get(key)!;
+      entry.totalSessions++;
+      if (a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE) {
+        entry.present++;
+      } else {
+        entry.absent++;
+      }
+    });
+
+    return Array.from(summaryMap.values())
+      .map((s) => ({
+        ...s,
+        percentage: s.totalSessions > 0 ? Math.round((s.present / s.totalSessions) * 100) : 0,
+      }))
+      .sort((a, b) => a.studentName.localeCompare(b.studentName));
+  }
 }

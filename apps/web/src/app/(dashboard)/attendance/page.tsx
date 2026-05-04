@@ -28,7 +28,7 @@ function isWithinBatchTime(startTime: string, endTime: string): boolean {
   return now.isAfter(start) && now.isBefore(end);
 }
 
-type Tab = 'today' | 'history';
+type Tab = 'today' | 'history' | 'monthly';
 
 interface Batch {
   id: string;
@@ -73,6 +73,18 @@ interface CoachSessionSummary {
   sessionCount: number;
 }
 
+interface MonthlySummaryItem {
+  studentId: string;
+  studentName: string;
+  batchId: string;
+  batchName: string;
+  sportName: string;
+  totalSessions: number;
+  present: number;
+  absent: number;
+  percentage: number;
+}
+
 interface SessionAttendanceRecord {
   id: string;
   studentId: string;
@@ -98,11 +110,18 @@ export default function AttendanceIndexPage() {
   const [filterDate, setFilterDate] = useState('');
   const [filterVenueId, setFilterVenueId] = useState('');
   const [filterSportName, setFilterSportName] = useState('');
+  const [monthlyMonth, setMonthlyMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [monthlyBatchId, setMonthlyBatchId] = useState('');
+  const [monthlyVenueId, setMonthlyVenueId] = useState('');
+  const [monthlyCoachId, setMonthlyCoachId] = useState('');
 
   const { data: venues = [] } = useQuery<{ id: string; name: string }[]>({
     queryKey: ['venues-list'],
     queryFn: () => api.get('/venues').then(r => r.data),
-    enabled: isSuperAdmin || (isCoach && tab === 'history'),
+    enabled: isSuperAdmin || (isCoach && tab === 'history') || tab === 'monthly',
     staleTime: 5 * 60 * 1000,
   });
 
@@ -111,6 +130,20 @@ export default function AttendanceIndexPage() {
     queryFn: () => api.get('/sports').then(r => r.data),
     enabled: isCoach && tab === 'history',
     staleTime: 5 * 60 * 1000,
+  });
+
+  const [monthlyYear, monthlyMonthNum] = monthlyMonth.split('-').map(Number);
+  const { data: monthlySummary = [], isLoading: monthlySummaryLoading } = useQuery<MonthlySummaryItem[]>({
+    queryKey: ['monthly-summary', monthlyYear, monthlyMonthNum, monthlyBatchId, monthlyVenueId, monthlyCoachId],
+    queryFn: () => {
+      const params = new URLSearchParams({ year: String(monthlyYear), month: String(monthlyMonthNum) });
+      if (monthlyBatchId) params.set('batchId', monthlyBatchId);
+      if (monthlyVenueId) params.set('venueId', monthlyVenueId);
+      if (monthlyCoachId) params.set('coachId', monthlyCoachId);
+      return api.get(`/attendance/monthly-summary?${params.toString()}`).then(r => r.data);
+    },
+    enabled: tab === 'monthly',
+    staleTime: 2 * 60 * 1000,
   });
 
   const effectiveVenueId = isSuperAdmin ? saVenueFilter : venueId;
@@ -179,7 +212,7 @@ export default function AttendanceIndexPage() {
   const { data: coaches = [] } = useQuery<Coach[]>({
     queryKey: ['coaches'],
     queryFn: () => api.get('/coaches?status=ACTIVE').then(r => r.data),
-    enabled: isAdmin && tab === 'history',
+    enabled: isAdmin && (tab === 'history' || tab === 'monthly'),
   });
 
   const { data: adminSessionHistory = [] } = useQuery<AdminSessionHistoryItem[]>({
@@ -251,6 +284,14 @@ export default function AttendanceIndexPage() {
             }`}
           >
             History
+          </button>
+          <button
+            onClick={() => setTab('monthly')}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              tab === 'monthly' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Monthly Summary
           </button>
         </div>
       )}
@@ -408,6 +449,69 @@ export default function AttendanceIndexPage() {
         );
       })()}
 
+      {tab === 'monthly' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Month</label>
+              <input
+                type="month"
+                value={monthlyMonth}
+                onChange={e => setMonthlyMonth(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            {isAdmin && (
+              <>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Venue</label>
+                  <select
+                    value={monthlyVenueId}
+                    onChange={e => { setMonthlyVenueId(e.target.value); setMonthlyBatchId(''); }}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">All Venues</option>
+                    {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Coach</label>
+                  <select
+                    value={monthlyCoachId}
+                    onChange={e => setMonthlyCoachId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">All Coaches</option>
+                    {coaches.map(c => <option key={c.id} value={c.userId}>{c.name}</option>)}
+                  </select>
+                </div>
+              </>
+            )}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Batch</label>
+              <select
+                value={monthlyBatchId}
+                onChange={e => setMonthlyBatchId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Batches</option>
+                {batches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {monthlySummaryLoading ? (
+            <div className="text-gray-400 text-sm">Loading summary...</div>
+          ) : monthlySummary.length === 0 ? (
+            <div className="bg-white rounded-xl p-8 text-center text-gray-400 border border-gray-100">
+              No attendance data found for this period.
+            </div>
+          ) : (
+            <MonthlySummaryTable items={monthlySummary} showBatch={!monthlyBatchId} />
+          )}
+        </div>
+      )}
+
       {errorMsg && (
         <div className="fixed bottom-5 right-5 flex items-center gap-2 bg-red-600 text-white px-4 py-3 rounded-lg shadow-lg text-sm font-medium z-50">
           <X size={16} />
@@ -492,6 +596,58 @@ export default function AttendanceIndexPage() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function MonthlySummaryTable({ items, showBatch }: { items: MonthlySummaryItem[]; showBatch?: boolean }) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-100 bg-gray-50">
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Student</th>
+              {showBatch && <th className="text-left px-4 py-3 font-medium text-gray-600">Batch</th>}
+              <th className="text-center px-4 py-3 font-medium text-gray-600">Total Sessions</th>
+              <th className="text-center px-4 py-3 font-medium text-gray-600">Present</th>
+              <th className="text-center px-4 py-3 font-medium text-gray-600">Absent</th>
+              <th className="text-center px-4 py-3 font-medium text-gray-600">Attendance %</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {items.map((item) => (
+              <tr key={`${item.studentId}:${item.batchId}`} className="hover:bg-gray-50 transition-colors">
+                <td className="px-4 py-3 font-medium text-gray-900">{item.studentName}</td>
+                {showBatch && (
+                  <td className="px-4 py-3 text-gray-600">
+                    {item.batchName}
+                    {item.sportName && <span className="ml-1.5 text-xs text-gray-400">{item.sportName}</span>}
+                  </td>
+                )}
+                <td className="px-4 py-3 text-center text-gray-700">{item.totalSessions}</td>
+                <td className="px-4 py-3 text-center">
+                  <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">{item.present}</span>
+                </td>
+                <td className="px-4 py-3 text-center">
+                  <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-medium">{item.absent}</span>
+                </td>
+                <td className="px-4 py-3 text-center">
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                    item.percentage >= 75
+                      ? 'bg-green-100 text-green-700'
+                      : item.percentage >= 50
+                      ? 'bg-yellow-100 text-yellow-700'
+                      : 'bg-red-100 text-red-700'
+                  }`}>
+                    {item.percentage}%
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
