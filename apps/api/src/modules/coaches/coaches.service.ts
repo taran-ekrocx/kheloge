@@ -653,15 +653,20 @@ export class CoachesService {
       where: { coachId: coachUserId, ...(isActive !== undefined ? { batch: { isActive } } : {}) },
       include: {
         batch: {
-          include: { sport: { select: { id: true, name: true } } },
+          include: {
+            sport: { select: { id: true, name: true } },
+            venue: { select: { id: true, name: true } },
+            _count: { select: { enrollments: true } },
+          },
         },
       },
     });
     return batchCoaches.map((bc) => ({
-      id: bc.batch.id,
-      name: bc.batch.name,
-      sportId: bc.batch.sportId,
+      ...bc.batch,
       sport: bc.batch.sport,
+      venue: bc.batch.venue,
+      _count: bc.batch._count,
+      status: bc.batch.isActive === false ? 'INACTIVE' : 'ACTIVE',
     }));
   }
 
