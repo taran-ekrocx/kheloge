@@ -433,6 +433,92 @@ function BatchModal({
   );
 }
 
+function CoachBatchEditModal({ batch, onClose }: { batch: Batch; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [studentIds, setStudentIds] = useState<string[]>([]);
+
+  const { data: orgStudents = [] } = useQuery<Student[]>({
+    queryKey: ['coach-org-students'],
+    queryFn: () => api.get('/coaches/me/org-students?status=ACTIVE').then(r => r.data),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: batchDetail } = useQuery<{ enrollments: { student: Student; isActive: boolean }[] }>({
+    queryKey: ['batch-detail', batch.id],
+    queryFn: () => api.get(`/batches/${batch.id}`).then(r => r.data),
+    staleTime: 0,
+  });
+
+  useEffect(() => {
+    if (batchDetail) {
+      setStudentIds(batchDetail.enrollments?.filter(e => e.isActive).map(e => e.student.id) ?? []);
+    }
+  }, [batchDetail]);
+
+  const mutation = useMutation({
+    mutationFn: (ids: string[]) => api.patch(`/coaches/me/batches/${batch.id}/students`, { studentIds: ids }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['batches-all-coach'] });
+      queryClient.invalidateQueries({ queryKey: ['batch-detail', batch.id] });
+      onClose();
+    },
+  });
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <h3 className="text-lg font-bold mb-4">Edit Batch</h3>
+        <div className="space-y-3 mb-4">
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <p className="text-xs text-gray-500 mb-0.5">Batch Name</p>
+              <p className="font-medium text-gray-800">{batch.name}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 mb-0.5">Sport</p>
+              <p className="font-medium text-gray-800">{batch.sport?.name || '—'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 mb-0.5">Venue</p>
+              <p className="font-medium text-gray-800">{batch.venue?.name || '—'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 mb-0.5">Schedule</p>
+              <p className="font-medium text-gray-800">{batch.startTime} – {batch.endTime}</p>
+            </div>
+          </div>
+        </div>
+        <div className="mb-4">
+          <p className="text-xs font-medium text-gray-600 mb-2">Assign Students</p>
+          {!batchDetail ? (
+            <p className="text-xs text-gray-400 py-2">Loading...</p>
+          ) : (
+            <StudentMultiSelect
+              students={orgStudents}
+              selected={studentIds}
+              onChange={setStudentIds}
+            />
+          )}
+        </div>
+        {mutation.isError && <p className="text-red-500 text-xs mb-2">Failed to save. Please try again.</p>}
+        <div className="flex gap-3">
+          <button type="button" onClick={onClose} className="flex-1 border rounded-lg py-2 text-sm font-medium hover:bg-gray-50">
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => mutation.mutate(studentIds)}
+            disabled={mutation.isPending || !batchDetail}
+            className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+          >
+            {mutation.isPending ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function BatchesPage() {
   const { venueId } = useVenue();
   const { role } = useAuth();
@@ -443,6 +529,7 @@ export default function BatchesPage() {
   const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Batch | undefined>();
+  const [coachEditBatch, setCoachEditBatch] = useState<Batch | undefined>();
   const [search, setSearch] = useState('');
   const [filterSport, setFilterSport] = useState('');
   const [filterVenue, setFilterVenue] = useState('');
@@ -669,7 +756,15 @@ export default function BatchesPage() {
                       >
                         <Eye size={15} />
                       </Link>
-                      {!isCoach && (
+                      {isCoach ? (
+                        <button
+                          onClick={() => setCoachEditBatch(b)}
+                          className="text-gray-400 hover:text-blue-600 transition-colors"
+                          title="Edit batch"
+                        >
+                          <Edit2 size={15} />
+                        </button>
+                      ) : (
                         <>
                           <button
                             onClick={() => { setEditing(b); setShowModal(true); }}
@@ -702,6 +797,13 @@ export default function BatchesPage() {
           coaches={coaches}
           existing={editing}
           isSuperAdmin={isSuperAdmin}
+        />
+      )}
+
+      {coachEditBatch && (
+        <CoachBatchEditModal
+          batch={coachEditBatch}
+          onClose={() => setCoachEditBatch(undefined)}
         />
       )}
     </div>

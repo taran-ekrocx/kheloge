@@ -6,6 +6,13 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CoachesService, AssignCoachDto, CreateCoachDto, UpdateCoachDto } from './coaches.service';
 import { StudentsService, CreateStudentDto } from '../students/students.service';
+import { IsArray, IsString } from 'class-validator';
+
+class SyncBatchStudentsDto {
+  @IsArray()
+  @IsString({ each: true })
+  studentIds: string[];
+}
 
 
 @ApiTags('coaches')
@@ -34,6 +41,18 @@ export class CoachesController {
   @Roles(UserRole.COACH)
   updateMyBatch(@Request() req, @Param('id') batchId: string, @Body('isActive', ParseBoolPipe) isActive: boolean) {
     return this.coaches.updateCoachBatchStatus(req.user.id, batchId, isActive);
+  }
+
+  @Patch('me/batches/:id/students')
+  @Roles(UserRole.COACH)
+  syncBatchStudents(@Request() req, @Param('id') batchId: string, @Body() dto: SyncBatchStudentsDto) {
+    return this.coaches.syncCoachBatchStudents(req.user.id, batchId, dto.studentIds);
+  }
+
+  @Get('me/org-students')
+  @Roles(UserRole.COACH)
+  orgStudents(@Request() req, @Query('status') status?: StudentStatus | 'all') {
+    return this.students.findAllForOrg(req.user.orgId, { status: status ?? 'ACTIVE' as any });
   }
 
   @Post('me/students')
