@@ -296,6 +296,8 @@ model CoachProfile {
   responsibilities    String[]
   expectedSalary      String?
   joiningAvailability String?
+  paymentType         String?
+  paymentValue        Float?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 

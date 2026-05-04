@@ -13,6 +13,7 @@ const COACH_STEP_LABELS = [
   'Education & Certs',
   'Sports Background',
   'Experience & Skills',
+  'Payment Type',
 ];
 
 const PLAYING_LEVELS = ['District', 'State', 'National', 'International'];
@@ -48,6 +49,12 @@ interface CoachingExp {
   responsibilities: string;
 }
 
+const PAYMENT_TYPES = [
+  { value: 'FIXED_PAYMENT', label: 'Fixed Payment' },
+  { value: 'REVENUE_PERCENTAGE', label: 'Revenue Percentage' },
+  { value: 'PER_SESSION_PAYOUT', label: 'Per Session Payout' },
+] as const;
+
 interface CoachProfile {
   educationDetails: EducationDetail[];
   sportSpecialization: string;
@@ -58,6 +65,8 @@ interface CoachProfile {
   responsibilities: string[];
   expectedSalary: string;
   joiningAvailability: string;
+  paymentType: string;
+  paymentValue: string;
 }
 
 interface CoachBatch { id: string; name: string; sport?: { name: string }; }
@@ -104,6 +113,8 @@ const EMPTY_PROFILE: CoachProfile = {
   responsibilities: [],
   expectedSalary: '',
   joiningAvailability: '',
+  paymentType: '',
+  paymentValue: '',
 };
 
 const DEFAULT_FORM = {
@@ -135,6 +146,8 @@ function buildInitialForm(existing?: Coach) {
       responsibilities: existing.profile.responsibilities || [],
       expectedSalary: existing.profile.expectedSalary || '',
       joiningAvailability: existing.profile.joiningAvailability || '',
+      paymentType: (existing.profile as any).paymentType || '',
+      paymentValue: (existing.profile as any).paymentValue != null ? String((existing.profile as any).paymentValue) : '',
     } : { ...EMPTY_PROFILE },
   };
 }
@@ -265,7 +278,11 @@ function CoachModal({
         city: form.city || undefined,
         region: form.region || undefined,
         sportIds: form.sportIds,
-        profile: form.profile,
+        profile: {
+          ...form.profile,
+          paymentType: form.profile.paymentType || undefined,
+          paymentValue: form.profile.paymentValue ? Number(form.profile.paymentValue) : undefined,
+        },
       };
       if (existing) {
         return venueId
@@ -559,6 +576,81 @@ function CoachModal({
                 ))}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Step 5: Payment Type */}
+        {currentStep === 5 && (
+          <div className="space-y-4">
+            <p className="text-xs text-gray-500">Select a payment type and enter the relevant amount (optional)</p>
+            <div className="space-y-2">
+              {PAYMENT_TYPES.map(({ value, label }) => (
+                <label key={value} className="flex items-center gap-3 cursor-pointer border rounded-lg px-3 py-2.5 hover:bg-gray-50 transition-colors">
+                  <input
+                    type="radio"
+                    name="paymentType"
+                    value={value}
+                    checked={form.profile.paymentType === value}
+                    onChange={() => setForm(f => ({ ...f, profile: { ...f.profile, paymentType: value, paymentValue: '' } }))}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">{label}</span>
+                </label>
+              ))}
+              {form.profile.paymentType && (
+                <label className="flex items-center gap-3 cursor-pointer border rounded-lg px-3 py-2.5 hover:bg-gray-50 transition-colors text-gray-400">
+                  <input
+                    type="radio"
+                    name="paymentType"
+                    value=""
+                    checked={false}
+                    onChange={() => setForm(f => ({ ...f, profile: { ...f.profile, paymentType: '', paymentValue: '' } }))}
+                    className="h-4 w-4 text-gray-400 focus:ring-gray-300"
+                  />
+                  <span className="text-sm">Clear selection</span>
+                </label>
+              )}
+            </div>
+            {form.profile.paymentType === 'FIXED_PAYMENT' && (
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Fixed Amount (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="Enter fixed amount"
+                  value={form.profile.paymentValue}
+                  onChange={(e) => setForm(f => ({ ...f, profile: { ...f.profile, paymentValue: e.target.value } }))}
+                  className={inputCls}
+                />
+              </div>
+            )}
+            {form.profile.paymentType === 'REVENUE_PERCENTAGE' && (
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Revenue Percentage (%)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  placeholder="Enter percentage"
+                  value={form.profile.paymentValue}
+                  onChange={(e) => setForm(f => ({ ...f, profile: { ...f.profile, paymentValue: e.target.value } }))}
+                  className={inputCls}
+                />
+              </div>
+            )}
+            {form.profile.paymentType === 'PER_SESSION_PAYOUT' && (
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Per Session Amount (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="Enter per-session amount"
+                  value={form.profile.paymentValue}
+                  onChange={(e) => setForm(f => ({ ...f, profile: { ...f.profile, paymentValue: e.target.value } }))}
+                  className={inputCls}
+                />
+              </div>
+            )}
           </div>
         )}
 

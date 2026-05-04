@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import type { CreateStudentDto } from '../students/students.service';
-import { IsString, IsOptional, IsBoolean, IsEmail, IsIn, IsArray, ValidateNested } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsEmail, IsIn, IsArray, ValidateNested, IsNumber } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { UserRole } from '@kheloge/database';
@@ -72,6 +72,8 @@ export class CoachProfileDto {
 
   @ApiPropertyOptional() @IsOptional() @IsString() expectedSalary?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() joiningAvailability?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() paymentType?: string;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() paymentValue?: number;
 }
 
 export class CreateCoachDto {
@@ -340,6 +342,8 @@ export class CoachesService {
           responsibilities: dto.profile.responsibilities ?? [],
           expectedSalary: dto.profile.expectedSalary,
           joiningAvailability: dto.profile.joiningAvailability,
+          paymentType: dto.profile.paymentType,
+          paymentValue: dto.profile.paymentValue,
         },
       });
     }
@@ -399,6 +403,8 @@ export class CoachesService {
           responsibilities: dto.profile.responsibilities ?? [],
           expectedSalary: dto.profile.expectedSalary,
           joiningAvailability: dto.profile.joiningAvailability,
+          paymentType: dto.profile.paymentType,
+          paymentValue: dto.profile.paymentValue,
         },
         update: {
           ...(dto.profile.educationDetails !== undefined ? { educationDetails: dto.profile.educationDetails as any } : {}),
@@ -410,6 +416,8 @@ export class CoachesService {
           ...(dto.profile.responsibilities !== undefined ? { responsibilities: dto.profile.responsibilities } : {}),
           ...(dto.profile.expectedSalary !== undefined ? { expectedSalary: dto.profile.expectedSalary } : {}),
           ...(dto.profile.joiningAvailability !== undefined ? { joiningAvailability: dto.profile.joiningAvailability } : {}),
+          ...(dto.profile.paymentType !== undefined ? { paymentType: dto.profile.paymentType } : {}),
+          ...(dto.profile.paymentValue !== undefined ? { paymentValue: dto.profile.paymentValue } : {}),
         },
       });
     }
@@ -490,6 +498,8 @@ export class CoachesService {
           responsibilities: dto.profile.responsibilities ?? [],
           expectedSalary: dto.profile.expectedSalary,
           joiningAvailability: dto.profile.joiningAvailability,
+          paymentType: dto.profile.paymentType,
+          paymentValue: dto.profile.paymentValue,
         },
       });
     }
@@ -549,6 +559,8 @@ export class CoachesService {
           responsibilities: dto.profile.responsibilities ?? [],
           expectedSalary: dto.profile.expectedSalary,
           joiningAvailability: dto.profile.joiningAvailability,
+          paymentType: dto.profile.paymentType,
+          paymentValue: dto.profile.paymentValue,
         },
         update: {
           ...(dto.profile.educationDetails !== undefined ? { educationDetails: dto.profile.educationDetails as any } : {}),
@@ -560,6 +572,8 @@ export class CoachesService {
           ...(dto.profile.responsibilities !== undefined ? { responsibilities: dto.profile.responsibilities } : {}),
           ...(dto.profile.expectedSalary !== undefined ? { expectedSalary: dto.profile.expectedSalary } : {}),
           ...(dto.profile.joiningAvailability !== undefined ? { joiningAvailability: dto.profile.joiningAvailability } : {}),
+          ...(dto.profile.paymentType !== undefined ? { paymentType: dto.profile.paymentType } : {}),
+          ...(dto.profile.paymentValue !== undefined ? { paymentValue: dto.profile.paymentValue } : {}),
         },
       });
     }
