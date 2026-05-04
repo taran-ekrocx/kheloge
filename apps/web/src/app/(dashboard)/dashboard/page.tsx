@@ -73,21 +73,25 @@ export default function DashboardPage() {
   const router = useRouter();
   const isSuperAdmin = role === 'SUPER_ADMIN';
   const isCoach = role === 'COACH';
-  const useGlobalKpi = isSuperAdmin || isCoach;
+
+  const kpiQueryKey = isCoach ? ['kpi-dashboard-coach'] : isSuperAdmin ? ['kpi-dashboard-global'] : ['kpi-dashboard', venueId];
+  const kpiQueryFn = isCoach
+    ? () => api.get('/coaches/me/kpi').then((r) => r.data)
+    : isSuperAdmin
+    ? () => api.get('/payments/kpi').then((r) => r.data)
+    : () => api.get(`/payments/venues/${venueId}/kpi`).then((r) => r.data);
 
   const { data: kpi, isLoading } = useQuery<KpiData>({
-    queryKey: useGlobalKpi ? ['kpi-dashboard-global'] : ['kpi-dashboard', venueId],
-    queryFn: useGlobalKpi
-      ? () => api.get('/payments/kpi').then((r) => r.data)
-      : () => api.get(`/payments/venues/${venueId}/kpi`).then((r) => r.data),
-    enabled: useGlobalKpi ? true : !!venueId,
+    queryKey: kpiQueryKey,
+    queryFn: kpiQueryFn,
+    enabled: isCoach || isSuperAdmin ? true : !!venueId,
   });
 
   const remindersMutation = useMutation({
     mutationFn: () => api.post(`/payments/venues/${venueId}/fee-reminders/dispatch`, {}),
   });
 
-  if (!useGlobalKpi && !venueId) {
+  if (!isCoach && !isSuperAdmin && !venueId) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -115,7 +119,7 @@ export default function DashboardPage() {
           <h2 className="text-2xl font-bold text-gray-900">
             {name ? `Welcome, ${name}` : 'Dashboard'}
           </h2>
-          <p className="text-gray-500 text-sm mt-0.5">{useGlobalKpi ? 'Overall statistics across all venues' : 'Overview for current venue'}</p>
+          <p className="text-gray-500 text-sm mt-0.5">{isCoach ? 'Your assigned batches and students' : isSuperAdmin ? 'Overall statistics across all venues' : 'Overview for current venue'}</p>
         </div>
       </div>
 

@@ -605,4 +605,45 @@ export class CoachesService {
       },
     });
   }
+
+  async getCoachKpiDashboard(coachId: string) {
+    const coachBatches = await this.prisma.batchCoach.findMany({
+      where: { coachId },
+      select: { batchId: true },
+    });
+    const batchIds = coachBatches.map((bc) => bc.batchId);
+
+    const [activeBatches, totalStudents, recentEnrollments] = await Promise.all([
+      this.prisma.batch.count({ where: { id: { in: batchIds }, isActive: true } }),
+      this.prisma.enrollment.groupBy({
+        by: ['studentId'],
+        where: { batchId: { in: batchIds }, isActive: true },
+      }).then((rows) => rows.length),
+      this.prisma.enrollment.findMany({
+        where: { batchId: { in: batchIds } },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        include: {
+          student: { select: { name: true } },
+          batch: { select: { name: true, sport: { select: { name: true } } } },
+        },
+      }),
+    ]);
+
+    return {
+      totalStudents,
+      activeBatches,
+      monthlyRevenue: 0,
+      pendingFees: 0,
+      recentEnrollments: recentEnrollments.map((e) => ({
+        id: e.id,
+        studentName: e.student.name,
+        batchName: e.batch.name,
+        sportName: e.batch.sport.name,
+        createdAt: e.createdAt,
+        type: 'enrollment' as const,
+      })),
+      recentPayments: [],
+    };
+  }
 }

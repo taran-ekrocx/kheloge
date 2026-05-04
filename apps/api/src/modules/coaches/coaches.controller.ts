@@ -17,6 +17,12 @@ export class CoachesController {
     private students: StudentsService,
   ) {}
 
+  @Get('me/kpi')
+  @Roles(UserRole.COACH)
+  myKpi(@Request() req) {
+    return this.coaches.getCoachKpiDashboard(req.user.id);
+  }
+
   @Get('me/students')
   @Roles(UserRole.COACH)
   myStudents(
