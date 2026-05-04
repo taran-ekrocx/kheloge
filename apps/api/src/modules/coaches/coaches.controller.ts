@@ -5,7 +5,7 @@ import { UserRole, StudentStatus } from '@kheloge/database';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CoachesService, AssignCoachDto, CreateCoachDto, UpdateCoachDto } from './coaches.service';
-import { StudentsService } from '../students/students.service';
+import { StudentsService, CreateStudentDto } from '../students/students.service';
 
 @ApiTags('coaches')
 @ApiBearerAuth()
@@ -21,6 +21,18 @@ export class CoachesController {
   @Roles(UserRole.COACH)
   myKpi(@Request() req) {
     return this.coaches.getCoachKpiDashboard(req.user.id);
+  }
+
+  @Get('me/batches')
+  @Roles(UserRole.COACH)
+  myBatches(@Request() req) {
+    return this.coaches.getCoachBatches(req.user.id);
+  }
+
+  @Post('me/students')
+  @Roles(UserRole.COACH)
+  addStudent(@Request() req, @Body() dto: CreateStudentDto) {
+    return this.students.create(undefined, req.user.orgId, dto);
   }
 
   @Get('me/students')

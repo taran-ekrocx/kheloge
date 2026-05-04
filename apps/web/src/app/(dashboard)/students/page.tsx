@@ -53,7 +53,7 @@ interface BatchOption {
 const STEP_LABELS = ['Student Details', 'Contact Info', 'Sports Enrollment', 'Medical Info'];
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
-function AddStudentModal({ onClose, venueId, isSuperAdmin }: { onClose: () => void; venueId: string; isSuperAdmin: boolean }) {
+function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose: () => void; venueId: string; isSuperAdmin: boolean; isCoach?: boolean }) {
   const queryClient = useQueryClient();
   const [currentStep, setCurrentStep] = useState(1);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -70,11 +70,13 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin }: { onClose: () => vo
   });
 
   const { data: allBatches = [] } = useQuery<BatchOption[]>({
-    queryKey: isSuperAdmin ? ['batches-global', form.sportId] : ['batches', venueId],
-    queryFn: isSuperAdmin
-      ? () => api.get('/batches', { params: form.sportId ? { sportId: form.sportId } : {} }).then((r) => r.data)
-      : () => api.get(`/venues/${venueId}/batches`).then((r) => r.data),
-    enabled: isSuperAdmin ? true : !!venueId,
+    queryKey: isCoach ? ['coach-batches'] : isSuperAdmin ? ['batches-global', form.sportId] : ['batches', venueId],
+    queryFn: isCoach
+      ? () => api.get('/coaches/me/batches').then((r) => r.data)
+      : isSuperAdmin
+        ? () => api.get('/batches', { params: form.sportId ? { sportId: form.sportId } : {} }).then((r) => r.data)
+        : () => api.get(`/venues/${venueId}/batches`).then((r) => r.data),
+    enabled: isCoach ? true : isSuperAdmin ? true : !!venueId,
   });
 
   const visibleBatches = (!isSuperAdmin && form.sportId)
@@ -122,13 +124,16 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin }: { onClose: () => vo
         guardians: guardians.length > 0 ? guardians : undefined,
         status: 'ACTIVE',
       };
-      return isSuperAdmin
-        ? api.post('/students', payload)
-        : api.post(`/venues/${venueId}/students`, payload);
+      return isCoach
+        ? api.post('/coaches/me/students', payload)
+        : isSuperAdmin
+          ? api.post('/students', payload)
+          : api.post(`/venues/${venueId}/students`, payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students', venueId] });
       queryClient.invalidateQueries({ queryKey: ['students-global'] });
+      queryClient.invalidateQueries({ queryKey: ['coach-students'] });
       onClose();
     },
   });
@@ -429,15 +434,13 @@ export default function StudentsPage() {
           <h2 className="text-2xl font-bold text-gray-900">Students</h2>
           <p className="text-gray-500 text-sm">{filtered.length} of {students.length} students</p>
         </div>
-        {!isCoach && (
-          <button
-            onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
-          >
-            <UserPlus size={16} />
-            Add Student
-          </button>
-        )}
+        <button
+          onClick={() => setShowAdd(true)}
+          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
+        >
+          <UserPlus size={16} />
+          Add Student
+        </button>
       </div>
 
       {/* Search */}
@@ -595,7 +598,7 @@ export default function StudentsPage() {
         )}
       </div>
 
-      {showAdd && !isCoach && <AddStudentModal onClose={() => setShowAdd(false)} venueId={venueId} isSuperAdmin={isSuperAdmin} />}
+      {showAdd && <AddStudentModal onClose={() => setShowAdd(false)} venueId={venueId} isSuperAdmin={isSuperAdmin} isCoach={isCoach} />}
     </div>
   );
 }

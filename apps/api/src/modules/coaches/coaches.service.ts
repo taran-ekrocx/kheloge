@@ -606,6 +606,23 @@ export class CoachesService {
     });
   }
 
+  async getCoachBatches(coachUserId: string) {
+    const batchCoaches = await this.prisma.batchCoach.findMany({
+      where: { coachId: coachUserId },
+      include: {
+        batch: {
+          include: { sport: { select: { id: true, name: true } } },
+        },
+      },
+    });
+    return batchCoaches.map((bc) => ({
+      id: bc.batch.id,
+      name: bc.batch.name,
+      sportId: bc.batch.sportId,
+      sport: bc.batch.sport,
+    }));
+  }
+
   async getCoachKpiDashboard(coachId: string) {
     const coachBatches = await this.prisma.batchCoach.findMany({
       where: { coachId },
