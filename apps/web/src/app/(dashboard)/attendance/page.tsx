@@ -279,6 +279,7 @@ export default function AttendanceIndexPage() {
                       <BatchRow
                         key={batch.id} batch={batch} highlight
                         isCoach={isCoach}
+                        canNavigate={!isSuperAdmin}
                         startingSession={startingSession}
                         activeSessionBatchId={myActiveSession?.batchId ?? null}
                         activeSessionId={myActiveSession?.id ?? null}
@@ -302,6 +303,7 @@ export default function AttendanceIndexPage() {
                       <BatchRow
                         key={batch.id} batch={batch}
                         isCoach={isCoach}
+                        canNavigate={!isSuperAdmin}
                         startingSession={startingSession}
                         activeSessionBatchId={myActiveSession?.batchId ?? null}
                         activeSessionId={myActiveSession?.id ?? null}
@@ -537,12 +539,13 @@ function SessionList({
 }
 
 function BatchRow({
-  batch, highlight, isCoach, startingSession, activeSessionBatchId, activeSessionId, onStartSession,
+  batch, highlight, isCoach, canNavigate = true, startingSession, activeSessionBatchId, activeSessionId, onStartSession,
   withinTime = true, sessionEndedToday = false, noStudents = false,
 }: {
   batch: Batch;
   highlight?: boolean;
   isCoach?: boolean;
+  canNavigate?: boolean;
   startingSession?: string | null;
   activeSessionBatchId?: string | null;
   activeSessionId?: string | null;
@@ -629,6 +632,16 @@ function BatchRow({
   );
 
   if (isCoach) {
+    return (
+      <div className={`flex items-center justify-between p-4 rounded-xl border ${
+        highlight ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-100'
+      }`}>
+        {inner}
+      </div>
+    );
+  }
+
+  if (!canNavigate) {
     return (
       <div className={`flex items-center justify-between p-4 rounded-xl border ${
         highlight ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-100'

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useParams, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { Save, ArrowLeft, Play, Square, Check, X } from 'lucide-react';
 import Link from 'next/link';
@@ -17,7 +18,15 @@ export default function AttendancePage() {
   const sessionId = searchParams.get('sessionId');
   const { role } = useAuth();
   const isCoach = role === 'COACH';
+  const isSuperAdmin = role === 'SUPER_ADMIN';
+  const router = useRouter();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (isSuperAdmin) router.replace('/attendance');
+  }, [isSuperAdmin, router]);
+
+  if (isSuperAdmin) return null;
   const today = dayjs().format('YYYY-MM-DD');
   const [records, setRecords] = useState<Record<string, AttendanceStatus>>({});
   const [saved, setSaved] = useState(false);

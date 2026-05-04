@@ -41,7 +41,7 @@ export class AttendanceController {
   }
 
   @Post('batches/:batchId/mark')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER, UserRole.COACH)
+  @Roles(UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER, UserRole.COACH)
   async mark(@Param('batchId') batchId: string, @Body() dto: MarkAttendanceDto, @Request() req) {
     if (req.user.role === UserRole.COACH) {
       const hasAccess = await this.attendance.verifyCoachBatch(req.user.id, batchId);
@@ -62,7 +62,7 @@ export class AttendanceController {
   }
 
   @Post('sessions')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER, UserRole.COACH)
+  @Roles(UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER, UserRole.COACH)
   async startSession(@Body() dto: StartSessionDto, @Request() req) {
     if (req.user.role === UserRole.COACH) {
       const hasAccess = await this.attendance.verifyCoachBatch(req.user.id, dto.batchId);
