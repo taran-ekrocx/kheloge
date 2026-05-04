@@ -55,6 +55,7 @@ interface PaymentBatch {
   name: string;
   sport: { id: string; name: string };
   venue?: { id: string; name: string };
+  coaches?: { id: string; name: string }[];
   feePlanId?: string | null;
   students: PaymentStudent[];
   summary: { collected: number; pending: number; paidCount: number; pendingCount: number };
@@ -188,7 +189,10 @@ function BatchSection({
           {expanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
           <div>
             <p className="font-semibold text-gray-900">{batch.name}</p>
-            <p className="text-xs text-gray-500">{batch.sport.name}{batch.venue ? ` · ${batch.venue.name}` : ''}</p>
+            <p className="text-xs text-gray-500">
+              {batch.sport.name}{batch.venue ? ` · ${batch.venue.name}` : ''}
+              {batch.coaches && batch.coaches.length > 0 ? ` · ${batch.coaches.map((c) => c.name).join(', ')}` : ''}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-4 text-sm">

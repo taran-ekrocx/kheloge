@@ -526,6 +526,9 @@ export class PaymentsService {
       include: {
         sport: { select: { id: true, name: true } },
         venue: { select: { id: true, name: true } },
+        coaches: {
+          include: { coach: { select: { id: true, name: true } } },
+        },
         feePlans: {
           where: { isActive: true, frequency: effectiveFrequency as FeeFrequency },
           orderBy: { createdAt: 'desc' },
@@ -542,31 +545,49 @@ export class PaymentsService {
     const feePlanIds = filteredBatches.flatMap((b) => b.feePlans.map((fp) => fp.id));
     const studentIds = filteredBatches.flatMap((b) => b.enrollments.map((e) => e.student.id));
 
-    const invoices = feePlanIds.length > 0 ? await this.prisma.invoice.findMany({
-      where: {
-        studentId: { in: studentIds },
-        feePlanId: { in: feePlanIds },
-        ...(dateRange ? { dueDate: { gte: dateRange.start, lt: dateRange.end } } : {}),
-      },
-      select: { id: true, studentId: true, feePlanId: true, amount: true, status: true },
-    }) : [];
+    const [invoices, payments] = await Promise.all([
+      feePlanIds.length > 0 ? this.prisma.invoice.findMany({
+        where: {
+          studentId: { in: studentIds },
+          feePlanId: { in: feePlanIds },
+          ...(dateRange ? { dueDate: { gte: dateRange.start, lt: dateRange.end } } : {}),
+        },
+        select: { id: true, studentId: true, feePlanId: true, amount: true, status: true },
+      }) : [],
+      studentIds.length > 0 ? this.prisma.payment.findMany({
+        where: {
+          studentId: { in: studentIds },
+          ...(dateRange ? { paidAt: { gte: dateRange.start, lt: dateRange.end } } : {}),
+          status: 'PAID' as any,
+        },
+        select: { id: true, studentId: true, invoiceId: true, amount: true },
+        orderBy: { paidAt: 'desc' },
+      }) : [],
+    ]);
 
     const invoiceMap = new Map(invoices.map((inv) => [`${inv.studentId}:${inv.feePlanId}`, inv]));
+    const paymentMap = new Map<string, typeof payments[0]>();
+    for (const p of payments) {
+      if (!paymentMap.has(p.studentId)) paymentMap.set(p.studentId, p);
+    }
 
     const batchResults = filteredBatches.map((batch) => {
       const feePlan = batch.feePlans[0];
       const defaultAmount = feePlan ? Number(feePlan.amount) : 0;
+      const coaches = batch.coaches.map((bc) => ({ id: bc.coach.id, name: bc.coach.name }));
 
       const students = batch.enrollments.map((enrollment) => {
         const student = enrollment.student;
         const invoice = feePlan ? invoiceMap.get(`${student.id}:${feePlan.id}`) : undefined;
+        const payment = paymentMap.get(student.id);
+        const isPaid = invoice?.status === 'PAID' || (!invoice && !!payment);
         return {
           id: student.id,
           name: student.name,
           phone: student.phone,
           invoiceId: invoice?.id ?? null,
-          status: invoice?.status ?? 'PENDING',
-          amount: invoice ? Number(invoice.amount) : defaultAmount,
+          status: isPaid ? 'PAID' : 'PENDING',
+          amount: invoice ? Number(invoice.amount) : (payment ? Number(payment.amount) : defaultAmount),
         };
       });
 
@@ -578,6 +599,7 @@ export class PaymentsService {
         name: batch.name,
         sport: batch.sport,
         venue: batch.venue,
+        coaches,
         students,
         summary: {
           collected,
