@@ -16,6 +16,7 @@ class CreateVenueBatchDto {
   @IsString() name: string;
   @IsString() sportId: string;
   @IsOptional() @IsArray() coachIds?: string[];
+  @IsOptional() @IsArray() studentIds?: string[];
   @IsOptional() @IsInt() @Min(1) @Type(() => Number) capacity?: number;
   @IsOptional() @IsNumber() @Type(() => Number) fee?: number;
   @IsString() startTime: string;
@@ -140,9 +141,9 @@ export class VenuesController {
     @Param('venueId') venueId: string,
     @Body() dto: CreateVenueBatchDto,
   ) {
-    const { coachIds, fee, status, ...rest } = dto;
+    const { coachIds, studentIds, fee, status, ...rest } = dto;
     const isActive = status !== 'INACTIVE';
-    const batch = await this.batchesSvc.create({ ...rest, venueId, feeAmount: fee, isActive });
+    const batch = await this.batchesSvc.create({ ...rest, venueId, feeAmount: fee, isActive, studentIds });
     if (coachIds?.length) {
       await this.batchesSvc.reassignCoaches(batch.id, coachIds);
     }

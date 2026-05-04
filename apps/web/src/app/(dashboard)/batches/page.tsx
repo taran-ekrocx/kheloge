@@ -16,6 +16,7 @@ const DAY_SHORT: Record<string, string> = {
 
 interface Sport { id: string; name: string; }
 interface Coach { id: string; userId?: string; name: string; phone?: string; sports?: { id: string; name: string }[]; }
+interface Student { id: string; name: string; phone?: string; }
 interface Batch {
   id: string;
   name: string;
@@ -43,7 +44,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const DEFAULT_FORM = {
-  name: '', sportId: '', coachIds: [] as string[], capacity: '', fee: '',
+  name: '', sportId: '', coachIds: [] as string[], studentIds: [] as string[], capacity: '', fee: '',
   startTime: '', endTime: '', days: [] as string[], status: 'ACTIVE',
   startDate: '', endDate: '',
 };
@@ -124,10 +125,87 @@ function CoachMultiSelect({ coaches, selected, onChange }: {
   );
 }
 
+function StudentMultiSelect({ students, selected, onChange }: {
+  students: Student[]; selected: string[]; onChange: (ids: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const filtered = students.filter(s => s.name.toLowerCase().includes(search.toLowerCase()) || (s.phone && s.phone.includes(search)));
+  const selectedStudents = students.filter(s => selected.includes(s.id));
+
+  function toggle(id: string) {
+    onChange(selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id]);
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <div
+        onClick={() => setOpen(o => !o)}
+        className="w-full min-h-[38px] border rounded-lg px-3 py-2 text-sm cursor-pointer flex flex-wrap gap-1 items-center bg-white hover:border-blue-400 transition-colors"
+      >
+        {selectedStudents.length === 0 ? (
+          <span className="text-gray-400">Search and assign students...</span>
+        ) : (
+          selectedStudents.map(s => (
+            <span key={s.id} className="flex items-center gap-1 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full">
+              {s.name}
+              <button type="button" onClick={(e) => { e.stopPropagation(); toggle(s.id); }} className="hover:text-green-900 font-medium">×</button>
+            </span>
+          ))
+        )}
+      </div>
+      {open && (
+        <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg flex flex-col" style={{ maxHeight: 220 }}>
+          <div className="p-2 border-b border-gray-100">
+            <input
+              autoFocus
+              type="text"
+              placeholder="Search students..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              onClick={e => e.stopPropagation()}
+              className="w-full text-sm px-2 py-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-400"
+            />
+          </div>
+          <div className="overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="text-xs text-gray-400 p-3 text-center">No students found</p>
+            ) : (
+              filtered.map(s => (
+                <div
+                  key={s.id}
+                  onClick={() => toggle(s.id)}
+                  className={`flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 transition-colors ${selected.includes(s.id) ? 'bg-green-50' : ''}`}
+                >
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${selected.includes(s.id) ? 'bg-green-600 border-green-600' : 'border-gray-300'}`}>
+                    {selected.includes(s.id) && <span className="text-white text-[10px] leading-none">✓</span>}
+                  </div>
+                  <span>{s.name}</span>
+                  {s.phone && <span className="text-xs text-gray-400 ml-auto">{s.phone}</span>}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BatchModal({
-  onClose, venueId, sports, coaches, existing,
+  onClose, venueId, sports, coaches, existing, isSuperAdmin,
 }: {
-  onClose: () => void; venueId: string; sports: Sport[]; coaches: Coach[]; existing?: Batch;
+  onClose: () => void; venueId: string; sports: Sport[]; coaches: Coach[]; existing?: Batch; isSuperAdmin?: boolean;
 }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState(existing ? {
@@ -148,8 +226,16 @@ function BatchModal({
     status: existing.status || 'ACTIVE',
     startDate: existing.startDate ? existing.startDate.split('T')[0] : '',
     endDate: existing.endDate ? existing.endDate.split('T')[0] : '',
+    studentIds: [] as string[],
   } : DEFAULT_FORM);
   const [dateError, setDateError] = useState('');
+
+  const { data: students = [] } = useQuery<Student[]>({
+    queryKey: ['students-active'],
+    queryFn: () => api.get('/students?status=ACTIVE').then(r => r.data),
+    enabled: !!isSuperAdmin && !existing,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const filteredCoaches = useMemo(() => {
     if (!form.sportId) return coaches;
@@ -230,6 +316,16 @@ function BatchModal({
               onChange={(ids) => setForm(f => ({ ...f, coachIds: ids }))}
             />
           </div>
+          {isSuperAdmin && !existing && (
+            <div>
+              <p className="text-xs font-medium text-gray-600 mb-2">Assign Students</p>
+              <StudentMultiSelect
+                students={students}
+                selected={form.studentIds}
+                onChange={(ids) => setForm(f => ({ ...f, studentIds: ids }))}
+              />
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <input
               required type="number" min="1" placeholder="Capacity *"
@@ -591,6 +687,7 @@ export default function BatchesPage() {
           sports={sports}
           coaches={coaches}
           existing={editing}
+          isSuperAdmin={isSuperAdmin}
         />
       )}
     </div>

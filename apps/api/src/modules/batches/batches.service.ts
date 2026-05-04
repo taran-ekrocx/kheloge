@@ -20,6 +20,7 @@ export class CreateBatchDto {
   @ApiPropertyOptional({ description: 'Coach user IDs to assign' }) @IsOptional() @IsArray() coachIds?: string[];
   @ApiPropertyOptional({ description: 'Monthly fee amount to create a default FeePlan' }) @IsOptional() @IsNumber() feeAmount?: number;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
+  @ApiPropertyOptional({ description: 'Student IDs to enroll on creation' }) @IsOptional() @IsArray() studentIds?: string[];
 }
 
 export class UpdateBatchDto {
@@ -100,8 +101,8 @@ export class BatchesService {
   }
 
   async create(dto: CreateBatchDto) {
-    const { coachIds, feeAmount, ...rest } = dto;
-    return this.prisma.batch.create({
+    const { coachIds, feeAmount, studentIds, ...rest } = dto;
+    const batch = await this.prisma.batch.create({
       data: {
         ...rest,
         startDate: rest.startDate ? new Date(rest.startDate) : undefined,
@@ -126,6 +127,15 @@ export class BatchesService {
         feePlans: true,
       },
     });
+
+    if (studentIds?.length) {
+      await this.prisma.enrollment.createMany({
+        data: studentIds.map((studentId) => ({ studentId, batchId: batch.id })),
+        skipDuplicates: true,
+      });
+    }
+
+    return batch;
   }
 
   async update(id: string, dto: UpdateBatchDto) {
