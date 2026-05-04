@@ -11,7 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import {
   LayoutDashboard, Users, Calendar, CheckSquare,
   CreditCard, MessageSquare, LogOut, Building2,
-  Trophy, MapPin, UsersRound, UserCheck, BarChart2, Receipt, ChevronDown, TrendingUp,
+  Trophy, MapPin, UsersRound, UserCheck, BarChart2, Receipt, ChevronDown, TrendingUp, Wallet,
 } from 'lucide-react';
 
 const NAV_OPERATIONS = [
@@ -23,6 +23,7 @@ const NAV_OPERATIONS = [
   { href: '/fees', label: 'Fees', icon: Receipt, hideForCoach: true },
   { href: '/payments', label: 'Payments', icon: CreditCard },
   { href: '/earnings', label: 'Earnings', icon: TrendingUp, showOnlyForCoach: true },
+  { href: '/coach-payouts', label: 'Coach Payout', icon: Wallet, showOnlyForSuperAdmin: true },
   { href: '/enquiries', label: 'Enquiries', icon: MessageSquare, hideForCoach: true },
   { href: '/reports', label: 'Reports', icon: BarChart2, hideForCoach: true },
 ];
@@ -74,11 +75,12 @@ function VenueSelector({ role }: { role: string | null }) {
   );
 }
 
-function NavGroup({ label, items, isCoach }: { label: string; items: typeof NAV_OPERATIONS; isCoach?: boolean }) {
+function NavGroup({ label, items, isCoach, isSuperAdmin }: { label: string; items: typeof NAV_OPERATIONS; isCoach?: boolean; isSuperAdmin?: boolean }) {
   const pathname = usePathname();
   const visibleItems = items.filter((item) => {
     if ((item as any).hideForCoach && isCoach) return false;
     if ((item as any).showOnlyForCoach && !isCoach) return false;
+    if ((item as any).showOnlyForSuperAdmin && !isSuperAdmin) return false;
     return true;
   });
   return (
@@ -118,7 +120,7 @@ export function Sidebar() {
       </div>
       <nav className="flex-1 px-3 py-4 space-y-4 overflow-y-auto">
         <VenueSelector role={role} />
-        <NavGroup label="Operations" items={NAV_OPERATIONS} isCoach={isCoach} />
+        <NavGroup label="Operations" items={NAV_OPERATIONS} isCoach={isCoach} isSuperAdmin={isSuperAdmin} />
         {!isCoach && <NavGroup label="Administration" items={NAV_ADMIN} />}
       </nav>
       <div className="px-3 py-4 border-t border-gray-100">

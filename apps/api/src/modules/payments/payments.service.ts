@@ -622,4 +622,83 @@ export class PaymentsService {
 
     return { summary: { totalCollected, totalPending, paidStudents, pendingStudents }, batches: batchResults };
   }
+
+  async getAllCoachPayouts(orgId: string, month: string, venueId?: string, coachId?: string) {
+    const [year, mon] = month.split('-').map(Number);
+    const monthStart = new Date(year, mon - 1, 1);
+    const monthEnd = new Date(year, mon, 1);
+
+    const orgUsers = await this.prisma.organizationUser.findMany({
+      where: {
+        organizationId: orgId,
+        role: 'COACH' as any,
+        isActive: true,
+        ...(coachId ? { userId: coachId } : {}),
+      },
+      include: {
+        user: { select: { id: true, name: true } },
+        coachProfile: { select: { paymentType: true, paymentValue: true } },
+      },
+    });
+
+    const coaches = await Promise.all(
+      orgUsers.map(async (orgUser) => {
+        const cId = orgUser.userId;
+        const paymentType = orgUser.coachProfile?.paymentType ?? 'FIXED_PAYMENT';
+        const paymentValue = Number(orgUser.coachProfile?.paymentValue ?? 0);
+
+        const batchCoaches = await this.prisma.batchCoach.findMany({
+          where: {
+            coachId: cId,
+            ...(venueId ? { batch: { venueId } } : {}),
+          },
+          include: {
+            batch: {
+              include: {
+                sport: { select: { id: true, name: true } },
+                venue: { select: { id: true, name: true } },
+                enrollments: { where: { isActive: true }, select: { studentId: true } },
+              },
+            },
+          },
+        });
+
+        const batches = await Promise.all(
+          batchCoaches.map(async (bc) => {
+            const batch = bc.batch;
+            const studentCount = batch.enrollments.length;
+            const code = batch.id.slice(0, 8).toUpperCase();
+            const base = { id: batch.id, code, name: batch.name, venue: batch.venue, sport: batch.sport, studentCount };
+
+            if (paymentType === 'REVENUE_PERCENTAGE') {
+              const studentIds = batch.enrollments.map((e) => e.studentId);
+              const agg = studentIds.length > 0
+                ? await this.prisma.payment.aggregate({
+                    where: { studentId: { in: studentIds }, paidAt: { gte: monthStart, lt: monthEnd }, status: 'PAID' as any },
+                    _sum: { amount: true },
+                  })
+                : { _sum: { amount: 0 } };
+              const totalRevenue = Number(agg._sum.amount ?? 0);
+              const commission = Math.round((totalRevenue * paymentValue) / 100);
+              return { ...base, totalRevenue, commission, totalPayment: commission };
+            }
+
+            if (paymentType === 'PER_SESSION_PAYOUT') {
+              const sessionCount = await this.prisma.attendanceSession.count({
+                where: { batchId: batch.id, coachId: cId, date: { gte: monthStart, lt: monthEnd } },
+              });
+              return { ...base, sessionCount, perSessionAmount: paymentValue, totalPayment: sessionCount * paymentValue };
+            }
+
+            return { ...base, monthlyPayout: paymentValue, totalPayment: paymentValue };
+          }),
+        );
+
+        const totalEarnings = batches.reduce((sum, b) => sum + b.totalPayment, 0);
+        return { id: cId, name: orgUser.user.name, paymentType, paymentValue, totalEarnings, batches };
+      }),
+    );
+
+    return { month, coaches };
+  }
 }

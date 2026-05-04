@@ -44,6 +44,18 @@ export class PaymentsController {
     return this.payments.getOrgInvoices(req.user.orgId);
   }
 
+  @Get('coach-payouts')
+  @Roles(UserRole.SUPER_ADMIN)
+  getCoachPayouts(
+    @Request() req,
+    @Query('month') month?: string,
+    @Query('venueId') venueId?: string,
+    @Query('coachId') coachId?: string,
+  ) {
+    const m = month ?? new Date().toISOString().slice(0, 7);
+    return this.payments.getAllCoachPayouts(req.user.orgId, m, venueId, coachId);
+  }
+
   @Get('batch-monthly')
   @Roles(UserRole.SUPER_ADMIN)
   getBatchMonthly(
