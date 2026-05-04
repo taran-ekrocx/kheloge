@@ -38,6 +38,7 @@ export default function StudentDetailPage() {
   const [tab, setTab] = useState<Tab>('profile');
   const [editingProfile, setEditingProfile] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', phone: '', email: '', dob: '', address: '', city: '', state: '', district: '', region: '', medicalNotes: '', status: '', sportInterest: '', trainingLevel: '' });
+  const [addBatchId, setAddBatchId] = useState('');
   const [editErrors, setEditErrors] = useState<Record<string, string>>({});
   const [guardianErrors, setGuardianErrors] = useState<Record<string, string>>({});
   const [photoLoading, setPhotoLoading] = useState(false);
@@ -72,7 +73,7 @@ export default function StudentDetailPage() {
     ? `/coaches/me/students/${id}`
     : studentBase;
 
-  const { data: allBatches = [] } = useQuery<{ id: string; name: string; sport: { name: string } }[]>({
+  const { data: allBatches = [] } = useQuery<{ id: string; name: string; sport: { id: string; name: string } }[]>({
     queryKey: isCoach ? ['coach-batches'] : isSuperAdmin ? ['batches-global'] : ['batches', venueId],
     queryFn: isCoach
       ? () => api.get('/coaches/me/batches?status=active').then((r) => r.data)
@@ -454,7 +455,7 @@ export default function StudentDetailPage() {
                   <label className="text-xs text-gray-500 mb-1 block">Sport Applied For</label>
                   <select
                     value={editForm.sportInterest}
-                    onChange={e => setEditForm(f => ({ ...f, sportInterest: e.target.value }))}
+                    onChange={e => { setEditForm(f => ({ ...f, sportInterest: e.target.value })); setAddBatchId(''); }}
                     className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                   >
                     <option value="">— Select sport —</option>
@@ -512,14 +513,18 @@ export default function StudentDetailPage() {
                 const enrolledBatchIds = new Set(
                   student.enrollments?.filter((e: { isActive: boolean }) => e.isActive).map((e: { batchId: string }) => e.batchId) ?? []
                 );
-                const available = allBatches.filter(b => !enrolledBatchIds.has(b.id));
+                const available = allBatches.filter(b => {
+                  if (enrolledBatchIds.has(b.id)) return false;
+                  if (editForm.sportInterest) return b.sport?.name === editForm.sportInterest;
+                  return true;
+                });
                 if (!available.length) return null;
                 return (
                   <div className="mt-2 flex gap-2">
                     <select
-                      id="batch-add-select"
+                      value={addBatchId}
+                      onChange={e => setAddBatchId(e.target.value)}
                       className="flex-1 border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                      defaultValue=""
                     >
                       <option value="" disabled>Add to batch…</option>
                       {available.map(b => (
@@ -527,11 +532,8 @@ export default function StudentDetailPage() {
                       ))}
                     </select>
                     <button
-                      onClick={() => {
-                        const sel = document.getElementById('batch-add-select') as HTMLSelectElement;
-                        if (sel.value) { enrollMutation.mutate(sel.value); sel.value = ''; }
-                      }}
-                      disabled={enrollMutation.isPending}
+                      onClick={() => { if (addBatchId) { enrollMutation.mutate(addBatchId); setAddBatchId(''); } }}
+                      disabled={enrollMutation.isPending || !addBatchId}
                       className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                     >
                       Add
