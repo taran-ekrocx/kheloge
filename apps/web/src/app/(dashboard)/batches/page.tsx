@@ -233,9 +233,23 @@ function BatchModal({
   const { data: students = [] } = useQuery<Student[]>({
     queryKey: ['students-active'],
     queryFn: () => api.get('/students?status=ACTIVE').then(r => r.data),
-    enabled: !!isSuperAdmin && !existing,
+    enabled: !!isSuperAdmin,
     staleTime: 5 * 60 * 1000,
   });
+
+  const { data: batchDetail } = useQuery<{ enrollments: { student: Student }[] }>({
+    queryKey: ['batch-detail', existing?.id],
+    queryFn: () => api.get(`/batches/${existing!.id}`).then(r => r.data),
+    enabled: !!isSuperAdmin && !!existing,
+    staleTime: 0,
+  });
+
+  useEffect(() => {
+    if (batchDetail && existing) {
+      const ids = batchDetail.enrollments?.map((e) => e.student.id) ?? [];
+      setForm(f => ({ ...f, studentIds: ids }));
+    }
+  }, [batchDetail, existing]);
 
   const filteredCoaches = useMemo(() => {
     if (!form.sportId) return coaches;
@@ -316,7 +330,7 @@ function BatchModal({
               onChange={(ids) => setForm(f => ({ ...f, coachIds: ids }))}
             />
           </div>
-          {isSuperAdmin && !existing && (
+          {isSuperAdmin && (
             <div>
               <p className="text-xs font-medium text-gray-600 mb-2">Assign Students</p>
               <StudentMultiSelect

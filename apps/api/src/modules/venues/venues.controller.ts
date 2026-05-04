@@ -31,6 +31,7 @@ class UpdateVenueBatchDto {
   @IsOptional() @IsString() name?: string;
   @IsOptional() @IsString() sportId?: string;
   @IsOptional() @IsArray() coachIds?: string[];
+  @IsOptional() @IsArray() studentIds?: string[];
   @IsOptional() @IsInt() @Min(1) @Type(() => Number) capacity?: number;
   @IsOptional() @IsNumber() @Type(() => Number) fee?: number;
   @IsOptional() @IsString() startTime?: string;
@@ -157,7 +158,7 @@ export class VenuesController {
     @Param('batchId') batchId: string,
     @Body() dto: UpdateVenueBatchDto,
   ) {
-    const { coachIds, fee, status, sportId, ...rest } = dto;
+    const { coachIds, studentIds, fee, status, sportId, ...rest } = dto;
     const isActive = status !== undefined ? status !== 'INACTIVE' : undefined;
     await this.batchesSvc.update(batchId, {
       ...rest,
@@ -166,6 +167,9 @@ export class VenuesController {
     });
     if (coachIds !== undefined) {
       await this.batchesSvc.reassignCoaches(batchId, coachIds);
+    }
+    if (studentIds !== undefined) {
+      await this.batchesSvc.syncEnrollments(batchId, studentIds);
     }
     const batch = await this.batchesSvc.findOne(batchId);
     return mapBatch(batch);

@@ -152,6 +152,35 @@ export class BatchesService {
     });
   }
 
+  async syncEnrollments(batchId: string, studentIds: string[]) {
+    const current = await this.prisma.enrollment.findMany({
+      where: { batchId, isActive: true },
+      select: { studentId: true },
+    });
+    const currentSet = new Set(current.map((e) => e.studentId));
+    const newSet = new Set(studentIds);
+
+    const toAdd = studentIds.filter((id) => !currentSet.has(id));
+    const toRemove = [...currentSet].filter((id) => !newSet.has(id));
+
+    if (toAdd.length) {
+      await this.prisma.enrollment.createMany({
+        data: toAdd.map((studentId) => ({ studentId, batchId })),
+        skipDuplicates: true,
+      });
+      await this.prisma.enrollment.updateMany({
+        where: { batchId, studentId: { in: toAdd }, isActive: false },
+        data: { isActive: true, leftAt: null },
+      });
+    }
+    if (toRemove.length) {
+      await this.prisma.enrollment.updateMany({
+        where: { batchId, studentId: { in: toRemove } },
+        data: { isActive: false, leftAt: new Date() },
+      });
+    }
+  }
+
   async reassignCoach(batchId: string, orgUserId: string) {
     await this.prisma.batchCoach.deleteMany({ where: { batchId } });
 
