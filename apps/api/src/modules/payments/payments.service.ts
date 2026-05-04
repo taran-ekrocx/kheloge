@@ -516,13 +516,18 @@ export class PaymentsService {
     return null;
   }
 
-  async getBatchMonthlyPayments(orgId: string, month: string, frequency?: string, period?: string) {
+  async getBatchMonthlyPayments(orgId: string, month: string, frequency?: string, period?: string, venueId?: string, coachId?: string) {
     const effectiveFrequency = frequency ?? 'MONTHLY';
     const effectivePeriod = period ?? month;
     const dateRange = this.getPeriodDateRange(effectiveFrequency, effectivePeriod);
 
     const batches = await this.prisma.batch.findMany({
-      where: { venue: { organizationId: orgId }, isActive: true },
+      where: {
+        venue: { organizationId: orgId },
+        isActive: true,
+        ...(venueId ? { venueId } : {}),
+        ...(coachId ? { coaches: { some: { coachId } } } : {}),
+      },
       include: {
         sport: { select: { id: true, name: true } },
         venue: { select: { id: true, name: true } },

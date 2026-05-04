@@ -272,6 +272,8 @@ export default function PaymentsPage() {
 
   const [frequency, setFrequency] = useState<FeeFrequency>('MONTHLY');
   const [period, setPeriod] = useState<string>(() => getDefaultPeriod('MONTHLY'));
+  const [selectedVenueId, setSelectedVenueId] = useState<string>('');
+  const [selectedCoachId, setSelectedCoachId] = useState<string>('');
   const [markingStudentId, setMarkingStudentId] = useState<string | null>(null);
 
   function handleFrequencyChange(f: FeeFrequency) {
@@ -279,13 +281,27 @@ export default function PaymentsPage() {
     setPeriod(getDefaultPeriod(f));
   }
 
+  const { data: venuesList } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ['venues-list'],
+    queryFn: () => api.get('/venues').then((r) => r.data),
+    enabled: isSuperAdmin,
+  });
+
+  const { data: coachesList } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ['coaches-list'],
+    queryFn: () => api.get('/coaches').then((r) => r.data.map((c: any) => ({ id: c.id, name: c.name }))),
+    enabled: isSuperAdmin,
+  });
+
   const queryParams = new URLSearchParams({ frequency });
   if (period) queryParams.set('period', period);
+  if (isSuperAdmin && selectedVenueId) queryParams.set('venueId', selectedVenueId);
+  if (isSuperAdmin && selectedCoachId) queryParams.set('coachId', selectedCoachId);
 
   const { data, isLoading } = useQuery<PaymentData>({
     queryKey: isCoach
       ? ['coach-payments', frequency, period]
-      : ['batch-monthly-payments', frequency, period],
+      : ['batch-monthly-payments', frequency, period, selectedVenueId, selectedCoachId],
     queryFn: () =>
       isCoach
         ? api.get(`/coaches/me/payments?${queryParams}`).then((r) => r.data)
@@ -325,6 +341,36 @@ export default function PaymentsPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {isSuperAdmin && venuesList && venuesList.length > 0 && (
+            <>
+              <label className="text-sm text-gray-500">Venue</label>
+              <select
+                value={selectedVenueId}
+                onChange={(e) => setSelectedVenueId(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Venues</option>
+                {venuesList.map((v) => (
+                  <option key={v.id} value={v.id}>{v.name}</option>
+                ))}
+              </select>
+            </>
+          )}
+          {isSuperAdmin && coachesList && coachesList.length > 0 && (
+            <>
+              <label className="text-sm text-gray-500">Coach</label>
+              <select
+                value={selectedCoachId}
+                onChange={(e) => setSelectedCoachId(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Coaches</option>
+                {coachesList.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </>
+          )}
           <label className="text-sm text-gray-500">Frequency</label>
           <select
             value={frequency}
