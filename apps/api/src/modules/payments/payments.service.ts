@@ -535,9 +535,8 @@ export class PaymentsService {
           include: { coach: { select: { id: true, name: true } } },
         },
         feePlans: {
-          where: { isActive: true, frequency: effectiveFrequency as FeeFrequency },
+          where: { frequency: effectiveFrequency as FeeFrequency },
           orderBy: { createdAt: 'desc' },
-          take: 1,
         },
         enrollments: {
           where: { isActive: true },
@@ -571,28 +570,41 @@ export class PaymentsService {
     ]);
 
     const invoiceMap = new Map(invoices.map((inv) => [`${inv.studentId}:${inv.feePlanId}`, inv]));
-    const paymentMap = new Map<string, typeof payments[0]>();
+    // Track invoice-linked payments and standalone payments separately
+    const invoicePaymentMap = new Map<string, typeof payments[0]>();
+    const standalonePaymentMap = new Map<string, typeof payments[0]>();
     for (const p of payments) {
-      if (!paymentMap.has(p.studentId)) paymentMap.set(p.studentId, p);
+      if (p.invoiceId) {
+        if (!invoicePaymentMap.has(p.invoiceId)) invoicePaymentMap.set(p.invoiceId, p);
+      } else if (!standalonePaymentMap.has(p.studentId)) {
+        standalonePaymentMap.set(p.studentId, p);
+      }
     }
 
     const batchResults = filteredBatches.map((batch) => {
-      const feePlan = batch.feePlans[0];
+      // feePlans is ordered by createdAt desc; first active plan is the "current" one for display
+      const feePlan = batch.feePlans.find((fp) => fp.isActive) ?? batch.feePlans[0];
       const defaultAmount = feePlan ? Number(feePlan.amount) : 0;
       const coaches = batch.coaches.map((bc) => ({ id: bc.coach.id, name: bc.coach.name }));
 
       const students = batch.enrollments.map((enrollment) => {
         const student = enrollment.student;
-        const invoice = feePlan ? invoiceMap.get(`${student.id}:${feePlan.id}`) : undefined;
-        const payment = paymentMap.get(student.id);
-        const isPaid = invoice?.status === 'PAID' || (!invoice && !!payment);
+        // Find the invoice for this student across all fee plans of this batch (including old ones)
+        const invoice = batch.feePlans
+          .map((fp) => invoiceMap.get(`${student.id}:${fp.id}`))
+          .find(Boolean);
+        const isPaid =
+          invoice?.status === 'PAID' ||
+          (!!invoice && !!invoicePaymentMap.get(invoice.id)) ||
+          (!invoice && !!standalonePaymentMap.get(student.id));
+        const standalonePay = standalonePaymentMap.get(student.id);
         return {
           id: student.id,
           name: student.name,
           phone: student.phone,
           invoiceId: invoice?.id ?? null,
           status: isPaid ? 'PAID' : 'PENDING',
-          amount: invoice ? Number(invoice.amount) : (payment ? Number(payment.amount) : defaultAmount),
+          amount: invoice ? Number(invoice.amount) : (standalonePay ? Number(standalonePay.amount) : defaultAmount),
         };
       });
 

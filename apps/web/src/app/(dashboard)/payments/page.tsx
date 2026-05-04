@@ -289,7 +289,7 @@ export default function PaymentsPage() {
 
   const { data: coachesList } = useQuery<{ id: string; name: string }[]>({
     queryKey: ['coaches-list'],
-    queryFn: () => api.get('/coaches').then((r) => r.data.map((c: any) => ({ id: c.id, name: c.name }))),
+    queryFn: () => api.get('/coaches').then((r) => r.data.map((c: any) => ({ id: c.userId, name: c.name }))),
     enabled: isSuperAdmin,
   });
 
