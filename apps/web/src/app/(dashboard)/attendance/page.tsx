@@ -625,7 +625,7 @@ function BatchRow({
             )
           ) : null
         ) : (
-          <ChevronRight size={16} className="text-gray-400" />
+          canNavigate ? <ChevronRight size={16} className="text-gray-400" /> : null
         )}
       </div>
     </>
