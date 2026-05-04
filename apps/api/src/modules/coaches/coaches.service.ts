@@ -198,7 +198,7 @@ export class CoachesService {
 
   async findAll(organizationId: string) {
     const orgUsers = await this.prisma.organizationUser.findMany({
-      where: { organizationId, role: UserRole.COACH, isActive: true },
+      where: { organizationId, role: UserRole.COACH },
       include: VENUE_COACH_INCLUDE,
       orderBy: { createdAt: 'desc' },
     });
@@ -271,7 +271,7 @@ export class CoachesService {
 
   async findByVenue(organizationId: string, venueId: string) {
     const orgUsers = await this.prisma.organizationUser.findMany({
-      where: { organizationId, venueId, role: UserRole.COACH, isActive: true },
+      where: { organizationId, venueId, role: UserRole.COACH },
       include: VENUE_COACH_INCLUDE,
       orderBy: { createdAt: 'desc' },
     });

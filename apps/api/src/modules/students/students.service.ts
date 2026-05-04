@@ -71,9 +71,7 @@ export class StudentsService {
     return this.prisma.student.findMany({
       where: {
         organizationId: orgId,
-        ...(!status || status === 'all'
-          ? { status: { notIn: [StudentStatus.INACTIVE] } }
-          : { status: status as StudentStatus }),
+        ...(status && status !== 'all' ? { status: status as StudentStatus } : {}),
         ...(search && {
           OR: [
             { name: { contains: search, mode: 'insensitive' } },
@@ -127,9 +125,7 @@ export class StudentsService {
 
     return this.prisma.student.findMany({
       where: {
-        ...(!status || status === 'all'
-          ? { status: { notIn: [StudentStatus.INACTIVE] } }
-          : { status: status as StudentStatus }),
+        ...(status && status !== 'all' ? { status: status as StudentStatus } : {}),
         ...(search && {
           OR: [
             { name: { contains: search, mode: 'insensitive' } },
@@ -156,9 +152,7 @@ export class StudentsService {
     return this.prisma.student.findMany({
       where: {
         organizationId: orgId,
-        ...(!status || status === 'all'
-          ? { status: { notIn: [StudentStatus.INACTIVE] } }
-          : { status: status as StudentStatus }),
+        ...(status && status !== 'all' ? { status: status as StudentStatus } : {}),
         ...(search && {
           OR: [
             { name: { contains: search, mode: 'insensitive' } },

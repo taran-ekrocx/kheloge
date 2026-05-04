@@ -335,7 +335,7 @@ export default function BatchesPage() {
         ? ['batches-sa', saVenueFilter]
         : ['batches', venueId],
     queryFn: isCoach
-      ? () => api.get('/batches?status=active').then(r => r.data)
+      ? () => api.get('/batches').then(r => r.data)
       : needsVenueSelector
         ? () => api.get(saVenueFilter ? `/batches?venueId=${saVenueFilter}` : '/batches').then(r => r.data)
         : () => api.get(`/venues/${venueId}/batches`).then(r => r.data),
