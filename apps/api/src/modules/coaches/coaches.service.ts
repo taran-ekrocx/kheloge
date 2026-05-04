@@ -749,16 +749,32 @@ export class CoachesService {
     const feePlanIds = batchCoaches.flatMap((bc) => bc.batch.feePlans.map((fp) => fp.id));
     const studentIds = batchCoaches.flatMap((bc) => bc.batch.enrollments.map((e) => e.student.id));
 
-    const invoices = feePlanIds.length > 0 ? await this.prisma.invoice.findMany({
-      where: {
-        studentId: { in: studentIds },
-        feePlanId: { in: feePlanIds },
-        dueDate: { gte: monthStart, lt: monthEnd },
-      },
-      select: { id: true, studentId: true, feePlanId: true, amount: true, status: true },
-    }) : [];
+    const [invoices, payments] = await Promise.all([
+      feePlanIds.length > 0 ? this.prisma.invoice.findMany({
+        where: {
+          studentId: { in: studentIds },
+          feePlanId: { in: feePlanIds },
+          dueDate: { gte: monthStart, lt: monthEnd },
+        },
+        select: { id: true, studentId: true, feePlanId: true, amount: true, status: true },
+      }) : [],
+      studentIds.length > 0 ? this.prisma.payment.findMany({
+        where: {
+          studentId: { in: studentIds },
+          paidAt: { gte: monthStart, lt: monthEnd },
+          status: 'PAID' as any,
+        },
+        select: { id: true, studentId: true, invoiceId: true, amount: true },
+        orderBy: { paidAt: 'desc' },
+      }) : [],
+    ]);
 
     const invoiceMap = new Map(invoices.map((inv) => [`${inv.studentId}:${inv.feePlanId}`, inv]));
+    // Keep only the most recent payment per student for the month
+    const paymentMap = new Map<string, typeof payments[0]>();
+    for (const p of payments) {
+      if (!paymentMap.has(p.studentId)) paymentMap.set(p.studentId, p);
+    }
 
     const batches = batchCoaches.map((bc) => {
       const batch = bc.batch;
@@ -768,13 +784,15 @@ export class CoachesService {
       const students = batch.enrollments.map((enrollment) => {
         const student = enrollment.student;
         const invoice = feePlan ? invoiceMap.get(`${student.id}:${feePlan.id}`) : undefined;
+        const payment = paymentMap.get(student.id);
+        const isPaid = invoice?.status === 'PAID' || (!invoice && !!payment);
         return {
           id: student.id,
           name: student.name,
           phone: student.phone,
           invoiceId: invoice?.id ?? null,
-          status: invoice?.status ?? 'PENDING',
-          amount: invoice ? Number(invoice.amount) : defaultAmount,
+          status: isPaid ? 'PAID' : 'PENDING',
+          amount: invoice ? Number(invoice.amount) : (payment ? Number(payment.amount) : defaultAmount),
         };
       });
 
