@@ -184,10 +184,16 @@ function BatchModal({
         <h3 className="text-lg font-bold mb-4">{existing ? 'Edit Batch' : 'Create Batch'}</h3>
         <form onSubmit={(e) => {
           e.preventDefault();
+          if (!form.name.trim()) { setDateError('Batch name is required.'); return; }
+          if (form.startTime && form.endTime && form.endTime <= form.startTime) {
+            setDateError('End time must be after start time.');
+            return;
+          }
           if (form.startDate && form.endDate && form.endDate <= form.startDate) {
             setDateError('End date must be after start date.');
             return;
           }
+          if (form.days.length === 0) { setDateError('Please select at least one day.'); return; }
           setDateError('');
           mutation.mutate(form);
         }} className="space-y-3">
@@ -292,7 +298,7 @@ function BatchModal({
               Cancel
             </button>
             <button
-              type="submit" disabled={mutation.isPending || form.days.length === 0}
+              type="submit" disabled={mutation.isPending}
               className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
             >
               {mutation.isPending ? 'Saving...' : (existing ? 'Save Changes' : 'Create Batch')}

@@ -38,6 +38,8 @@ export default function StudentDetailPage() {
   const [tab, setTab] = useState<Tab>('profile');
   const [editingProfile, setEditingProfile] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', phone: '', email: '', dob: '', address: '', city: '', state: '', district: '', region: '', medicalNotes: '', status: '', sportInterest: '', trainingLevel: '' });
+  const [editErrors, setEditErrors] = useState<Record<string, string>>({});
+  const [guardianErrors, setGuardianErrors] = useState<Record<string, string>>({});
   const [photoLoading, setPhotoLoading] = useState(false);
   const [idCardLoading, setIdCardLoading] = useState(false);
   const [invoiceLoading, setInvoiceLoading] = useState<string | null>(null);
@@ -88,6 +90,28 @@ export default function StudentDetailPage() {
 
   const coachEnrollBase = `/coaches/me/students/${id}`;
 
+  const isValidPhone = (v: string) => /^[6-9]\d{9}$/.test(v.replace(/[\s\-+]/g, '').replace(/^91/, ''));
+  const isValidEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+
+  function validateEditForm(): boolean {
+    const errs: Record<string, string> = {};
+    if (!editForm.name.trim()) errs.name = 'Name is required';
+    if (editForm.phone && !isValidPhone(editForm.phone)) errs.phone = 'Enter a valid 10-digit mobile number';
+    if (editForm.email && !isValidEmail(editForm.email)) errs.email = 'Enter a valid email address';
+    setEditErrors(errs);
+    return Object.keys(errs).length === 0;
+  }
+
+  function validateGuardianForm(): boolean {
+    const errs: Record<string, string> = {};
+    if (!guardianForm.name.trim()) errs.name = 'Name is required';
+    if (!guardianForm.phone.trim()) errs.phone = 'Phone is required';
+    else if (!isValidPhone(guardianForm.phone)) errs.phone = 'Enter a valid 10-digit mobile number';
+    if (guardianForm.email && !isValidEmail(guardianForm.email)) errs.email = 'Enter a valid email address';
+    setGuardianErrors(errs);
+    return Object.keys(errs).length === 0;
+  }
+
   const updateMutation = useMutation({
     mutationFn: (data: Record<string, string>) => api.patch(studentPatchBase, data),
     onSuccess: () => {
@@ -119,6 +143,7 @@ export default function StudentDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['student', id] });
       setGuardianForm({ name: '', phone: '', email: '', relation: 'Guardian', isPrimary: false });
+      setGuardianErrors({});
     },
   });
 
@@ -276,7 +301,7 @@ export default function StudentDetailPage() {
                     <X size={13} /> Cancel
                   </button>
                   <button
-                    onClick={() => updateMutation.mutate(editForm)}
+                    onClick={() => { if (validateEditForm()) updateMutation.mutate(editForm); }}
                     disabled={updateMutation.isPending}
                     className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50"
                   >
@@ -331,26 +356,29 @@ export default function StudentDetailPage() {
                   <label className="text-xs text-gray-500 mb-1 block">Name</label>
                   <input
                     value={editForm.name}
-                    onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={e => { setEditForm(f => ({ ...f, name: e.target.value })); setEditErrors(p => ({ ...p, name: '' })); }}
+                    className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${editErrors.name ? 'border-red-400' : ''}`}
                   />
+                  {editErrors.name && <p className="text-red-500 text-xs mt-1">{editErrors.name}</p>}
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">Phone</label>
                   <input
                     value={editForm.phone}
-                    onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={e => { setEditForm(f => ({ ...f, phone: e.target.value })); setEditErrors(p => ({ ...p, phone: '' })); }}
+                    className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${editErrors.phone ? 'border-red-400' : ''}`}
                   />
+                  {editErrors.phone && <p className="text-red-500 text-xs mt-1">{editErrors.phone}</p>}
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">Email</label>
                   <input
                     type="email"
                     value={editForm.email}
-                    onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={e => { setEditForm(f => ({ ...f, email: e.target.value })); setEditErrors(p => ({ ...p, email: '' })); }}
+                    className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${editErrors.email ? 'border-red-400' : ''}`}
                   />
+                  {editErrors.email && <p className="text-red-500 text-xs mt-1">{editErrors.email}</p>}
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">Date of Birth</label>
@@ -583,24 +611,34 @@ export default function StudentDetailPage() {
                   <div className="mt-3 space-y-2">
                     <p className="text-xs text-gray-500 font-medium">Add Guardian</p>
                     <div className="grid grid-cols-2 gap-2">
-                      <input
-                        placeholder="Name"
-                        value={guardianForm.name}
-                        onChange={e => setGuardianForm(f => ({ ...f, name: e.target.value }))}
-                        className="border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <input
-                        placeholder="Phone *"
-                        value={guardianForm.phone}
-                        onChange={e => setGuardianForm(f => ({ ...f, phone: e.target.value }))}
-                        className="border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <input
-                        placeholder="Email"
-                        value={guardianForm.email}
-                        onChange={e => setGuardianForm(f => ({ ...f, email: e.target.value }))}
-                        className="border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
+                      <div>
+                        <input
+                          placeholder="Name *"
+                          value={guardianForm.name}
+                          onChange={e => { setGuardianForm(f => ({ ...f, name: e.target.value })); setGuardianErrors(p => ({ ...p, name: '' })); }}
+                          className={`w-full border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${guardianErrors.name ? 'border-red-400' : ''}`}
+                        />
+                        {guardianErrors.name && <p className="text-red-500 text-xs mt-0.5">{guardianErrors.name}</p>}
+                      </div>
+                      <div>
+                        <input
+                          placeholder="Phone *"
+                          value={guardianForm.phone}
+                          onChange={e => { setGuardianForm(f => ({ ...f, phone: e.target.value })); setGuardianErrors(p => ({ ...p, phone: '' })); }}
+                          className={`w-full border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${guardianErrors.phone ? 'border-red-400' : ''}`}
+                        />
+                        {guardianErrors.phone && <p className="text-red-500 text-xs mt-0.5">{guardianErrors.phone}</p>}
+                      </div>
+                      <div>
+                        <input
+                          type="email"
+                          placeholder="Email"
+                          value={guardianForm.email}
+                          onChange={e => { setGuardianForm(f => ({ ...f, email: e.target.value })); setGuardianErrors(p => ({ ...p, email: '' })); }}
+                          className={`w-full border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${guardianErrors.email ? 'border-red-400' : ''}`}
+                        />
+                        {guardianErrors.email && <p className="text-red-500 text-xs mt-0.5">{guardianErrors.email}</p>}
+                      </div>
                       <input
                         placeholder="Relation"
                         value={guardianForm.relation}
@@ -608,9 +646,10 @@ export default function StudentDetailPage() {
                         className="border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
+                    {addGuardianMutation.isError && <p className="text-red-500 text-xs">Failed to add guardian. Please try again.</p>}
                     <button
-                      onClick={() => { if (guardianForm.name && guardianForm.phone) addGuardianMutation.mutate(guardianForm); }}
-                      disabled={!guardianForm.name || !guardianForm.phone || addGuardianMutation.isPending}
+                      onClick={() => { if (validateGuardianForm()) addGuardianMutation.mutate(guardianForm); }}
+                      disabled={addGuardianMutation.isPending}
                       className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50"
                     >
                       Add Guardian

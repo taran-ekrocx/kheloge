@@ -69,6 +69,8 @@ function FeePlanModal({
     batchId: existing?.batchId ?? '',
   });
 
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+
   const { data: batches = [] } = useQuery({
     queryKey: ['batches', venueId],
     queryFn: () => api.get(`/venues/${venueId}/batches`).then((r) => r.data),
@@ -95,17 +97,25 @@ function FeePlanModal({
         <form
           onSubmit={(e) => {
             e.preventDefault();
+            const errs: Record<string, string> = {};
+            if (!form.name.trim()) errs.name = 'Plan name is required';
+            if (!form.amount || Number(form.amount) <= 0) errs.amount = 'Amount must be greater than 0';
+            setFormErrors(errs);
+            if (Object.keys(errs).length > 0) return;
             mutation.mutate(form);
           }}
           className="space-y-3"
         >
-          <input
-            required
-            placeholder="Plan name *"
-            value={form.name}
-            onChange={(e) => f('name', e.target.value)}
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <div>
+            <input
+              required
+              placeholder="Plan name *"
+              value={form.name}
+              onChange={(e) => { f('name', e.target.value); setFormErrors(p => ({ ...p, name: '' })); }}
+              className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${formErrors.name ? 'border-red-400' : ''}`}
+            />
+            {formErrors.name && <p className="text-red-500 text-xs mt-1">{formErrors.name}</p>}
+          </div>
           <select
             value={form.batchId}
             onChange={(e) => f('batchId', e.target.value)}
@@ -128,9 +138,10 @@ function FeePlanModal({
                 step="0.01"
                 placeholder="0.00"
                 value={form.amount}
-                onChange={(e) => f('amount', e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(e) => { f('amount', e.target.value); setFormErrors(p => ({ ...p, amount: '' })); }}
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${formErrors.amount ? 'border-red-400' : ''}`}
               />
+              {formErrors.amount && <p className="text-red-500 text-xs mt-1">{formErrors.amount}</p>}
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Due Day</label>

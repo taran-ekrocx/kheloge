@@ -93,10 +93,22 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
     return a >= 0 ? a : null;
   }, [form.dob]);
 
+  const isValidPhone = (v: string) => /^[6-9]\d{9}$/.test(v.replace(/[\s\-+]/g, '').replace(/^91/, ''));
+  const isValidEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+
   const validateStep = (step: number): boolean => {
     const next: Record<string, string> = {};
     if (step === 1 && !form.name.trim()) next.name = 'Full name is required';
-    if (step === 2 && !form.guardianPhone.trim()) next.guardianPhone = 'Parent mobile is required';
+    if (step === 2) {
+      if (!form.guardianPhone.trim()) next.guardianPhone = 'Parent mobile is required';
+      else if (!isValidPhone(form.guardianPhone)) next.guardianPhone = 'Enter a valid 10-digit mobile number';
+      if (form.phone && !isValidPhone(form.phone)) next.phone = 'Enter a valid 10-digit mobile number';
+      if (form.guardianEmail && !isValidEmail(form.guardianEmail)) next.guardianEmail = 'Enter a valid email address';
+    }
+    if (step === 4) {
+      if (form.hasMedicalCondition === 'yes' && !form.medicalConditionDetails.trim()) next.medicalConditionDetails = 'Please describe the medical condition';
+      if (form.emergencyContactPhone && !isValidPhone(form.emergencyContactPhone)) next.emergencyContactPhone = 'Enter a valid 10-digit mobile number';
+    }
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -203,7 +215,10 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
               {currentStep === 2 && (
                 <>
                   <input placeholder="Address" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className={f} />
-                  <input placeholder="Student Mobile (Optional)" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className={f} />
+                  <div>
+                    <input placeholder="Student Mobile (Optional)" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className={`${f} ${errors.phone ? 'border-red-400' : ''}`} />
+                    {errors.phone && <p className={err}>{errors.phone}</p>}
+                  </div>
                   <div className="border-t pt-3">
                     <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Parent / Guardian</p>
                     <div className="space-y-3">
@@ -212,7 +227,10 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
                         <input placeholder="Parent Mobile *" value={form.guardianPhone} onChange={(e) => setForm({ ...form, guardianPhone: e.target.value })} className={`${f} ${errors.guardianPhone ? 'border-red-400' : ''}`} />
                         {errors.guardianPhone && <p className={err}>{errors.guardianPhone}</p>}
                       </div>
-                      <input type="email" placeholder="Parent Email ID" value={form.guardianEmail} onChange={(e) => setForm({ ...form, guardianEmail: e.target.value })} className={f} />
+                      <div>
+                        <input type="email" placeholder="Parent Email ID" value={form.guardianEmail} onChange={(e) => setForm({ ...form, guardianEmail: e.target.value })} className={`${f} ${errors.guardianEmail ? 'border-red-400' : ''}`} />
+                        {errors.guardianEmail && <p className={err}>{errors.guardianEmail}</p>}
+                      </div>
                     </div>
                   </div>
                 </>
@@ -272,13 +290,19 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
                     </div>
                   </div>
                   {form.hasMedicalCondition === 'yes' && (
-                    <textarea placeholder="Please specify the medical condition..." value={form.medicalConditionDetails} onChange={(e) => setForm({ ...form, medicalConditionDetails: e.target.value })} className={`${f} resize-none`} rows={3} />
+                    <div>
+                      <textarea placeholder="Please specify the medical condition..." value={form.medicalConditionDetails} onChange={(e) => setForm({ ...form, medicalConditionDetails: e.target.value })} className={`${f} resize-none ${errors.medicalConditionDetails ? 'border-red-400' : ''}`} rows={3} />
+                      {errors.medicalConditionDetails && <p className={err}>{errors.medicalConditionDetails}</p>}
+                    </div>
                   )}
                   <div className="border-t pt-3">
                     <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Emergency Contact</p>
                     <div className="space-y-3">
                       <input placeholder="Emergency Contact Person" value={form.emergencyContactName} onChange={(e) => setForm({ ...form, emergencyContactName: e.target.value })} className={f} />
-                      <input placeholder="Emergency Contact Number" value={form.emergencyContactPhone} onChange={(e) => setForm({ ...form, emergencyContactPhone: e.target.value })} className={f} />
+                      <div>
+                        <input placeholder="Emergency Contact Number" value={form.emergencyContactPhone} onChange={(e) => setForm({ ...form, emergencyContactPhone: e.target.value })} className={`${f} ${errors.emergencyContactPhone ? 'border-red-400' : ''}`} />
+                        {errors.emergencyContactPhone && <p className={err}>{errors.emergencyContactPhone}</p>}
+                      </div>
                     </div>
                   </div>
                 </>
@@ -300,7 +324,7 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
               Next
             </button>
           ) : (
-            <button type="button" onClick={() => mutation.mutate()} disabled={mutation.isPending} className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+            <button type="button" onClick={() => { if (validateStep(4)) mutation.mutate(); }} disabled={mutation.isPending} className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
               {mutation.isPending ? 'Submitting...' : 'Submit'}
             </button>
           )}
