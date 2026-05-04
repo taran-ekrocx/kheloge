@@ -119,6 +119,7 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
         phone: form.phone || undefined,
         address: form.address || undefined,
         sportInterest: form.previousExperience || undefined,
+        trainingLevel: form.trainingLevel || undefined,
         medicalNotes: form.hasMedicalCondition === 'yes' ? (form.medicalConditionDetails || 'Yes') : undefined,
         batchIds: form.batchId ? [form.batchId] : [],
         guardians: guardians.length > 0 ? guardians : undefined,

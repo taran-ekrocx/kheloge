@@ -301,36 +301,20 @@ export default function StudentDetailPage() {
                   <p className="text-xs text-gray-400">Enrolled At</p>
                   <p className="font-medium">{student.enrolledAt ? dayjs(student.enrolledAt).format('DD MMM YYYY') : '—'}</p>
                 </div>
-                {student.address && (
-                  <div className="col-span-2">
-                    <p className="text-xs text-gray-400">Address</p>
-                    <p className="font-medium">{student.address}</p>
-                  </div>
-                )}
-                {(student.city || student.state) && (
-                  <>
-                    <div><p className="text-xs text-gray-400">City</p><p className="font-medium">{student.city || '—'}</p></div>
-                    <div><p className="text-xs text-gray-400">State</p><p className="font-medium">{student.state || '—'}</p></div>
-                  </>
-                )}
-                {(student.district || student.region) && (
-                  <>
-                    <div><p className="text-xs text-gray-400">District</p><p className="font-medium">{student.district || '—'}</p></div>
-                    <div><p className="text-xs text-gray-400">Region</p><p className="font-medium">{student.region || '—'}</p></div>
-                  </>
-                )}
-                {(student.sportInterest || student.trainingLevel) && (
-                  <>
-                    <div><p className="text-xs text-gray-400">Sport Applied For</p><p className="font-medium">{student.sportInterest || '—'}</p></div>
-                    <div><p className="text-xs text-gray-400">Training Level</p><p className="font-medium">{student.trainingLevel || '—'}</p></div>
-                  </>
-                )}
-                {student.medicalNotes && (
-                  <div className="col-span-2">
-                    <p className="text-xs text-gray-400">Medical Notes</p>
-                    <p className="font-medium">{student.medicalNotes}</p>
-                  </div>
-                )}
+                <div className="col-span-2">
+                  <p className="text-xs text-gray-400">Address</p>
+                  <p className="font-medium">{student.address || '—'}</p>
+                </div>
+                <div><p className="text-xs text-gray-400">City</p><p className="font-medium">{student.city || '—'}</p></div>
+                <div><p className="text-xs text-gray-400">State</p><p className="font-medium">{student.state || '—'}</p></div>
+                <div><p className="text-xs text-gray-400">District</p><p className="font-medium">{student.district || '—'}</p></div>
+                <div><p className="text-xs text-gray-400">Region</p><p className="font-medium">{student.region || '—'}</p></div>
+                <div><p className="text-xs text-gray-400">Sport Interest</p><p className="font-medium">{student.sportInterest || '—'}</p></div>
+                <div><p className="text-xs text-gray-400">Training Level</p><p className="font-medium">{student.trainingLevel || '—'}</p></div>
+                <div className="col-span-2">
+                  <p className="text-xs text-gray-400">Medical Notes</p>
+                  <p className="font-medium">{student.medicalNotes || '—'}</p>
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3">
