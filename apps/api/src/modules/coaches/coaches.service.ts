@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import type { CreateStudentDto } from '../students/students.service';
 import { IsString, IsOptional, IsBoolean, IsEmail, IsIn, IsArray, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -603,6 +604,23 @@ export class CoachesService {
         batch: { select: { id: true, name: true } },
         coach: { select: { id: true, name: true } },
       },
+    });
+  }
+
+  async updateCoachStudent(coachUserId: string, studentId: string, dto: Partial<CreateStudentDto>) {
+    const coachBatches = await this.prisma.batchCoach.findMany({
+      where: { coachId: coachUserId },
+      select: { batchId: true },
+    });
+    const batchIds = coachBatches.map((bc) => bc.batchId);
+    const enrolled = await this.prisma.enrollment.findFirst({
+      where: { studentId, batchId: { in: batchIds }, isActive: true },
+    });
+    if (!enrolled) throw new NotFoundException('Student not found in your batches');
+    const { guardians, dob, cityId, batchIds: _batchIds, ...rest } = dto as any;
+    return this.prisma.student.update({
+      where: { id: studentId },
+      data: { ...rest, ...(dob ? { dob: new Date(dob) } : {}) },
     });
   }
 

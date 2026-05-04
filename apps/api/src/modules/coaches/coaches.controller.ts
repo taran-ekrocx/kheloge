@@ -7,6 +7,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CoachesService, AssignCoachDto, CreateCoachDto, UpdateCoachDto } from './coaches.service';
 import { StudentsService, CreateStudentDto } from '../students/students.service';
 
+
 @ApiTags('coaches')
 @ApiBearerAuth()
 @UseGuards(AuthGuard('jwt'), RolesGuard)
@@ -33,6 +34,12 @@ export class CoachesController {
   @Roles(UserRole.COACH)
   addStudent(@Request() req, @Body() dto: CreateStudentDto) {
     return this.students.create(undefined, req.user.orgId, dto);
+  }
+
+  @Patch('me/students/:id')
+  @Roles(UserRole.COACH)
+  updateStudent(@Request() req, @Param('id') studentId: string, @Body() dto: Partial<CreateStudentDto>) {
+    return this.coaches.updateCoachStudent(req.user.id, studentId, dto);
   }
 
   @Get('me/students')
