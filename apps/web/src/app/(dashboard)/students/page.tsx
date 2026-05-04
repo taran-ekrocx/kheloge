@@ -372,7 +372,9 @@ export default function StudentsPage() {
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       isSuperAdmin
         ? api.patch(`/students/${id}`, { status })
-        : api.patch(`/venues/${venueId}/students/${id}`, { status }),
+        : isCoach
+          ? api.patch(`/coaches/me/students/${id}`, { status })
+          : api.patch(`/venues/${venueId}/students/${id}`, { status }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students', venueId] });
       queryClient.invalidateQueries({ queryKey: ['students-global'] });
@@ -578,7 +580,7 @@ export default function StudentsPage() {
                       {batchNames || '—'}
                     </td>
                     <td className="px-4 py-3">
-                      {!isCoach && (s.status === 'ACTIVE' || s.status === 'INACTIVE') ? (
+                      {(s.status === 'ACTIVE' || s.status === 'INACTIVE') ? (
                         <button
                           onClick={() => statusMutation.mutate({ id: s.id, status: s.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' })}
                           title={s.status === 'ACTIVE' ? 'Click to deactivate' : 'Click to activate'}

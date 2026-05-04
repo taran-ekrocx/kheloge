@@ -641,6 +641,14 @@ export class CoachesService {
     }));
   }
 
+  async updateCoachBatchStatus(coachUserId: string, batchId: string, isActive: boolean) {
+    const assigned = await this.prisma.batchCoach.findFirst({
+      where: { coachId: coachUserId, batchId },
+    });
+    if (!assigned) throw new NotFoundException('Batch not found in your assignments');
+    return this.prisma.batch.update({ where: { id: batchId }, data: { isActive } });
+  }
+
   async getCoachKpiDashboard(coachId: string) {
     const coachBatches = await this.prisma.batchCoach.findMany({
       where: { coachId },

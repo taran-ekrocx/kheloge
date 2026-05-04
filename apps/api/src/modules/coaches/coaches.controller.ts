@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, Request, Query } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, Request, Query, ParseBoolPipe } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { UserRole, StudentStatus } from '@kheloge/database';
@@ -28,6 +28,12 @@ export class CoachesController {
   @Roles(UserRole.COACH)
   myBatches(@Request() req) {
     return this.coaches.getCoachBatches(req.user.id);
+  }
+
+  @Patch('me/batches/:id')
+  @Roles(UserRole.COACH)
+  updateMyBatch(@Request() req, @Param('id') batchId: string, @Body('isActive', ParseBoolPipe) isActive: boolean) {
+    return this.coaches.updateCoachBatchStatus(req.user.id, batchId, isActive);
   }
 
   @Post('me/students')

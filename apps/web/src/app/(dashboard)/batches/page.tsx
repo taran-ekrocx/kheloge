@@ -365,7 +365,9 @@ export default function BatchesPage() {
 
   const batchStatusMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
-      api.patch(`/batches/${id}`, { isActive }),
+      isCoach
+        ? api.patch(`/coaches/me/batches/${id}`, { isActive })
+        : api.patch(`/batches/${id}`, { isActive }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['batches', venueId] });
       queryClient.invalidateQueries({ queryKey: ['batches-sa', saVenueFilter] });
@@ -481,7 +483,10 @@ export default function BatchesPage() {
                 )}
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Schedule</th>
                 {isCoach ? (
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Attendees</th>
+                  <>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Attendees</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
+                  </>
                 ) : (
                   <>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Capacity</th>
@@ -514,7 +519,18 @@ export default function BatchesPage() {
                     <div className="text-xs text-gray-400">{b.days?.map(d => DAY_SHORT[d] || d).join(', ')}</div>
                   </td>
                   {isCoach ? (
-                    <td className="px-4 py-3 text-gray-600">{b._count?.enrollments || 0}</td>
+                    <>
+                      <td className="px-4 py-3 text-gray-600">{b._count?.enrollments || 0}</td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => batchStatusMutation.mutate({ id: b.id, isActive: b.status !== 'ACTIVE' })}
+                          title={b.status === 'ACTIVE' ? 'Click to deactivate' : 'Click to activate'}
+                          className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${b.status === 'ACTIVE' ? 'bg-green-500' : 'bg-gray-300'}`}
+                        >
+                          <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ${b.status === 'ACTIVE' ? 'translate-x-4' : 'translate-x-0'}`} />
+                        </button>
+                      </td>
+                    </>
                   ) : (
                     <>
                       <td className="px-4 py-3 text-gray-600">{b._count?.enrollments || 0}/{b.capacity}</td>
