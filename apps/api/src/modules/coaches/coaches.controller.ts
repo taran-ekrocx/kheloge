@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, Request, Query, ParseBoolPipe } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, Request, Query, ParseBoolPipe, BadRequestException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { UserRole, StudentStatus } from '@kheloge/database';
@@ -77,6 +77,25 @@ export class CoachesController {
   @Roles(UserRole.COACH)
   unenrollStudent(@Request() req, @Param('id') studentId: string, @Param('batchId') batchId: string) {
     return this.coaches.unenrollCoachStudent(req.user.id, studentId, batchId);
+  }
+
+  @Get('me/payments')
+  @Roles(UserRole.COACH)
+  myPayments(@Request() req, @Query('month') month?: string) {
+    const m = month ?? new Date().toISOString().slice(0, 7);
+    return this.coaches.getCoachPaymentSummary(req.user.id, m);
+  }
+
+  @Post('me/payments/mark-paid')
+  @Roles(UserRole.COACH)
+  markStudentPaid(
+    @Request() req,
+    @Body('studentId') studentId: string,
+    @Body('invoiceId') invoiceId?: string,
+    @Body('amount') amount?: number,
+  ) {
+    if (!studentId) throw new BadRequestException('studentId is required');
+    return this.coaches.markCoachStudentPaid(req.user.id, studentId, invoiceId, amount);
   }
 
   @Get('me/students')

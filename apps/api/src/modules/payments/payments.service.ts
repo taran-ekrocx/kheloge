@@ -485,4 +485,79 @@ export class PaymentsService {
       take: 200,
     });
   }
+
+  async getBatchMonthlyPayments(orgId: string, month: string) {
+    const [year, mon] = month.split('-').map(Number);
+    const monthStart = new Date(year, mon - 1, 1);
+    const monthEnd = new Date(year, mon, 1);
+
+    const batches = await this.prisma.batch.findMany({
+      where: { venue: { organizationId: orgId }, isActive: true },
+      include: {
+        sport: { select: { id: true, name: true } },
+        venue: { select: { id: true, name: true } },
+        feePlans: { where: { isActive: true }, orderBy: { createdAt: 'desc' }, take: 1 },
+        enrollments: {
+          where: { isActive: true },
+          include: { student: { select: { id: true, name: true, phone: true } } },
+        },
+      },
+    });
+
+    const feePlanIds = batches.flatMap((b) => b.feePlans.map((fp) => fp.id));
+    const studentIds = batches.flatMap((b) => b.enrollments.map((e) => e.student.id));
+
+    const invoices = feePlanIds.length > 0 ? await this.prisma.invoice.findMany({
+      where: {
+        studentId: { in: studentIds },
+        feePlanId: { in: feePlanIds },
+        dueDate: { gte: monthStart, lt: monthEnd },
+      },
+      select: { id: true, studentId: true, feePlanId: true, amount: true, status: true },
+    }) : [];
+
+    const invoiceMap = new Map(invoices.map((inv) => [`${inv.studentId}:${inv.feePlanId}`, inv]));
+
+    const batchResults = batches.map((batch) => {
+      const feePlan = batch.feePlans[0];
+      const defaultAmount = feePlan ? Number(feePlan.amount) : 0;
+
+      const students = batch.enrollments.map((enrollment) => {
+        const student = enrollment.student;
+        const invoice = feePlan ? invoiceMap.get(`${student.id}:${feePlan.id}`) : undefined;
+        return {
+          id: student.id,
+          name: student.name,
+          phone: student.phone,
+          invoiceId: invoice?.id ?? null,
+          status: invoice?.status ?? 'PENDING',
+          amount: invoice ? Number(invoice.amount) : defaultAmount,
+        };
+      });
+
+      const collected = students.filter((s) => s.status === 'PAID').reduce((sum, s) => sum + s.amount, 0);
+      const pending = students.filter((s) => s.status !== 'PAID').reduce((sum, s) => sum + s.amount, 0);
+
+      return {
+        id: batch.id,
+        name: batch.name,
+        sport: batch.sport,
+        venue: batch.venue,
+        students,
+        summary: {
+          collected,
+          pending,
+          paidCount: students.filter((s) => s.status === 'PAID').length,
+          pendingCount: students.filter((s) => s.status !== 'PAID').length,
+        },
+      };
+    });
+
+    const totalCollected = batchResults.reduce((sum, b) => sum + b.summary.collected, 0);
+    const totalPending = batchResults.reduce((sum, b) => sum + b.summary.pending, 0);
+    const paidStudents = batchResults.reduce((sum, b) => sum + b.summary.paidCount, 0);
+    const pendingStudents = batchResults.reduce((sum, b) => sum + b.summary.pendingCount, 0);
+
+    return { summary: { totalCollected, totalPending, paidStudents, pendingStudents }, batches: batchResults };
+  }
 }

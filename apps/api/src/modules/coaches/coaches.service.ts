@@ -724,6 +724,113 @@ export class CoachesService {
     }
   }
 
+  async getCoachPaymentSummary(coachId: string, month: string) {
+    const [year, mon] = month.split('-').map(Number);
+    const monthStart = new Date(year, mon - 1, 1);
+    const monthEnd = new Date(year, mon, 1);
+
+    const batchCoaches = await this.prisma.batchCoach.findMany({
+      where: { coachId },
+      include: {
+        batch: {
+          include: {
+            sport: { select: { id: true, name: true } },
+            venue: { select: { id: true, name: true } },
+            feePlans: { where: { isActive: true }, orderBy: { createdAt: 'desc' }, take: 1 },
+            enrollments: {
+              where: { isActive: true },
+              include: { student: { select: { id: true, name: true, phone: true } } },
+            },
+          },
+        },
+      },
+    });
+
+    const feePlanIds = batchCoaches.flatMap((bc) => bc.batch.feePlans.map((fp) => fp.id));
+    const studentIds = batchCoaches.flatMap((bc) => bc.batch.enrollments.map((e) => e.student.id));
+
+    const invoices = feePlanIds.length > 0 ? await this.prisma.invoice.findMany({
+      where: {
+        studentId: { in: studentIds },
+        feePlanId: { in: feePlanIds },
+        dueDate: { gte: monthStart, lt: monthEnd },
+      },
+      select: { id: true, studentId: true, feePlanId: true, amount: true, status: true },
+    }) : [];
+
+    const invoiceMap = new Map(invoices.map((inv) => [`${inv.studentId}:${inv.feePlanId}`, inv]));
+
+    const batches = batchCoaches.map((bc) => {
+      const batch = bc.batch;
+      const feePlan = batch.feePlans[0];
+      const defaultAmount = feePlan ? Number(feePlan.amount) : 0;
+
+      const students = batch.enrollments.map((enrollment) => {
+        const student = enrollment.student;
+        const invoice = feePlan ? invoiceMap.get(`${student.id}:${feePlan.id}`) : undefined;
+        return {
+          id: student.id,
+          name: student.name,
+          phone: student.phone,
+          invoiceId: invoice?.id ?? null,
+          status: invoice?.status ?? 'PENDING',
+          amount: invoice ? Number(invoice.amount) : defaultAmount,
+        };
+      });
+
+      const collected = students.filter((s) => s.status === 'PAID').reduce((sum, s) => sum + s.amount, 0);
+      const pending = students.filter((s) => s.status !== 'PAID').reduce((sum, s) => sum + s.amount, 0);
+
+      return {
+        id: batch.id,
+        name: batch.name,
+        sport: batch.sport,
+        venue: batch.venue,
+        feePlanId: feePlan?.id ?? null,
+        students,
+        summary: {
+          collected,
+          pending,
+          paidCount: students.filter((s) => s.status === 'PAID').length,
+          pendingCount: students.filter((s) => s.status !== 'PAID').length,
+        },
+      };
+    });
+
+    const totalCollected = batches.reduce((sum, b) => sum + b.summary.collected, 0);
+    const totalPending = batches.reduce((sum, b) => sum + b.summary.pending, 0);
+    const paidStudents = batches.reduce((sum, b) => sum + b.summary.paidCount, 0);
+    const pendingStudents = batches.reduce((sum, b) => sum + b.summary.pendingCount, 0);
+
+    return { summary: { totalCollected, totalPending, paidStudents, pendingStudents }, batches };
+  }
+
+  async markCoachStudentPaid(coachId: string, studentId: string, invoiceId?: string, amount?: number) {
+    const enrollment = await this.prisma.enrollment.findFirst({
+      where: { studentId, batch: { coaches: { some: { coachId } } }, isActive: true },
+    });
+    if (!enrollment) throw new NotFoundException('Student not found in your batches');
+
+    const receiptNumber = `RCP-${Date.now()}`;
+    const payment = await this.prisma.payment.create({
+      data: {
+        studentId,
+        invoiceId: invoiceId ?? undefined,
+        amount: amount ?? 0,
+        mode: 'CASH' as any,
+        receiptNumber,
+        paidAt: new Date(),
+        status: 'PAID' as any,
+      },
+    });
+
+    if (invoiceId) {
+      await this.prisma.invoice.update({ where: { id: invoiceId }, data: { status: 'PAID' as any } });
+    }
+
+    return payment;
+  }
+
   async getCoachKpiDashboard(coachId: string) {
     const coachBatches = await this.prisma.batchCoach.findMany({
       where: { coachId },

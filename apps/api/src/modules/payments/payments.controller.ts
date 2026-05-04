@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Param, Body, UseGuards, Res, RawBodyRequest, Req, Headers, Request } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Query, Body, UseGuards, Res, RawBodyRequest, Req, Headers, Request } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { FastifyReply, FastifyRequest } from 'fastify';
@@ -42,6 +42,13 @@ export class PaymentsController {
   @Roles(UserRole.SUPER_ADMIN)
   getOrgInvoices(@Request() req) {
     return this.payments.getOrgInvoices(req.user.orgId);
+  }
+
+  @Get('batch-monthly')
+  @Roles(UserRole.SUPER_ADMIN)
+  getBatchMonthly(@Request() req, @Query('month') month?: string) {
+    const m = month ?? new Date().toISOString().slice(0, 7);
+    return this.payments.getBatchMonthlyPayments(req.user.orgId, m);
   }
 
   @Get('dashboard/:venueId')
