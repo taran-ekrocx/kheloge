@@ -670,7 +670,7 @@ export class CoachesService {
           include: {
             sport: { select: { id: true, name: true } },
             venue: { select: { id: true, name: true } },
-            _count: { select: { enrollments: true } },
+            _count: { select: { enrollments: { where: { isActive: true } } } },
           },
         },
       },
