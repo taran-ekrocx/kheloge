@@ -15,7 +15,7 @@ const DAY_SHORT: Record<string, string> = {
 };
 
 interface Sport { id: string; name: string; }
-interface Coach { id: string; userId?: string; name: string; phone?: string; }
+interface Coach { id: string; userId?: string; name: string; phone?: string; sports?: { id: string; name: string }[]; }
 interface Batch {
   id: string;
   name: string;
@@ -151,6 +151,11 @@ function BatchModal({
   } : DEFAULT_FORM);
   const [dateError, setDateError] = useState('');
 
+  const filteredCoaches = useMemo(() => {
+    if (!form.sportId) return coaches;
+    return coaches.filter(c => c.sports?.some(s => s.id === form.sportId));
+  }, [coaches, form.sportId]);
+
   const mutation = useMutation({
     mutationFn: (data: typeof form) => {
       const payload = {
@@ -203,7 +208,15 @@ function BatchModal({
             className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <select
-            required value={form.sportId} onChange={(e) => setForm({ ...form, sportId: e.target.value })}
+            required value={form.sportId} onChange={(e) => {
+              const newSportId = e.target.value;
+              const compatible = new Set(
+                newSportId
+                  ? coaches.filter(c => c.sports?.some(s => s.id === newSportId)).map(c => c.id)
+                  : coaches.map(c => c.id)
+              );
+              setForm(f => ({ ...f, sportId: newSportId, coachIds: f.coachIds.filter(id => compatible.has(id)) }));
+            }}
             className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Select Sport *</option>
@@ -212,7 +225,7 @@ function BatchModal({
           <div>
             <p className="text-xs font-medium text-gray-600 mb-2">Assign Coaches</p>
             <CoachMultiSelect
-              coaches={coaches}
+              coaches={filteredCoaches}
               selected={form.coachIds}
               onChange={(ids) => setForm(f => ({ ...f, coachIds: ids }))}
             />
