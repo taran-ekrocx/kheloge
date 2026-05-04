@@ -833,19 +833,13 @@ export default function CoachesPage() {
                     <td className="px-4 py-3 text-gray-600">{c.phone}</td>
                     <td className="px-4 py-3 text-gray-600">{batchCount} batch{batchCount !== 1 ? 'es' : ''}</td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[c.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                          {c.status === 'ACTIVE' ? 'Active' : 'Inactive'}
-                        </span>
-                        {c.status === 'INACTIVE' && (
-                          <button
-                            onClick={() => statusMutation.mutate({ id: c.id, status: 'ACTIVE' })}
-                            className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                          >
-                            Activate
-                          </button>
-                        )}
-                      </div>
+                      <button
+                        onClick={() => statusMutation.mutate({ id: c.id, status: c.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' })}
+                        title={c.status === 'ACTIVE' ? 'Click to deactivate' : 'Click to activate'}
+                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${c.status === 'ACTIVE' ? 'bg-green-500' : 'bg-gray-300'}`}
+                      >
+                        <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ${c.status === 'ACTIVE' ? 'translate-x-4' : 'translate-x-0'}`} />
+                      </button>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2 justify-end">

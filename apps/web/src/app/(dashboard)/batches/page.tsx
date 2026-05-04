@@ -363,6 +363,16 @@ export default function BatchesPage() {
     },
   });
 
+  const batchStatusMutation = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      api.patch(`/batches/${id}`, { isActive }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['batches', venueId] });
+      queryClient.invalidateQueries({ queryKey: ['batches-sa', saVenueFilter] });
+      queryClient.invalidateQueries({ queryKey: ['batches-all-coach'] });
+    },
+  });
+
   const coachVenues = useMemo(() => {
     if (!isCoach) return [];
     const map = new Map<string, string>();
@@ -509,9 +519,13 @@ export default function BatchesPage() {
                     <>
                       <td className="px-4 py-3 text-gray-600">{b._count?.enrollments || 0}/{b.capacity}</td>
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[b.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                          {STATUS_LABELS[b.status] ?? b.status ?? 'Active'}
-                        </span>
+                        <button
+                          onClick={() => batchStatusMutation.mutate({ id: b.id, isActive: b.status !== 'ACTIVE' })}
+                          title={b.status === 'ACTIVE' ? 'Click to deactivate' : 'Click to activate'}
+                          className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${b.status === 'ACTIVE' ? 'bg-green-500' : 'bg-gray-300'}`}
+                        >
+                          <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ${b.status === 'ACTIVE' ? 'translate-x-4' : 'translate-x-0'}`} />
+                        </button>
                       </td>
                     </>
                   )}

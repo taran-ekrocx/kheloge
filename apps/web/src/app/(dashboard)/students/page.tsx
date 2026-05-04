@@ -370,8 +370,14 @@ export default function StudentsPage() {
 
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
-      api.patch(`/venues/${venueId}/students/${id}`, { status }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['students', venueId] }),
+      isSuperAdmin
+        ? api.patch(`/students/${id}`, { status })
+        : api.patch(`/venues/${venueId}/students/${id}`, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students', venueId] });
+      queryClient.invalidateQueries({ queryKey: ['students-global'] });
+      queryClient.invalidateQueries({ queryKey: ['coach-students'] });
+    },
   });
 
   const sports = useMemo(() => {
@@ -572,19 +578,19 @@ export default function StudentsPage() {
                       {batchNames || '—'}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
+                      {!isCoach && (s.status === 'ACTIVE' || s.status === 'INACTIVE') ? (
+                        <button
+                          onClick={() => statusMutation.mutate({ id: s.id, status: s.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' })}
+                          title={s.status === 'ACTIVE' ? 'Click to deactivate' : 'Click to activate'}
+                          className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${s.status === 'ACTIVE' ? 'bg-green-500' : 'bg-gray-300'}`}
+                        >
+                          <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ${s.status === 'ACTIVE' ? 'translate-x-4' : 'translate-x-0'}`} />
+                        </button>
+                      ) : (
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[s.status] ?? 'bg-gray-100 text-gray-600'}`}>
                           {STATUS_LABELS[s.status] ?? s.status}
                         </span>
-                        {!isCoach && (s.status === 'INACTIVE' || s.status === 'ON_HOLD') && (
-                          <button
-                            onClick={() => statusMutation.mutate({ id: s.id, status: 'ACTIVE' })}
-                            className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                          >
-                            Activate
-                          </button>
-                        )}
-                      </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <Link href={`/students/${s.id}`}>
