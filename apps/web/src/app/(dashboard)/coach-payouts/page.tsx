@@ -173,7 +173,12 @@ export default function CoachPayoutsPage() {
 
   const { data: coachesList } = useQuery<{ id: string; name: string }[]>({
     queryKey: ['coaches-list'],
-    queryFn: () => api.get('/coaches').then((r) => r.data.map((c: any) => ({ id: c.id, name: c.name }))),
+    queryFn: () => api.get('/coaches').then((r) => {
+      const seen = new Set<string>();
+      return r.data
+        .filter((c: any) => { if (seen.has(c.userId)) return false; seen.add(c.userId); return true; })
+        .map((c: any) => ({ id: c.userId, name: c.name }));
+    }),
     enabled: isSuperAdmin,
   });
 

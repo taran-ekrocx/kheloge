@@ -640,7 +640,7 @@ export class PaymentsService {
     const monthStart = new Date(year, mon - 1, 1);
     const monthEnd = new Date(year, mon, 1);
 
-    const orgUsers = await this.prisma.organizationUser.findMany({
+    const orgUsersRaw = await this.prisma.organizationUser.findMany({
       where: {
         organizationId: orgId,
         role: 'COACH' as any,
@@ -651,6 +651,15 @@ export class PaymentsService {
         user: { select: { id: true, name: true } },
         coachProfile: { select: { paymentType: true, paymentValue: true } },
       },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // A coach can have multiple OrganizationUser rows (one per venue); keep the first per userId
+    const seenUserIds = new Set<string>();
+    const orgUsers = orgUsersRaw.filter((ou) => {
+      if (seenUserIds.has(ou.userId)) return false;
+      seenUserIds.add(ou.userId);
+      return true;
     });
 
     const coaches = await Promise.all(
