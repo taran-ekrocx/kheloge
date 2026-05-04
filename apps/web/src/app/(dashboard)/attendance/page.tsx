@@ -506,6 +506,8 @@ export default function AttendanceIndexPage() {
             <div className="bg-white rounded-xl p-8 text-center text-gray-400 border border-gray-100">
               No attendance data found for this period.
             </div>
+          ) : isCoach ? (
+            <CollapsibleBatchSummary items={monthlySummary} />
           ) : (
             <MonthlySummaryTable items={monthlySummary} showBatch={!monthlyBatchId} />
           )}
@@ -648,6 +650,104 @@ function MonthlySummaryTable({ items, showBatch }: { items: MonthlySummaryItem[]
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+function CollapsibleBatchSummary({ items }: { items: MonthlySummaryItem[] }) {
+  const batches = useMemo(() => {
+    const map = new Map<string, { batchId: string; batchName: string; sportName: string; students: MonthlySummaryItem[] }>();
+    items.forEach(item => {
+      if (!map.has(item.batchId)) {
+        map.set(item.batchId, { batchId: item.batchId, batchName: item.batchName, sportName: item.sportName, students: [] });
+      }
+      map.get(item.batchId)!.students.push(item);
+    });
+    return Array.from(map.values());
+  }, [items]);
+
+  const [expandedBatchIds, setExpandedBatchIds] = useState<Set<string>>(new Set());
+
+  const toggleBatch = (batchId: string) => {
+    setExpandedBatchIds(prev => {
+      const next = new Set(prev);
+      if (next.has(batchId)) next.delete(batchId);
+      else next.add(batchId);
+      return next;
+    });
+  };
+
+  return (
+    <div className="space-y-2">
+      {batches.map(batch => {
+        const isExpanded = expandedBatchIds.has(batch.batchId);
+        const totalStudents = batch.students.length;
+        const avgPct = Math.round(batch.students.reduce((sum, s) => sum + s.percentage, 0) / totalStudents);
+        return (
+          <div key={batch.batchId} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+            <button
+              className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
+              onClick={() => toggleBatch(batch.batchId)}
+            >
+              <div className="flex items-center gap-3">
+                <div className="bg-blue-50 p-2 rounded-lg">
+                  <Users size={16} className="text-blue-600" />
+                </div>
+                <div className="text-left">
+                  <p className="font-semibold text-gray-900 text-sm">{batch.batchName}</p>
+                  {batch.sportName && <p className="text-xs text-gray-500">{batch.sportName}</p>}
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-gray-500">{totalStudents} student{totalStudents !== 1 ? 's' : ''}</span>
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                  avgPct >= 75 ? 'bg-green-100 text-green-700' : avgPct >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
+                }`}>
+                  avg {avgPct}%
+                </span>
+                {isExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+              </div>
+            </button>
+
+            {isExpanded && (
+              <div className="border-t border-gray-100 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-100">
+                      <th className="text-left px-4 py-2.5 font-medium text-gray-600">Student</th>
+                      <th className="text-center px-4 py-2.5 font-medium text-gray-600">Sessions</th>
+                      <th className="text-center px-4 py-2.5 font-medium text-gray-600">Present</th>
+                      <th className="text-center px-4 py-2.5 font-medium text-gray-600">Absent</th>
+                      <th className="text-center px-4 py-2.5 font-medium text-gray-600">Attendance %</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {batch.students.map(student => (
+                      <tr key={student.studentId} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-2.5 font-medium text-gray-900">{student.studentName}</td>
+                        <td className="px-4 py-2.5 text-center text-gray-700">{student.totalSessions}</td>
+                        <td className="px-4 py-2.5 text-center">
+                          <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">{student.present}</span>
+                        </td>
+                        <td className="px-4 py-2.5 text-center">
+                          <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-medium">{student.absent}</span>
+                        </td>
+                        <td className="px-4 py-2.5 text-center">
+                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                            student.percentage >= 75 ? 'bg-green-100 text-green-700' : student.percentage >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
+                          }`}>
+                            {student.percentage}%
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
