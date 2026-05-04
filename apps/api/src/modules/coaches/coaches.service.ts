@@ -196,9 +196,10 @@ const VENUE_COACH_INCLUDE = {
 export class CoachesService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(organizationId: string) {
+  async findAll(organizationId: string, status?: string) {
+    const isActive = status === 'ACTIVE' ? true : status === 'INACTIVE' ? false : undefined;
     const orgUsers = await this.prisma.organizationUser.findMany({
-      where: { organizationId, role: UserRole.COACH },
+      where: { organizationId, role: UserRole.COACH, ...(isActive !== undefined ? { isActive } : {}) },
       include: VENUE_COACH_INCLUDE,
       orderBy: { createdAt: 'desc' },
     });
@@ -269,13 +270,13 @@ export class CoachesService {
     };
   }
 
-  async findByVenue(organizationId: string, venueId: string) {
+  async findByVenue(organizationId: string, venueId: string, status?: string) {
+    const isActive = status === 'ACTIVE' ? true : status === 'INACTIVE' ? false : undefined;
     const orgUsers = await this.prisma.organizationUser.findMany({
-      where: { organizationId, venueId, role: UserRole.COACH },
+      where: { organizationId, venueId, role: UserRole.COACH, ...(isActive !== undefined ? { isActive } : {}) },
       include: VENUE_COACH_INCLUDE,
       orderBy: { createdAt: 'desc' },
     });
-
     return orgUsers.map((ou) => this.mapOrgUser(ou));
   }
 
@@ -624,9 +625,10 @@ export class CoachesService {
     });
   }
 
-  async getCoachBatches(coachUserId: string) {
+  async getCoachBatches(coachUserId: string, status?: string) {
+    const isActive = status === 'active' ? true : undefined;
     const batchCoaches = await this.prisma.batchCoach.findMany({
-      where: { coachId: coachUserId },
+      where: { coachId: coachUserId, ...(isActive !== undefined ? { batch: { isActive } } : {}) },
       include: {
         batch: {
           include: { sport: { select: { id: true, name: true } } },

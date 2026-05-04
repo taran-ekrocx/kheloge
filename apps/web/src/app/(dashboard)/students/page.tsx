@@ -72,9 +72,9 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
   const { data: allBatches = [] } = useQuery<BatchOption[]>({
     queryKey: isCoach ? ['coach-batches'] : isSuperAdmin ? ['batches-global', form.sportId] : ['batches', venueId],
     queryFn: isCoach
-      ? () => api.get('/coaches/me/batches').then((r) => r.data)
+      ? () => api.get('/coaches/me/batches?status=active').then((r) => r.data)
       : isSuperAdmin
-        ? () => api.get('/batches', { params: form.sportId ? { sportId: form.sportId } : {} }).then((r) => r.data)
+        ? () => api.get('/batches', { params: { status: 'active', ...(form.sportId ? { sportId: form.sportId } : {}) } }).then((r) => r.data)
         : () => api.get(`/venues/${venueId}/batches`).then((r) => r.data),
     enabled: isCoach ? true : isSuperAdmin ? true : !!venueId,
   });

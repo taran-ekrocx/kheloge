@@ -160,7 +160,7 @@ export default function AttendanceIndexPage() {
 
   const { data: coaches = [] } = useQuery<Coach[]>({
     queryKey: ['coaches'],
-    queryFn: () => api.get('/coaches').then(r => r.data),
+    queryFn: () => api.get('/coaches?status=ACTIVE').then(r => r.data),
     enabled: isAdmin && tab === 'history',
   });
 

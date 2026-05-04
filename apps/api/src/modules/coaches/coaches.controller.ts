@@ -26,8 +26,8 @@ export class CoachesController {
 
   @Get('me/batches')
   @Roles(UserRole.COACH)
-  myBatches(@Request() req) {
-    return this.coaches.getCoachBatches(req.user.id);
+  myBatches(@Request() req, @Query('status') status?: string) {
+    return this.coaches.getCoachBatches(req.user.id, status);
   }
 
   @Patch('me/batches/:id')
@@ -62,8 +62,8 @@ export class CoachesController {
 
   @Get()
   @Roles(UserRole.SUPER_ADMIN, UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER)
-  findAll(@Request() req) {
-    return this.coaches.findAll(req.user.orgId);
+  findAll(@Request() req, @Query('status') status?: string) {
+    return this.coaches.findAll(req.user.orgId, status);
   }
 
   @Post()

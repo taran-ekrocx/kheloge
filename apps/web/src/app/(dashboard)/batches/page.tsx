@@ -350,8 +350,8 @@ export default function BatchesPage() {
   const { data: coaches = [] } = useQuery<Coach[]>({
     queryKey: isSuperAdmin ? ['coaches-all'] : ['coaches', effectiveVenueId],
     queryFn: isSuperAdmin
-      ? () => api.get('/coaches').then(r => r.data)
-      : () => api.get(`/venues/${effectiveVenueId}/coaches`).then(r => r.data),
+      ? () => api.get('/coaches?status=ACTIVE').then(r => r.data)
+      : () => api.get(`/venues/${effectiveVenueId}/coaches?status=ACTIVE`).then(r => r.data),
     enabled: isSuperAdmin ? true : !!effectiveVenueId,
   });
 

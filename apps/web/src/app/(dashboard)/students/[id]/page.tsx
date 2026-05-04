@@ -73,7 +73,7 @@ export default function StudentDetailPage() {
   const { data: allBatches = [] } = useQuery<{ id: string; name: string; sport: { name: string } }[]>({
     queryKey: isSuperAdmin ? ['batches-global'] : ['batches', venueId],
     queryFn: isSuperAdmin
-      ? () => api.get('/batches').then((r) => r.data)
+      ? () => api.get('/batches?status=active').then((r) => r.data)
       : () => api.get(`/venues/${venueId}/batches`).then((r) => r.data),
     enabled: editingProfile && (isSuperAdmin || !!venueId),
   });

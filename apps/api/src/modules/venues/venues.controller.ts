@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, Request, Query } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { IsString, IsOptional, IsInt, IsArray, IsEnum, IsNumber, IsDateString, Min } from 'class-validator';
@@ -92,8 +92,8 @@ export class VenuesController {
 
   @Get(':venueId/coaches')
   @Roles(UserRole.SUPER_ADMIN, UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER)
-  listCoaches(@Request() req, @Param('venueId') venueId: string) {
-    return this.coaches.findByVenue(req.user.orgId, venueId);
+  listCoaches(@Request() req, @Param('venueId') venueId: string, @Query('status') status?: string) {
+    return this.coaches.findByVenue(req.user.orgId, venueId, status);
   }
 
   @Post(':venueId/coaches')
