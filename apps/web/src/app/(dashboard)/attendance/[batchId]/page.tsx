@@ -122,6 +122,8 @@ export default function AttendancePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['attendance-session', sessionId] });
       queryClient.invalidateQueries({ queryKey: ['attendance-active-session', batchId] });
+      queryClient.invalidateQueries({ queryKey: ['coach-today-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['my-active-session'] });
     },
     onError: () => {
       setErrorMsg('Failed to end session. Please try again.');
