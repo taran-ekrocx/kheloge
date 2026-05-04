@@ -71,11 +71,13 @@ export default function StudentDetailPage() {
     : studentBase;
 
   const { data: allBatches = [] } = useQuery<{ id: string; name: string; sport: { name: string } }[]>({
-    queryKey: isSuperAdmin ? ['batches-global'] : ['batches', venueId],
-    queryFn: isSuperAdmin
-      ? () => api.get('/batches?status=active').then((r) => r.data)
-      : () => api.get(`/venues/${venueId}/batches`).then((r) => r.data),
-    enabled: editingProfile && (isSuperAdmin || !!venueId),
+    queryKey: isCoach ? ['coach-batches'] : isSuperAdmin ? ['batches-global'] : ['batches', venueId],
+    queryFn: isCoach
+      ? () => api.get('/coaches/me/batches?status=active').then((r) => r.data)
+      : isSuperAdmin
+        ? () => api.get('/batches?status=active').then((r) => r.data)
+        : () => api.get(`/venues/${venueId}/batches`).then((r) => r.data),
+    enabled: editingProfile && (isCoach || isSuperAdmin || !!venueId),
   });
 
   const { data: sports = [] } = useQuery<{ id: string; name: string }[]>({
@@ -83,6 +85,8 @@ export default function StudentDetailPage() {
     queryFn: () => api.get('/sports').then((r) => r.data),
     enabled: editingProfile,
   });
+
+  const coachEnrollBase = `/coaches/me/students/${id}`;
 
   const updateMutation = useMutation({
     mutationFn: (data: Record<string, string>) => api.patch(studentPatchBase, data),
@@ -93,12 +97,16 @@ export default function StudentDetailPage() {
   });
 
   const enrollMutation = useMutation({
-    mutationFn: (batchId: string) => api.post(`${studentBase}/enrol`, { batchId }),
+    mutationFn: (batchId: string) => isCoach
+      ? api.post(`${coachEnrollBase}/enrol`, { batchId })
+      : api.post(`${studentBase}/enrol`, { batchId }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['student', id] }),
   });
 
   const unenrollMutation = useMutation({
-    mutationFn: (batchId: string) => api.delete(`${studentBase}/enroll/${batchId}`),
+    mutationFn: (batchId: string) => isCoach
+      ? api.delete(`${coachEnrollBase}/enroll/${batchId}`)
+      : api.delete(`${studentBase}/enroll/${batchId}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['student', id] }),
   });
 
@@ -457,7 +465,7 @@ export default function StudentDetailPage() {
                       <li key={e.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
                         <span className="font-medium text-sm">{e.batch?.name}</span>
                         <span className="text-xs text-gray-400">{e.batch?.sport?.name}</span>
-                        {editingProfile && !isCoach && (
+                        {editingProfile && (
                           <button
                             onClick={() => unenrollMutation.mutate(e.batch?.id ?? e.batchId)}
                             disabled={unenrollMutation.isPending}
@@ -472,7 +480,7 @@ export default function StudentDetailPage() {
               ) : (
                 <p className="text-sm text-gray-400">Not enrolled in any batch.</p>
               )}
-              {editingProfile && !isCoach && allBatches.length > 0 && (() => {
+              {editingProfile && allBatches.length > 0 && (() => {
                 const enrolledBatchIds = new Set(
                   student.enrollments?.filter((e: { isActive: boolean }) => e.isActive).map((e: { batchId: string }) => e.batchId) ?? []
                 );

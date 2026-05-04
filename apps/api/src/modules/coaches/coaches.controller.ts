@@ -48,6 +48,18 @@ export class CoachesController {
     return this.coaches.updateCoachStudent(req.user.id, studentId, dto);
   }
 
+  @Post('me/students/:id/enrol')
+  @Roles(UserRole.COACH)
+  enrollStudent(@Request() req, @Param('id') studentId: string, @Body('batchId') batchId: string) {
+    return this.coaches.enrollCoachStudent(req.user.id, studentId, batchId);
+  }
+
+  @Delete('me/students/:id/enroll/:batchId')
+  @Roles(UserRole.COACH)
+  unenrollStudent(@Request() req, @Param('id') studentId: string, @Param('batchId') batchId: string) {
+    return this.coaches.unenrollCoachStudent(req.user.id, studentId, batchId);
+  }
+
   @Get('me/students')
   @Roles(UserRole.COACH)
   myStudents(

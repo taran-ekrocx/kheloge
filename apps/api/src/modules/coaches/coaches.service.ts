@@ -608,6 +608,28 @@ export class CoachesService {
     });
   }
 
+  async enrollCoachStudent(coachUserId: string, studentId: string, batchId: string) {
+    const assigned = await this.prisma.batchCoach.findFirst({ where: { coachId: coachUserId, batchId } });
+    if (!assigned) throw new NotFoundException('Batch not found in your assignments');
+    const batch = await this.prisma.batch.findUniqueOrThrow({ where: { id: batchId } });
+    const enrollmentCount = await this.prisma.enrollment.count({ where: { batchId, isActive: true } });
+    if (enrollmentCount >= batch.capacity) throw new Error('Batch is at full capacity');
+    return this.prisma.enrollment.upsert({
+      where: { studentId_batchId: { studentId, batchId } },
+      create: { studentId, batchId },
+      update: { isActive: true, leftAt: null },
+    });
+  }
+
+  async unenrollCoachStudent(coachUserId: string, studentId: string, batchId: string) {
+    const assigned = await this.prisma.batchCoach.findFirst({ where: { coachId: coachUserId, batchId } });
+    if (!assigned) throw new NotFoundException('Batch not found in your assignments');
+    return this.prisma.enrollment.update({
+      where: { studentId_batchId: { studentId, batchId } },
+      data: { isActive: false, leftAt: new Date() },
+    });
+  }
+
   async updateCoachStudent(coachUserId: string, studentId: string, dto: Partial<CreateStudentDto>) {
     const coachBatches = await this.prisma.batchCoach.findMany({
       where: { coachId: coachUserId },
