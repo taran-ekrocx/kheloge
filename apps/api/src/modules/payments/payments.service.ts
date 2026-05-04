@@ -486,17 +486,51 @@ export class PaymentsService {
     });
   }
 
-  async getBatchMonthlyPayments(orgId: string, month: string) {
-    const [year, mon] = month.split('-').map(Number);
-    const monthStart = new Date(year, mon - 1, 1);
-    const monthEnd = new Date(year, mon, 1);
+  private getPeriodDateRange(frequency: string, period: string): { start: Date; end: Date } | null {
+    if (frequency === 'ONE_TIME' || !period) return null;
+
+    if (frequency === 'MONTHLY') {
+      const [year, mon] = period.split('-').map(Number);
+      return { start: new Date(year, mon - 1, 1), end: new Date(year, mon, 1) };
+    }
+
+    if (frequency === 'QUARTERLY') {
+      const [yearStr, qStr] = period.split('-');
+      const year = Number(yearStr);
+      const q = Number(qStr.slice(1));
+      return { start: new Date(year, (q - 1) * 3, 1), end: new Date(year, q * 3, 1) };
+    }
+
+    if (frequency === 'HALF_YEARLY') {
+      const [yearStr, hStr] = period.split('-');
+      const year = Number(yearStr);
+      const h = Number(hStr.slice(1));
+      return { start: new Date(year, (h - 1) * 6, 1), end: new Date(year, h * 6, 1) };
+    }
+
+    if (frequency === 'ANNUAL') {
+      const year = Number(period);
+      return { start: new Date(year, 0, 1), end: new Date(year + 1, 0, 1) };
+    }
+
+    return null;
+  }
+
+  async getBatchMonthlyPayments(orgId: string, month: string, frequency?: string, period?: string) {
+    const effectiveFrequency = frequency ?? 'MONTHLY';
+    const effectivePeriod = period ?? month;
+    const dateRange = this.getPeriodDateRange(effectiveFrequency, effectivePeriod);
 
     const batches = await this.prisma.batch.findMany({
       where: { venue: { organizationId: orgId }, isActive: true },
       include: {
         sport: { select: { id: true, name: true } },
         venue: { select: { id: true, name: true } },
-        feePlans: { where: { isActive: true }, orderBy: { createdAt: 'desc' }, take: 1 },
+        feePlans: {
+          where: { isActive: true, frequency: effectiveFrequency as FeeFrequency },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
         enrollments: {
           where: { isActive: true },
           include: { student: { select: { id: true, name: true, phone: true } } },
@@ -504,21 +538,22 @@ export class PaymentsService {
       },
     });
 
-    const feePlanIds = batches.flatMap((b) => b.feePlans.map((fp) => fp.id));
-    const studentIds = batches.flatMap((b) => b.enrollments.map((e) => e.student.id));
+    const filteredBatches = batches.filter((b) => b.feePlans.length > 0);
+    const feePlanIds = filteredBatches.flatMap((b) => b.feePlans.map((fp) => fp.id));
+    const studentIds = filteredBatches.flatMap((b) => b.enrollments.map((e) => e.student.id));
 
     const invoices = feePlanIds.length > 0 ? await this.prisma.invoice.findMany({
       where: {
         studentId: { in: studentIds },
         feePlanId: { in: feePlanIds },
-        dueDate: { gte: monthStart, lt: monthEnd },
+        ...(dateRange ? { dueDate: { gte: dateRange.start, lt: dateRange.end } } : {}),
       },
       select: { id: true, studentId: true, feePlanId: true, amount: true, status: true },
     }) : [];
 
     const invoiceMap = new Map(invoices.map((inv) => [`${inv.studentId}:${inv.feePlanId}`, inv]));
 
-    const batchResults = batches.map((batch) => {
+    const batchResults = filteredBatches.map((batch) => {
       const feePlan = batch.feePlans[0];
       const defaultAmount = feePlan ? Number(feePlan.amount) : 0;
 

@@ -46,9 +46,14 @@ export class PaymentsController {
 
   @Get('batch-monthly')
   @Roles(UserRole.SUPER_ADMIN)
-  getBatchMonthly(@Request() req, @Query('month') month?: string) {
+  getBatchMonthly(
+    @Request() req,
+    @Query('month') month?: string,
+    @Query('frequency') frequency?: string,
+    @Query('period') period?: string,
+  ) {
     const m = month ?? new Date().toISOString().slice(0, 7);
-    return this.payments.getBatchMonthlyPayments(req.user.orgId, m);
+    return this.payments.getBatchMonthlyPayments(req.user.orgId, m, frequency, period);
   }
 
   @Get('dashboard/:venueId')

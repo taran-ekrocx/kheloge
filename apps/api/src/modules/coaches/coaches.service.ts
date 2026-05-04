@@ -724,10 +724,40 @@ export class CoachesService {
     }
   }
 
-  async getCoachPaymentSummary(coachId: string, month: string) {
-    const [year, mon] = month.split('-').map(Number);
-    const monthStart = new Date(year, mon - 1, 1);
-    const monthEnd = new Date(year, mon, 1);
+  private getPeriodDateRange(frequency: string, period: string): { start: Date; end: Date } | null {
+    if (frequency === 'ONE_TIME' || !period) return null;
+
+    if (frequency === 'MONTHLY') {
+      const [year, mon] = period.split('-').map(Number);
+      return { start: new Date(year, mon - 1, 1), end: new Date(year, mon, 1) };
+    }
+
+    if (frequency === 'QUARTERLY') {
+      const [yearStr, qStr] = period.split('-');
+      const year = Number(yearStr);
+      const q = Number(qStr.slice(1));
+      return { start: new Date(year, (q - 1) * 3, 1), end: new Date(year, q * 3, 1) };
+    }
+
+    if (frequency === 'HALF_YEARLY') {
+      const [yearStr, hStr] = period.split('-');
+      const year = Number(yearStr);
+      const h = Number(hStr.slice(1));
+      return { start: new Date(year, (h - 1) * 6, 1), end: new Date(year, h * 6, 1) };
+    }
+
+    if (frequency === 'ANNUAL') {
+      const year = Number(period);
+      return { start: new Date(year, 0, 1), end: new Date(year + 1, 0, 1) };
+    }
+
+    return null;
+  }
+
+  async getCoachPaymentSummary(coachId: string, month: string, frequency?: string, period?: string) {
+    const effectiveFrequency = frequency ?? 'MONTHLY';
+    const effectivePeriod = period ?? month;
+    const dateRange = this.getPeriodDateRange(effectiveFrequency, effectivePeriod);
 
     const batchCoaches = await this.prisma.batchCoach.findMany({
       where: { coachId },
@@ -736,7 +766,11 @@ export class CoachesService {
           include: {
             sport: { select: { id: true, name: true } },
             venue: { select: { id: true, name: true } },
-            feePlans: { where: { isActive: true }, orderBy: { createdAt: 'desc' }, take: 1 },
+            feePlans: {
+              where: { isActive: true, frequency: effectiveFrequency as any },
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+            },
             enrollments: {
               where: { isActive: true },
               include: { student: { select: { id: true, name: true, phone: true } } },
@@ -746,22 +780,23 @@ export class CoachesService {
       },
     });
 
-    const feePlanIds = batchCoaches.flatMap((bc) => bc.batch.feePlans.map((fp) => fp.id));
-    const studentIds = batchCoaches.flatMap((bc) => bc.batch.enrollments.map((e) => e.student.id));
+    const filteredBatchCoaches = batchCoaches.filter((bc) => bc.batch.feePlans.length > 0);
+    const feePlanIds = filteredBatchCoaches.flatMap((bc) => bc.batch.feePlans.map((fp) => fp.id));
+    const studentIds = filteredBatchCoaches.flatMap((bc) => bc.batch.enrollments.map((e) => e.student.id));
 
     const [invoices, payments] = await Promise.all([
       feePlanIds.length > 0 ? this.prisma.invoice.findMany({
         where: {
           studentId: { in: studentIds },
           feePlanId: { in: feePlanIds },
-          dueDate: { gte: monthStart, lt: monthEnd },
+          ...(dateRange ? { dueDate: { gte: dateRange.start, lt: dateRange.end } } : {}),
         },
         select: { id: true, studentId: true, feePlanId: true, amount: true, status: true },
       }) : [],
       studentIds.length > 0 ? this.prisma.payment.findMany({
         where: {
           studentId: { in: studentIds },
-          paidAt: { gte: monthStart, lt: monthEnd },
+          ...(dateRange ? { paidAt: { gte: dateRange.start, lt: dateRange.end } } : {}),
           status: 'PAID' as any,
         },
         select: { id: true, studentId: true, invoiceId: true, amount: true },
@@ -776,7 +811,7 @@ export class CoachesService {
       if (!paymentMap.has(p.studentId)) paymentMap.set(p.studentId, p);
     }
 
-    const batches = batchCoaches.map((bc) => {
+    const batches = filteredBatchCoaches.map((bc) => {
       const batch = bc.batch;
       const feePlan = batch.feePlans[0];
       const defaultAmount = feePlan ? Number(feePlan.amount) : 0;

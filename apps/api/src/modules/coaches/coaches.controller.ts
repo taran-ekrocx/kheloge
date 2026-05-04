@@ -94,9 +94,14 @@ export class CoachesController {
 
   @Get('me/payments')
   @Roles(UserRole.COACH)
-  myPayments(@Request() req, @Query('month') month?: string) {
+  myPayments(
+    @Request() req,
+    @Query('month') month?: string,
+    @Query('frequency') frequency?: string,
+    @Query('period') period?: string,
+  ) {
     const m = month ?? new Date().toISOString().slice(0, 7);
-    return this.coaches.getCoachPaymentSummary(req.user.id, m);
+    return this.coaches.getCoachPaymentSummary(req.user.id, m, frequency, period);
   }
 
   @Post('me/payments/mark-paid')
