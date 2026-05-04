@@ -79,6 +79,19 @@ export class CoachesController {
     return this.coaches.unenrollCoachStudent(req.user.id, studentId, batchId);
   }
 
+  @Get('me/earnings')
+  @Roles(UserRole.COACH)
+  myEarnings(
+    @Request() req,
+    @Query('month') month?: string,
+    @Query('venueId') venueId?: string,
+    @Query('sportId') sportId?: string,
+    @Query('batchId') batchId?: string,
+  ) {
+    const m = month ?? new Date().toISOString().slice(0, 7);
+    return this.coaches.getCoachEarnings(req.user.id, m, { venueId, sportId, batchId });
+  }
+
   @Get('me/payments')
   @Roles(UserRole.COACH)
   myPayments(@Request() req, @Query('month') month?: string) {

@@ -11,7 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import {
   LayoutDashboard, Users, Calendar, CheckSquare,
   CreditCard, MessageSquare, LogOut, Building2,
-  Trophy, MapPin, UsersRound, UserCheck, BarChart2, Receipt, ChevronDown,
+  Trophy, MapPin, UsersRound, UserCheck, BarChart2, Receipt, ChevronDown, TrendingUp,
 } from 'lucide-react';
 
 const NAV_OPERATIONS = [
@@ -22,6 +22,7 @@ const NAV_OPERATIONS = [
   { href: '/attendance', label: 'Attendance', icon: CheckSquare },
   { href: '/fees', label: 'Fees', icon: Receipt, hideForCoach: true },
   { href: '/payments', label: 'Payments', icon: CreditCard },
+  { href: '/earnings', label: 'Earnings', icon: TrendingUp, showOnlyForCoach: true },
   { href: '/enquiries', label: 'Enquiries', icon: MessageSquare, hideForCoach: true },
   { href: '/reports', label: 'Reports', icon: BarChart2, hideForCoach: true },
 ];
@@ -75,7 +76,11 @@ function VenueSelector({ role }: { role: string | null }) {
 
 function NavGroup({ label, items, isCoach }: { label: string; items: typeof NAV_OPERATIONS; isCoach?: boolean }) {
   const pathname = usePathname();
-  const visibleItems = isCoach ? items.filter((item) => !(item as any).hideForCoach) : items;
+  const visibleItems = items.filter((item) => {
+    if ((item as any).hideForCoach && isCoach) return false;
+    if ((item as any).showOnlyForCoach && !isCoach) return false;
+    return true;
+  });
   return (
     <div>
       <p className="px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
