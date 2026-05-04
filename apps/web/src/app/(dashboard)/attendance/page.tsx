@@ -95,11 +95,21 @@ export default function AttendanceIndexPage() {
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
   const [filterCoachId, setFilterCoachId] = useState<string>('');
   const [saVenueFilter, setSaVenueFilter] = useState('');
+  const [filterDate, setFilterDate] = useState('');
+  const [filterVenueId, setFilterVenueId] = useState('');
+  const [filterSportName, setFilterSportName] = useState('');
 
   const { data: venues = [] } = useQuery<{ id: string; name: string }[]>({
     queryKey: ['venues-list'],
     queryFn: () => api.get('/venues').then(r => r.data),
-    enabled: isSuperAdmin,
+    enabled: isSuperAdmin || (isCoach && tab === 'history'),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: sports = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ['sports'],
+    queryFn: () => api.get('/sports').then(r => r.data),
+    enabled: isCoach && tab === 'history',
     staleTime: 5 * 60 * 1000,
   });
 
@@ -139,14 +149,22 @@ export default function AttendanceIndexPage() {
     return ids;
   }, [todaysSessions]);
 
+  const filteredBatches = useMemo(() => {
+    return batches.filter(b => {
+      if (filterVenueId && b.venue?.id !== filterVenueId) return false;
+      if (filterSportName && b.sport?.name !== filterSportName) return false;
+      return true;
+    });
+  }, [batches, filterVenueId, filterSportName]);
+
   const { data: sessionHistory = [] } = useQuery<(SessionHistoryItem & { batch?: { id: string; name: string; sport: { name: string } } })[]>({
     queryKey: historyBatchId
       ? ['session-history', historyBatchId]
-      : ['session-history-all', batches.map(b => b.id).join(',')],
+      : ['session-history-all', filteredBatches.map(b => b.id).join(',')],
     queryFn: historyBatchId
       ? () => api.get(`/attendance/batches/${historyBatchId}/sessions`).then(r => r.data)
       : () => Promise.all(
-          batches.map(b =>
+          filteredBatches.map(b =>
             api.get(`/attendance/batches/${b.id}/sessions`)
               .then((r: any) => (r.data as SessionHistoryItem[]).map(s => ({
                 ...s,
@@ -155,7 +173,7 @@ export default function AttendanceIndexPage() {
               .catch(() => [])
           )
         ).then(results => results.flat().sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())),
-    enabled: tab === 'history' && isCoach && (!!historyBatchId || batches.length > 0),
+    enabled: tab === 'history' && isCoach && (!!historyBatchId || filteredBatches.length > 0),
   });
 
   const { data: coaches = [] } = useQuery<Coach[]>({
@@ -318,40 +336,77 @@ export default function AttendanceIndexPage() {
         </>
       )}
 
-      {isCoach && tab === 'history' && (
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Batch</label>
-            <select
-              value={historyBatchId || ''}
-              onChange={e => { setHistoryBatchId(e.target.value || null); setExpandedSession(null); }}
-              className="w-full sm:w-72 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">All Batches</option>
-              {batches.map(b => (
-                <option key={b.id} value={b.id}>
-                  {b.name} · {b.sport?.name}{b.venue?.name ? ` · ${b.venue.name}` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {pastSessions.length === 0 ? (
-            <div className="bg-white rounded-xl p-8 text-center text-gray-400 border border-gray-100">
-              No completed sessions yet{historyBatchId ? ' for this batch' : ''}.
+      {isCoach && tab === 'history' && (() => {
+        const displayedSessions = pastSessions.filter(s =>
+          !filterDate || s.date.startsWith(filterDate)
+        );
+        const batchOptions = filteredBatches;
+        return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
+                <input
+                  type="date"
+                  value={filterDate}
+                  onChange={e => { setFilterDate(e.target.value); setExpandedSession(null); }}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Venue</label>
+                <select
+                  value={filterVenueId}
+                  onChange={e => { setFilterVenueId(e.target.value); setHistoryBatchId(null); setExpandedSession(null); }}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All Venues</option>
+                  {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Batch</label>
+                <select
+                  value={historyBatchId || ''}
+                  onChange={e => { setHistoryBatchId(e.target.value || null); setExpandedSession(null); }}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All Batches</option>
+                  {batchOptions.map(b => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Sport</label>
+                <select
+                  value={filterSportName}
+                  onChange={e => { setFilterSportName(e.target.value); setHistoryBatchId(null); setExpandedSession(null); }}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All Sports</option>
+                  {sports.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                </select>
+              </div>
             </div>
-          ) : (
-            <SessionList
-              sessions={pastSessions}
-              expandedSession={expandedSession}
-              expandedAttendance={expandedAttendance}
-              onToggleSession={(id) => setExpandedSession(expandedSession === id ? null : id)}
-              showBatch={!historyBatchId}
-              hideCoachName
-            />
-          )}
-        </div>
-      )}
+
+            {displayedSessions.length === 0 ? (
+              <div className="bg-white rounded-xl p-8 text-center text-gray-400 border border-gray-100">
+                No completed sessions found.
+              </div>
+            ) : (
+              <SessionList
+                sessions={displayedSessions}
+                expandedSession={expandedSession}
+                expandedAttendance={expandedAttendance}
+                onToggleSession={(id) => setExpandedSession(expandedSession === id ? null : id)}
+                showBatch={!historyBatchId}
+                hideCoachName
+              />
+            )}
+          </div>
+        );
+      })()}
 
       {errorMsg && (
         <div className="fixed bottom-5 right-5 flex items-center gap-2 bg-red-600 text-white px-4 py-3 rounded-lg shadow-lg text-sm font-medium z-50">
