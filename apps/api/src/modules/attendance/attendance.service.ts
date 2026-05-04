@@ -163,12 +163,15 @@ export class AttendanceService {
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
 
-    // Enforce: one active session per batch
+    // Enforce: one session per batch per day (active or already completed)
     const existingBatchSession = await this.prisma.attendanceSession.findFirst({
-      where: { batchId, date: today, endedAt: null },
+      where: { batchId, date: today },
     });
     if (existingBatchSession) {
-      throw new ConflictException(`An active session already exists for this batch (id: ${existingBatchSession.id})`);
+      if (!existingBatchSession.endedAt) {
+        throw new ConflictException(`An active session already exists for this batch (id: ${existingBatchSession.id})`);
+      }
+      throw new ConflictException('A session was already completed for this batch today.');
     }
 
     // Enforce: one active session per coach across all batches
@@ -390,6 +393,15 @@ export class AttendanceService {
       coachName: coachMap[g.coachId] ?? 'Unknown',
       sessionCount: g._count.id,
     }));
+  }
+
+  async getMyTodaySessions(coachId: string, date?: string) {
+    const targetDate = date ? new Date(date) : new Date();
+    targetDate.setUTCHours(0, 0, 0, 0);
+    return this.prisma.attendanceSession.findMany({
+      where: { coachId, date: targetDate },
+      select: { id: true, batchId: true, endedAt: true },
+    });
   }
 
   async getCoachAttendanceHistory(

@@ -98,6 +98,12 @@ export class AttendanceController {
     return this.attendance.getMyActiveSession(req.user.id);
   }
 
+  @Get('sessions/my-today')
+  @Roles(UserRole.COACH)
+  getMyTodaySessions(@Request() req, @Query('date') date?: string) {
+    return this.attendance.getMyTodaySessions(req.user.id, date);
+  }
+
   // Must come before :sessionId route to avoid route conflict
   @Get('coach-attendance')
   @Roles(UserRole.SUPER_ADMIN, UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER, UserRole.COACH)

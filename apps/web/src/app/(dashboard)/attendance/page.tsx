@@ -128,7 +128,7 @@ export default function AttendanceIndexPage() {
 
   const { data: todaysSessions = [] } = useQuery<{ batchId: string; endedAt: string | null }[]>({
     queryKey: ['coach-today-sessions', today],
-    queryFn: () => api.get(`/attendance/sessions?date=${today}`).then(r => r.data),
+    queryFn: () => api.get(`/attendance/sessions/my-today?date=${today}`).then(r => r.data),
     enabled: isCoach,
     refetchInterval: 30000,
   });
