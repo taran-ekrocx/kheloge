@@ -7,40 +7,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { ChevronDown, ChevronRight, CheckCircle, Clock } from 'lucide-react';
 import dayjs from 'dayjs';
 
-type FeeFrequency = 'MONTHLY' | 'QUARTERLY' | 'HALF_YEARLY' | 'ANNUAL' | 'ONE_TIME';
-
-const FREQUENCY_OPTIONS: { value: FeeFrequency; label: string }[] = [
-  { value: 'MONTHLY', label: 'Monthly' },
-  { value: 'QUARTERLY', label: 'Quarterly' },
-  { value: 'HALF_YEARLY', label: 'Half-Yearly' },
-  { value: 'ANNUAL', label: 'Annual' },
-  { value: 'ONE_TIME', label: 'One-Time' },
-];
-
-const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4'];
-const HALVES = ['H1', 'H2'];
-
-function getDefaultPeriod(frequency: FeeFrequency): string {
-  const now = dayjs();
-  switch (frequency) {
-    case 'MONTHLY':
-      return now.format('YYYY-MM');
-    case 'QUARTERLY':
-      return `${now.year()}-Q${Math.ceil((now.month() + 1) / 3)}`;
-    case 'HALF_YEARLY':
-      return `${now.year()}-${now.month() < 6 ? 'H1' : 'H2'}`;
-    case 'ANNUAL':
-      return String(now.year());
-    case 'ONE_TIME':
-      return '';
-  }
-}
-
-function getYearOptions(): number[] {
-  const year = dayjs().year();
-  return [year - 1, year, year + 1];
-}
-
 interface PaymentStudent {
   id: string;
   name: string;
@@ -71,99 +37,6 @@ interface PaymentSummary {
 interface PaymentData {
   summary: PaymentSummary;
   batches: PaymentBatch[];
-}
-
-function PeriodFilter({
-  frequency,
-  period,
-  onChange,
-}: {
-  frequency: FeeFrequency;
-  period: string;
-  onChange: (period: string) => void;
-}) {
-  const years = getYearOptions();
-
-  if (frequency === 'MONTHLY') {
-    return (
-      <>
-        <label className="text-sm text-gray-500">Month</label>
-        <input
-          type="month"
-          value={period}
-          onChange={(e) => onChange(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </>
-    );
-  }
-
-  if (frequency === 'QUARTERLY') {
-    const [yearStr, qStr] = period.split('-');
-    const year = yearStr || String(dayjs().year());
-    const q = qStr || `Q${Math.ceil((dayjs().month() + 1) / 3)}`;
-    return (
-      <>
-        <label className="text-sm text-gray-500">Quarter</label>
-        <select
-          value={year}
-          onChange={(e) => onChange(`${e.target.value}-${q}`)}
-          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          {years.map((y) => <option key={y} value={y}>{y}</option>)}
-        </select>
-        <select
-          value={q}
-          onChange={(e) => onChange(`${year}-${e.target.value}`)}
-          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          {QUARTERS.map((qt) => <option key={qt} value={qt}>{qt}</option>)}
-        </select>
-      </>
-    );
-  }
-
-  if (frequency === 'HALF_YEARLY') {
-    const [yearStr, hStr] = period.split('-');
-    const year = yearStr || String(dayjs().year());
-    const h = hStr || (dayjs().month() < 6 ? 'H1' : 'H2');
-    return (
-      <>
-        <label className="text-sm text-gray-500">Half</label>
-        <select
-          value={year}
-          onChange={(e) => onChange(`${e.target.value}-${h}`)}
-          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          {years.map((y) => <option key={y} value={y}>{y}</option>)}
-        </select>
-        <select
-          value={h}
-          onChange={(e) => onChange(`${year}-${e.target.value}`)}
-          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          {HALVES.map((hv) => <option key={hv} value={hv}>{hv === 'H1' ? 'H1 (Jan–Jun)' : 'H2 (Jul–Dec)'}</option>)}
-        </select>
-      </>
-    );
-  }
-
-  if (frequency === 'ANNUAL') {
-    return (
-      <>
-        <label className="text-sm text-gray-500">Year</label>
-        <select
-          value={period}
-          onChange={(e) => onChange(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          {years.map((y) => <option key={y} value={y}>{y}</option>)}
-        </select>
-      </>
-    );
-  }
-
-  return null;
 }
 
 function BatchSection({
@@ -270,16 +143,10 @@ export default function PaymentsPage() {
   const isSuperAdmin = role === 'SUPER_ADMIN';
   const queryClient = useQueryClient();
 
-  const [frequency, setFrequency] = useState<FeeFrequency>('MONTHLY');
-  const [period, setPeriod] = useState<string>(() => getDefaultPeriod('MONTHLY'));
+  const [period, setPeriod] = useState<string>(dayjs().format('YYYY-MM'));
   const [selectedVenueId, setSelectedVenueId] = useState<string>('');
   const [selectedCoachId, setSelectedCoachId] = useState<string>('');
   const [markingStudentId, setMarkingStudentId] = useState<string | null>(null);
-
-  function handleFrequencyChange(f: FeeFrequency) {
-    setFrequency(f);
-    setPeriod(getDefaultPeriod(f));
-  }
 
   const { data: venuesList } = useQuery<{ id: string; name: string }[]>({
     queryKey: ['venues-list'],
@@ -293,15 +160,14 @@ export default function PaymentsPage() {
     enabled: isSuperAdmin,
   });
 
-  const queryParams = new URLSearchParams({ frequency });
-  if (period) queryParams.set('period', period);
+  const queryParams = new URLSearchParams({ frequency: 'MONTHLY', period });
   if (isSuperAdmin && selectedVenueId) queryParams.set('venueId', selectedVenueId);
   if (isSuperAdmin && selectedCoachId) queryParams.set('coachId', selectedCoachId);
 
   const { data, isLoading } = useQuery<PaymentData>({
     queryKey: isCoach
-      ? ['coach-payments', frequency, period]
-      : ['batch-monthly-payments', frequency, period, selectedVenueId, selectedCoachId],
+      ? ['coach-payments', period]
+      : ['batch-monthly-payments', period, selectedVenueId, selectedCoachId],
     queryFn: () =>
       isCoach
         ? api.get(`/coaches/me/payments?${queryParams}`).then((r) => r.data)
@@ -315,7 +181,7 @@ export default function PaymentsPage() {
     onMutate: ({ studentId }) => setMarkingStudentId(studentId),
     onSettled: () => setMarkingStudentId(null),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['coach-payments', frequency, period] });
+      queryClient.invalidateQueries({ queryKey: ['coach-payments', period] });
     },
   });
 
@@ -371,17 +237,13 @@ export default function PaymentsPage() {
               </select>
             </>
           )}
-          <label className="text-sm text-gray-500">Frequency</label>
-          <select
-            value={frequency}
-            onChange={(e) => handleFrequencyChange(e.target.value as FeeFrequency)}
+          <label className="text-sm text-gray-500">Month</label>
+          <input
+            type="month"
+            value={period}
+            onChange={(e) => setPeriod(e.target.value)}
             className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {FREQUENCY_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-          <PeriodFilter frequency={frequency} period={period} onChange={setPeriod} />
+          />
         </div>
       </div>
 
@@ -417,8 +279,8 @@ export default function PaymentsPage() {
         ) : batches.length === 0 ? (
           <div className="text-center py-10 text-sm text-gray-400">
             {isCoach
-              ? `No batches with ${FREQUENCY_OPTIONS.find((o) => o.value === frequency)?.label} fee plans assigned to you.`
-              : `No active batches with ${FREQUENCY_OPTIONS.find((o) => o.value === frequency)?.label} fee plans found.`}
+              ? 'No batches with monthly fee plans assigned to you.'
+              : 'No active batches with monthly fee plans found.'}
           </div>
         ) : (
           batches.map((batch) => (
