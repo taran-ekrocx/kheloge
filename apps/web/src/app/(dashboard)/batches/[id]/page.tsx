@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { ArrowLeft, Users, Clock, Calendar, User, Trophy, UserPlus } from 'lucide-react';
+import { ArrowLeft, Users, Clock, Calendar, User, Trophy, UserPlus, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
 import dayjs from 'dayjs';
 
@@ -46,6 +46,15 @@ interface Enrollment {
 
 interface FeePlan {
   amount: number | string;
+}
+
+interface PaymentStudentInfo {
+  id: string;
+  status: string;
+}
+
+interface PaymentsResponse {
+  batches: { id: string; students: PaymentStudentInfo[] }[];
 }
 
 interface BatchDetail {
@@ -240,8 +249,11 @@ export default function BatchDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { role } = useAuth();
   const isCoach = role === 'COACH';
+  const isSuperAdmin = role === 'SUPER_ADMIN';
+  const canViewPayments = isCoach || isSuperAdmin;
   const [tab, setTab] = useState<Tab>('overview');
   const [showManageStudents, setShowManageStudents] = useState(false);
+  const [period, setPeriod] = useState(dayjs().format('YYYY-MM'));
 
   const { data: batch, isLoading } = useQuery<BatchDetail>({
     queryKey: ['batch', id],
@@ -249,10 +261,23 @@ export default function BatchDetailPage() {
     enabled: !!id,
   });
 
+  const paymentQueryParams = new URLSearchParams({ frequency: 'MONTHLY', period, batchId: id ?? '' });
+  const { data: paymentData, isLoading: isLoadingPayments } = useQuery<PaymentsResponse>({
+    queryKey: isCoach ? ['coach-payments', period, id] : ['batch-monthly-payments', period, '', '', id],
+    queryFn: () =>
+      isCoach
+        ? api.get(`/coaches/me/payments?${paymentQueryParams}`).then((r) => r.data)
+        : api.get(`/payments/batch-monthly?${paymentQueryParams}`).then((r) => r.data),
+    enabled: canViewPayments && !!id,
+    staleTime: 0,
+  });
+
   if (isLoading) return <div className="p-8 text-gray-400">Loading...</div>;
   if (!batch) return <div className="p-8 text-gray-400">Batch not found.</div>;
 
   const activeEnrollments = batch.enrollments?.filter((e) => e.isActive) ?? [];
+  const paymentBatch = paymentData?.batches?.find((b) => b.id === id) ?? paymentData?.batches?.[0];
+  const paymentStatusMap = new Map((paymentBatch?.students ?? []).map((s) => [s.id, s.status]));
   const status = batch.isActive === false ? 'INACTIVE' : 'ACTIVE';
 
   const tabs = [
@@ -399,17 +424,30 @@ export default function BatchDetailPage() {
         {/* Students tab */}
         {tab === 'students' && (
           <div>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
               <p className="text-sm font-medium text-gray-700">
                 {activeEnrollments.length} student{activeEnrollments.length !== 1 ? 's' : ''} enrolled
               </p>
-              <button
-                onClick={() => setShowManageStudents(true)}
-                className="flex items-center gap-1.5 bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-              >
-                <UserPlus size={14} />
-                Manage Students
-              </button>
+              <div className="flex items-center gap-2">
+                {canViewPayments && (
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-xs text-gray-500">Month</label>
+                    <input
+                      type="month"
+                      value={period}
+                      onChange={(e) => setPeriod(e.target.value)}
+                      className="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                )}
+                <button
+                  onClick={() => setShowManageStudents(true)}
+                  className="flex items-center gap-1.5 bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                >
+                  <UserPlus size={14} />
+                  Manage Students
+                </button>
+              </div>
             </div>
 
             {activeEnrollments.length === 0 ? (
@@ -418,6 +456,8 @@ export default function BatchDetailPage() {
               <div className="space-y-2">
                 {activeEnrollments.map((enrollment) => {
                   const student = enrollment.student;
+                  const paymentStatus = paymentStatusMap.get(student.id);
+                  const isPaid = paymentStatus === 'PAID';
                   return (
                     <Link
                       key={enrollment.id}
@@ -441,13 +481,26 @@ export default function BatchDetailPage() {
                           <p className="text-xs text-gray-400">{student.phone}</p>
                         )}
                       </div>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${
-                        student.status === 'ACTIVE' ? 'bg-green-100 text-green-700' :
-                        student.status === 'TRIAL' ? 'bg-yellow-100 text-yellow-700' :
-                        'bg-gray-100 text-gray-500'
-                      }`}>
-                        {student.status}
-                      </span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {canViewPayments && !isLoadingPayments && paymentStatus && (
+                          isPaid ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+                              <CheckCircle size={11} /> Paid
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-orange-700 bg-orange-50 px-2 py-0.5 rounded-full">
+                              <Clock size={11} /> Pending
+                            </span>
+                          )
+                        )}
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          student.status === 'ACTIVE' ? 'bg-green-100 text-green-700' :
+                          student.status === 'TRIAL' ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-gray-100 text-gray-500'
+                        }`}>
+                          {student.status}
+                        </span>
+                      </div>
                     </Link>
                   );
                 })}
