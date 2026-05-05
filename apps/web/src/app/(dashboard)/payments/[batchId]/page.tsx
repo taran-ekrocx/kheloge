@@ -24,6 +24,7 @@ interface PaymentBatch {
   sport: { id: string; name: string };
   venue?: { id: string; name: string };
   coaches?: { id: string; name: string }[];
+  fee?: number;
   students: PaymentStudent[];
   summary: { collected: number; pending: number; paidCount: number; pendingCount: number };
 }
@@ -114,6 +115,7 @@ function BatchPaymentDetailContent() {
               <p className="text-gray-500 text-sm">
                 {batch.sport.name}{batch.venue ? ` · ${batch.venue.name}` : ''}
                 {batch.coaches && batch.coaches.length > 0 ? ` · ${batch.coaches.map((c) => c.name).join(', ')}` : ''}
+                {batch.fee != null && batch.fee > 0 ? ` · ₹${batch.fee.toLocaleString()}/mo` : ''}
               </p>
             )}
           </div>

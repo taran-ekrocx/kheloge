@@ -15,6 +15,7 @@ interface PaymentBatch {
   sport: { id: string; name: string };
   venue?: { id: string; name: string };
   coaches?: { id: string; name: string }[];
+  fee?: number;
   summary: { collected: number; pending: number; paidCount: number; pendingCount: number };
 }
 
@@ -185,6 +186,11 @@ function PaymentsContent() {
                 </p>
               </div>
               <div className="flex items-center gap-4 text-sm">
+                {batch.fee != null && batch.fee > 0 && (
+                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                    ₹{batch.fee.toLocaleString()}/mo
+                  </span>
+                )}
                 <span className="text-green-600 font-medium">₹{batch.summary.collected.toLocaleString()} collected</span>
                 <span className="text-orange-500 font-medium">₹{batch.summary.pending.toLocaleString()} pending</span>
                 <span className="text-xs text-gray-400">{batch.summary.paidCount} paid · {batch.summary.pendingCount} pending</span>

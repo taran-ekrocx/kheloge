@@ -840,6 +840,7 @@ export class CoachesService {
         sport: batch.sport,
         venue: batch.venue,
         feePlanId: feePlan?.id ?? null,
+        fee: defaultAmount,
         students,
         summary: {
           collected,

@@ -618,6 +618,7 @@ export class PaymentsService {
         sport: batch.sport,
         venue: batch.venue,
         coaches,
+        fee: defaultAmount,
         students,
         summary: {
           collected,
