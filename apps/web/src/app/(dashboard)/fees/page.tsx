@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Edit2, Check, Bell, FileText } from 'lucide-react';
+import { Check, Bell, Layers } from 'lucide-react';
 import dayjs from 'dayjs';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -13,14 +13,19 @@ import dayjs from 'dayjs';
 interface FeePlan {
   id: string;
   name: string;
-  batchId?: string;
-  batchName: string;
-  sportName: string;
   amount: string;
   frequency: string;
   dueDay: number;
   isActive: boolean;
-  activeStudents: number;
+}
+
+interface Batch {
+  id: string;
+  name: string;
+  sport: { id: string; name: string };
+  feePlans: FeePlan[];
+  isActive: boolean;
+  _count: { enrollments: number };
 }
 
 interface Invoice {
@@ -49,246 +54,72 @@ const STATUS_STYLES: Record<string, string> = {
   CANCELLED: 'bg-gray-100 text-gray-500',
 };
 
-// ── Fee Plan Modal ─────────────────────────────────────────────────────────
+// ── Batch Fees Tab ─────────────────────────────────────────────────────────
 
-function FeePlanModal({
-  venueId,
-  existing,
-  onClose,
-}: {
-  venueId: string;
-  existing?: FeePlan | null;
-  onClose: () => void;
-}) {
-  const queryClient = useQueryClient();
-  const [form, setForm] = useState({
-    name: existing?.name ?? '',
-    amount: existing ? String(existing.amount) : '',
-    frequency: existing?.frequency ?? 'MONTHLY',
-    dueDay: existing?.dueDay ?? 1,
-    batchId: existing?.batchId ?? '',
-  });
-
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-
-  const { data: batches = [] } = useQuery({
+function BatchFeesTab({ venueId, isSuperAdmin }: { venueId: string; isSuperAdmin?: boolean }) {
+  const { data: batches = [], isLoading } = useQuery<Batch[]>({
     queryKey: ['batches', venueId],
     queryFn: () => api.get(`/venues/${venueId}/batches`).then((r) => r.data),
     enabled: !!venueId,
   });
 
-  const mutation = useMutation({
-    mutationFn: (data: typeof form) =>
-      existing
-        ? api.patch(`/payments/fee-plans/${existing.id}`, data)
-        : api.post(`/payments/venues/${venueId}/fee-plans`, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['fee-plans', venueId] });
-      onClose();
-    },
-  });
-
-  const f = (field: string, val: string | number) => setForm((p) => ({ ...p, [field]: val }));
-
-  return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-        <h3 className="text-lg font-bold mb-4">{existing ? 'Edit' : 'Create'} Fee Structure</h3>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            const errs: Record<string, string> = {};
-            if (!form.name.trim()) errs.name = 'Plan name is required';
-            if (!form.amount || Number(form.amount) <= 0) errs.amount = 'Amount must be greater than 0';
-            setFormErrors(errs);
-            if (Object.keys(errs).length > 0) return;
-            mutation.mutate(form);
-          }}
-          className="space-y-3"
-        >
-          <div>
-            <input
-              required
-              placeholder="Plan name *"
-              value={form.name}
-              onChange={(e) => { f('name', e.target.value); setFormErrors(p => ({ ...p, name: '' })); }}
-              className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${formErrors.name ? 'border-red-400' : ''}`}
-            />
-            {formErrors.name && <p className="text-red-500 text-xs mt-1">{formErrors.name}</p>}
-          </div>
-          <select
-            value={form.batchId}
-            onChange={(e) => f('batchId', e.target.value)}
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">No specific batch (venue-wide)</option>
-            {batches.map((b: any) => (
-              <option key={b.id} value={b.id}>
-                {b.name} ({b.sport?.name})
-              </option>
-            ))}
-          </select>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Amount (₹) *</label>
-              <input
-                required
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                value={form.amount}
-                onChange={(e) => { f('amount', e.target.value); setFormErrors(p => ({ ...p, amount: '' })); }}
-                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${formErrors.amount ? 'border-red-400' : ''}`}
-              />
-              {formErrors.amount && <p className="text-red-500 text-xs mt-1">{formErrors.amount}</p>}
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Due Day</label>
-              <input
-                type="number"
-                min="1"
-                max="28"
-                value={form.dueDay}
-                onChange={(e) => f('dueDay', Number(e.target.value))}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Frequency</label>
-            <select
-              value={form.frequency}
-              onChange={(e) => f('frequency', e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {Object.entries(FREQ_LABELS).map(([k, v]) => (
-                <option key={k} value={k}>
-                  {v}
-                </option>
-              ))}
-            </select>
-          </div>
-          {mutation.isError && <p className="text-red-500 text-sm">Failed to save fee structure.</p>}
-          <div className="flex gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 border rounded-lg py-2 text-sm font-medium hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={mutation.isPending}
-              className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-            >
-              {mutation.isPending ? 'Saving...' : existing ? 'Save Changes' : 'Create'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// ── Fee Structures Tab ─────────────────────────────────────────────────────
-
-function FeeStructuresTab({ venueId, isSuperAdmin }: { venueId: string; isSuperAdmin?: boolean }) {
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState<FeePlan | null>(null);
-
-  const { data: feePlans = [], isLoading } = useQuery<FeePlan[]>({
-    queryKey: ['fee-plans', venueId],
-    queryFn: () => isSuperAdmin && !venueId
-      ? api.get('/payments/fee-plans').then((r) => r.data)
-      : api.get(`/payments/venues/${venueId}/fee-plans`).then((r) => r.data),
-    enabled: isSuperAdmin ? true : !!venueId,
-  });
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">{feePlans.length} fee structures</p>
-        <button
-          onClick={() => { setEditing(null); setShowModal(true); }}
-          disabled={isSuperAdmin && !venueId}
-          title={isSuperAdmin && !venueId ? 'Select a venue to create a fee structure' : undefined}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Plus size={15} />
-          New Fee Structure
-        </button>
+        <p className="text-sm text-gray-500">{batches.length} batches</p>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        {isLoading ? (
+        {!venueId ? (
+          <div className="p-8 text-center text-gray-400">Select a venue to view batch fees.</div>
+        ) : isLoading ? (
           <div className="p-8 text-center text-gray-400">Loading...</div>
-        ) : feePlans.length === 0 ? (
-          <div className="p-8 text-center text-gray-400">No fee structures yet.</div>
+        ) : batches.length === 0 ? (
+          <div className="p-8 text-center text-gray-400">No batches found.</div>
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                <th className="text-left px-5 py-3 font-medium text-gray-600">Plan Name</th>
-                <th className="text-left px-5 py-3 font-medium text-gray-600">Batch / Sport</th>
-                <th className="text-left px-5 py-3 font-medium text-gray-600">Amount</th>
+                <th className="text-left px-5 py-3 font-medium text-gray-600">Batch</th>
+                <th className="text-left px-5 py-3 font-medium text-gray-600">Sport</th>
+                <th className="text-left px-5 py-3 font-medium text-gray-600">Fee Amount</th>
                 <th className="text-left px-5 py-3 font-medium text-gray-600">Frequency</th>
-                <th className="text-left px-5 py-3 font-medium text-gray-600">Active Students</th>
+                <th className="text-left px-5 py-3 font-medium text-gray-600">Students</th>
                 <th className="text-left px-5 py-3 font-medium text-gray-600">Status</th>
-                <th className="px-5 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {feePlans.map((fp) => (
-                <tr key={fp.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-5 py-3 font-medium text-gray-900">{fp.name}</td>
-                  <td className="px-5 py-3 text-gray-600">
-                    {fp.batchName ? (
-                      <span>
-                        {fp.batchName}{' '}
-                        <span className="text-gray-400 text-xs">({fp.sportName})</span>
+              {batches.map((batch) => {
+                const primaryPlan = batch.feePlans?.[0];
+                return (
+                  <tr key={batch.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-5 py-3 font-medium text-gray-900">{batch.name}</td>
+                    <td className="px-5 py-3 text-gray-600">{batch.sport?.name}</td>
+                    <td className="px-5 py-3 font-medium text-gray-900">
+                      {primaryPlan ? `₹${Number(primaryPlan.amount).toLocaleString()}` : (
+                        <span className="text-gray-400 italic text-xs">No fee set</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3 text-gray-600">
+                      {primaryPlan ? (FREQ_LABELS[primaryPlan.frequency] ?? primaryPlan.frequency) : '—'}
+                    </td>
+                    <td className="px-5 py-3 text-gray-600">{batch._count?.enrollments ?? 0}</td>
+                    <td className="px-5 py-3">
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                          batch.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                        }`}
+                      >
+                        {batch.isActive ? 'Active' : 'Inactive'}
                       </span>
-                    ) : (
-                      <span className="text-gray-400 italic">Venue-wide</span>
-                    )}
-                  </td>
-                  <td className="px-5 py-3 font-medium text-gray-900">
-                    ₹{Number(fp.amount).toLocaleString()}
-                  </td>
-                  <td className="px-5 py-3 text-gray-600">{FREQ_LABELS[fp.frequency] ?? fp.frequency}</td>
-                  <td className="px-5 py-3 text-gray-600">{fp.activeStudents}</td>
-                  <td className="px-5 py-3">
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        fp.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                      }`}
-                    >
-                      {fp.isActive ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3 text-right">
-                    <button
-                      onClick={() => { setEditing(fp); setShowModal(true); }}
-                      className="text-gray-400 hover:text-gray-700"
-                    >
-                      <Edit2 size={15} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
       </div>
-
-      {showModal && (
-        <FeePlanModal
-          venueId={venueId}
-          existing={editing}
-          onClose={() => { setShowModal(false); setEditing(null); }}
-        />
-      )}
     </div>
   );
 }
@@ -402,13 +233,13 @@ function InvoicesTab({ venueId, isSuperAdmin }: { venueId: string; isSuperAdmin?
 
 // ── Page ───────────────────────────────────────────────────────────────────
 
-type Tab = 'structures' | 'invoices';
+type Tab = 'batches' | 'invoices';
 
 export default function FeesPage() {
   const { venueId } = useVenue();
   const { role } = useAuth();
   const isSuperAdmin = role === 'SUPER_ADMIN';
-  const [tab, setTab] = useState<Tab>('structures');
+  const [tab, setTab] = useState<Tab>('batches');
   const [saVenueFilter, setSaVenueFilter] = useState('');
 
   const { data: venues = [] } = useQuery<{ id: string; name: string }[]>({
@@ -433,7 +264,7 @@ export default function FeesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Fee Desk</h2>
-          <p className="text-gray-500 text-sm">Manage fee structures and invoices</p>
+          <p className="text-gray-500 text-sm">View batch fees and manage invoices</p>
         </div>
         {isSuperAdmin && (
           <select
@@ -450,13 +281,13 @@ export default function FeesPage() {
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
         <button
-          onClick={() => setTab('structures')}
+          onClick={() => setTab('batches')}
           className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-            tab === 'structures' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+            tab === 'batches' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
           }`}
         >
-          <FileText size={14} />
-          Fee Structures
+          <Layers size={14} />
+          Batch Fees
         </button>
         <button
           onClick={() => setTab('invoices')}
@@ -469,8 +300,8 @@ export default function FeesPage() {
         </button>
       </div>
 
-      {tab === 'structures' ? (
-        <FeeStructuresTab venueId={effectiveVenueId} isSuperAdmin={isSuperAdmin} />
+      {tab === 'batches' ? (
+        <BatchFeesTab venueId={effectiveVenueId} isSuperAdmin={isSuperAdmin} />
       ) : (
         <InvoicesTab venueId={effectiveVenueId} isSuperAdmin={isSuperAdmin} />
       )}

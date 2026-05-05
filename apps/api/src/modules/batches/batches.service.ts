@@ -69,7 +69,8 @@ export class BatchesService {
             coach: { select: { id: true, name: true, photoUrl: true } },
           },
         },
-        _count: { select: { enrollments: true } },
+        feePlans: { where: { isActive: true } },
+        _count: { select: { enrollments: { where: { isActive: true } } } },
       },
       orderBy: { createdAt: 'desc' },
     });
