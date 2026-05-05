@@ -616,6 +616,7 @@ function MonthlySummaryTable({ items, showBatch, month }: { items: MonthlySummar
             <tr className="border-b border-gray-100 bg-gray-50">
               <th className="text-left px-4 py-3 font-medium text-gray-600">Student</th>
               {showBatch && <th className="text-left px-4 py-3 font-medium text-gray-600">Batch</th>}
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Coach</th>
               <th className="text-center px-4 py-3 font-medium text-gray-600">Total Sessions</th>
               <th className="text-center px-4 py-3 font-medium text-gray-600">Present</th>
               <th className="text-center px-4 py-3 font-medium text-gray-600">Absent</th>
@@ -636,6 +637,7 @@ function MonthlySummaryTable({ items, showBatch, month }: { items: MonthlySummar
                     {item.sportName && <span className="ml-1.5 text-xs text-gray-400">{item.sportName}</span>}
                   </td>
                 )}
+                <td className="px-4 py-3 text-gray-600 text-sm">{item.coachName || '—'}</td>
                 <td className="px-4 py-3 text-center text-gray-700">{item.totalSessions}</td>
                 <td className="px-4 py-3 text-center">
                   <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">{item.present}</span>
@@ -873,7 +875,10 @@ function CoachCollapsibleSummary({ items, month }: { items: MonthlySummaryItem[]
                           </div>
                           <div className="text-left">
                             <p className="font-medium text-gray-800 text-sm">{batch.batchName}</p>
-                            {batch.sportName && <p className="text-xs text-gray-400">{batch.sportName}</p>}
+                            <p className="text-xs text-gray-400">
+                              {batch.sportName && <span>{batch.sportName} · </span>}
+                              <span className="text-indigo-500 font-medium">{coach.coachName}</span>
+                            </p>
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
