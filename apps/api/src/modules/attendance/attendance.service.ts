@@ -461,6 +461,8 @@ export class AttendanceService {
       select: {
         id: true,
         batchId: true,
+        coachId: true,
+        coach: { select: { name: true } },
         batch: { select: { id: true, name: true, sport: { select: { name: true } } } },
       },
     });
@@ -483,6 +485,8 @@ export class AttendanceService {
         batchId: string;
         batchName: string;
         sportName: string;
+        coachId: string;
+        coachName: string;
         totalSessions: number;
         present: number;
         absent: number;
@@ -494,7 +498,7 @@ export class AttendanceService {
       const session = sessionMap.get(a.sessionId);
       if (!session) return;
 
-      const key = `${a.studentId}:${session.batchId}`;
+      const key = `${session.coachId}:${session.batchId}:${a.studentId}`;
       if (!summaryMap.has(key)) {
         summaryMap.set(key, {
           studentId: a.studentId,
@@ -502,6 +506,8 @@ export class AttendanceService {
           batchId: session.batchId,
           batchName: session.batch.name,
           sportName: session.batch.sport?.name ?? '',
+          coachId: session.coachId,
+          coachName: session.coach.name,
           totalSessions: 0,
           present: 0,
           absent: 0,

@@ -79,6 +79,8 @@ interface MonthlySummaryItem {
   batchId: string;
   batchName: string;
   sportName: string;
+  coachId: string;
+  coachName: string;
   totalSessions: number;
   present: number;
   absent: number;
@@ -507,9 +509,11 @@ export default function AttendanceIndexPage() {
               No attendance data found for this period.
             </div>
           ) : isCoach ? (
-            <CollapsibleBatchSummary items={monthlySummary} />
+            <CollapsibleBatchSummary items={monthlySummary} month={monthlyMonth} />
+          ) : isSuperAdmin ? (
+            <CoachCollapsibleSummary items={monthlySummary} month={monthlyMonth} />
           ) : (
-            <MonthlySummaryTable items={monthlySummary} showBatch={!monthlyBatchId} />
+            <MonthlySummaryTable items={monthlySummary} showBatch={!monthlyBatchId} month={monthlyMonth} />
           )}
         </div>
       )}
@@ -602,7 +606,8 @@ export default function AttendanceIndexPage() {
   );
 }
 
-function MonthlySummaryTable({ items, showBatch }: { items: MonthlySummaryItem[]; showBatch?: boolean }) {
+function MonthlySummaryTable({ items, showBatch, month }: { items: MonthlySummaryItem[]; showBatch?: boolean; month: string }) {
+  const router = useRouter();
   return (
     <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
       <div className="overflow-x-auto">
@@ -619,8 +624,12 @@ function MonthlySummaryTable({ items, showBatch }: { items: MonthlySummaryItem[]
           </thead>
           <tbody className="divide-y divide-gray-50">
             {items.map((item) => (
-              <tr key={`${item.studentId}:${item.batchId}`} className="hover:bg-gray-50 transition-colors">
-                <td className="px-4 py-3 font-medium text-gray-900">{item.studentName}</td>
+              <tr
+                key={`${item.coachId}:${item.batchId}:${item.studentId}`}
+                className="hover:bg-gray-50 transition-colors cursor-pointer"
+                onClick={() => router.push(`/attendance/student/${item.studentId}?month=${month}&batchId=${item.batchId}`)}
+              >
+                <td className="px-4 py-3 font-medium text-gray-900 text-blue-700 hover:underline">{item.studentName}</td>
                 {showBatch && (
                   <td className="px-4 py-3 text-gray-600">
                     {item.batchName}
@@ -654,40 +663,43 @@ function MonthlySummaryTable({ items, showBatch }: { items: MonthlySummaryItem[]
   );
 }
 
-function CollapsibleBatchSummary({ items }: { items: MonthlySummaryItem[] }) {
+function CollapsibleBatchSummary({ items, month }: { items: MonthlySummaryItem[]; month: string }) {
+  const router = useRouter();
   const batches = useMemo(() => {
     const map = new Map<string, { batchId: string; batchName: string; sportName: string; students: MonthlySummaryItem[] }>();
     items.forEach(item => {
-      if (!map.has(item.batchId)) {
-        map.set(item.batchId, { batchId: item.batchId, batchName: item.batchName, sportName: item.sportName, students: [] });
+      const key = `${item.coachId}:${item.batchId}`;
+      if (!map.has(key)) {
+        map.set(key, { batchId: item.batchId, batchName: item.batchName, sportName: item.sportName, students: [] });
       }
-      map.get(item.batchId)!.students.push(item);
+      map.get(key)!.students.push(item);
     });
     return Array.from(map.values());
   }, [items]);
 
   const [expandedBatchIds, setExpandedBatchIds] = useState<Set<string>>(new Set());
 
-  const toggleBatch = (batchId: string) => {
+  const toggleBatch = (key: string) => {
     setExpandedBatchIds(prev => {
       const next = new Set(prev);
-      if (next.has(batchId)) next.delete(batchId);
-      else next.add(batchId);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
 
   return (
     <div className="space-y-2">
-      {batches.map(batch => {
-        const isExpanded = expandedBatchIds.has(batch.batchId);
+      {batches.map((batch, idx) => {
+        const key = `${idx}:${batch.batchId}`;
+        const isExpanded = expandedBatchIds.has(key);
         const totalStudents = batch.students.length;
         const avgPct = Math.round(batch.students.reduce((sum, s) => sum + s.percentage, 0) / totalStudents);
         return (
-          <div key={batch.batchId} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+          <div key={key} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
             <button
               className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
-              onClick={() => toggleBatch(batch.batchId)}
+              onClick={() => toggleBatch(key)}
             >
               <div className="flex items-center gap-3">
                 <div className="bg-blue-50 p-2 rounded-lg">
@@ -723,8 +735,12 @@ function CollapsibleBatchSummary({ items }: { items: MonthlySummaryItem[] }) {
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {batch.students.map(student => (
-                      <tr key={student.studentId} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-2.5 font-medium text-gray-900">{student.studentName}</td>
+                      <tr
+                        key={student.studentId}
+                        className="hover:bg-gray-50 transition-colors cursor-pointer"
+                        onClick={() => router.push(`/attendance/student/${student.studentId}?month=${month}&batchId=${student.batchId}`)}
+                      >
+                        <td className="px-4 py-2.5 font-medium text-blue-700 hover:underline">{student.studentName}</td>
                         <td className="px-4 py-2.5 text-center text-gray-700">{student.totalSessions}</td>
                         <td className="px-4 py-2.5 text-center">
                           <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">{student.present}</span>
@@ -743,6 +759,177 @@ function CollapsibleBatchSummary({ items }: { items: MonthlySummaryItem[] }) {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function CoachCollapsibleSummary({ items, month }: { items: MonthlySummaryItem[]; month: string }) {
+  const router = useRouter();
+
+  const coaches = useMemo(() => {
+    const coachMap = new Map<string, {
+      coachId: string;
+      coachName: string;
+      batches: Map<string, { batchId: string; batchName: string; sportName: string; students: MonthlySummaryItem[] }>;
+    }>();
+
+    items.forEach(item => {
+      if (!coachMap.has(item.coachId)) {
+        coachMap.set(item.coachId, { coachId: item.coachId, coachName: item.coachName, batches: new Map() });
+      }
+      const coach = coachMap.get(item.coachId)!;
+      const batchKey = `${item.coachId}:${item.batchId}`;
+      if (!coach.batches.has(batchKey)) {
+        coach.batches.set(batchKey, { batchId: item.batchId, batchName: item.batchName, sportName: item.sportName, students: [] });
+      }
+      coach.batches.get(batchKey)!.students.push(item);
+    });
+
+    return Array.from(coachMap.values()).map(c => ({ ...c, batches: Array.from(c.batches.values()) }));
+  }, [items]);
+
+  const [expandedCoaches, setExpandedCoaches] = useState<Set<string>>(new Set());
+  const [expandedBatches, setExpandedBatches] = useState<Set<string>>(new Set());
+
+  const toggleCoach = (coachId: string) => {
+    setExpandedCoaches(prev => {
+      const next = new Set(prev);
+      if (next.has(coachId)) next.delete(coachId);
+      else next.add(coachId);
+      return next;
+    });
+  };
+
+  const toggleBatch = (key: string) => {
+    setExpandedBatches(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  return (
+    <div className="space-y-3">
+      {coaches.map(coach => {
+        const isCoachExpanded = expandedCoaches.has(coach.coachId);
+        const allStudents = coach.batches.flatMap(b => b.students);
+        const totalStudents = allStudents.length;
+        const coachAvgPct = totalStudents > 0
+          ? Math.round(allStudents.reduce((sum, s) => sum + s.percentage, 0) / totalStudents)
+          : 0;
+
+        return (
+          <div key={coach.coachId} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <button
+              className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-gray-50 transition-colors"
+              onClick={() => toggleCoach(coach.coachId)}
+            >
+              <div className="flex items-center gap-3">
+                <div className="bg-indigo-50 p-2 rounded-lg">
+                  <Users size={16} className="text-indigo-600" />
+                </div>
+                <div className="text-left">
+                  <p className="font-semibold text-gray-900">{coach.coachName}</p>
+                  <p className="text-xs text-gray-500">
+                    {coach.batches.length} batch{coach.batches.length !== 1 ? 'es' : ''} · {totalStudents} student{totalStudents !== 1 ? 's' : ''}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                  coachAvgPct >= 75 ? 'bg-green-100 text-green-700' : coachAvgPct >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
+                }`}>
+                  avg {coachAvgPct}%
+                </span>
+                {isCoachExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+              </div>
+            </button>
+
+            {isCoachExpanded && (
+              <div className="border-t border-gray-100 space-y-0 divide-y divide-gray-100">
+                {coach.batches.map(batch => {
+                  const batchKey = `${coach.coachId}:${batch.batchId}`;
+                  const isBatchExpanded = expandedBatches.has(batchKey);
+                  const batchStudents = batch.students.length;
+                  const batchAvgPct = batchStudents > 0
+                    ? Math.round(batch.students.reduce((sum, s) => sum + s.percentage, 0) / batchStudents)
+                    : 0;
+
+                  return (
+                    <div key={batchKey}>
+                      <button
+                        className="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors"
+                        onClick={() => toggleBatch(batchKey)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="bg-blue-50 p-1.5 rounded-md">
+                            <Calendar size={14} className="text-blue-600" />
+                          </div>
+                          <div className="text-left">
+                            <p className="font-medium text-gray-800 text-sm">{batch.batchName}</p>
+                            {batch.sportName && <p className="text-xs text-gray-400">{batch.sportName}</p>}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs text-gray-400">{batchStudents} student{batchStudents !== 1 ? 's' : ''}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                            batchAvgPct >= 75 ? 'bg-green-100 text-green-700' : batchAvgPct >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
+                          }`}>
+                            avg {batchAvgPct}%
+                          </span>
+                          {isBatchExpanded ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
+                        </div>
+                      </button>
+
+                      {isBatchExpanded && (
+                        <div className="border-t border-gray-100 overflow-x-auto bg-gray-50/50">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-gray-100">
+                                <th className="text-left px-6 py-2 font-medium text-gray-500 text-xs">Student</th>
+                                <th className="text-center px-4 py-2 font-medium text-gray-500 text-xs">Sessions</th>
+                                <th className="text-center px-4 py-2 font-medium text-gray-500 text-xs">Present</th>
+                                <th className="text-center px-4 py-2 font-medium text-gray-500 text-xs">Absent</th>
+                                <th className="text-center px-4 py-2 font-medium text-gray-500 text-xs">Attendance %</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {batch.students.map(student => (
+                                <tr
+                                  key={student.studentId}
+                                  className="hover:bg-blue-50/50 transition-colors cursor-pointer"
+                                  onClick={() => router.push(`/attendance/student/${student.studentId}?month=${month}&batchId=${student.batchId}`)}
+                                >
+                                  <td className="px-6 py-2.5 font-medium text-blue-700 hover:underline">{student.studentName}</td>
+                                  <td className="px-4 py-2.5 text-center text-gray-600">{student.totalSessions}</td>
+                                  <td className="px-4 py-2.5 text-center">
+                                    <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium text-xs">{student.present}</span>
+                                  </td>
+                                  <td className="px-4 py-2.5 text-center">
+                                    <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-medium text-xs">{student.absent}</span>
+                                  </td>
+                                  <td className="px-4 py-2.5 text-center">
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                      student.percentage >= 75 ? 'bg-green-100 text-green-700' : student.percentage >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
+                                    }`}>
+                                      {student.percentage}%
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
