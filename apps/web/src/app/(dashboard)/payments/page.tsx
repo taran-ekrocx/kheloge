@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { ChevronRight } from 'lucide-react';
@@ -29,14 +30,23 @@ interface PaymentData {
   batches: PaymentBatch[];
 }
 
-export default function PaymentsPage() {
+function PaymentsContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { role } = useAuth();
   const isCoach = role === 'COACH';
   const isSuperAdmin = role === 'SUPER_ADMIN';
 
-  const [period, setPeriod] = useState<string>(dayjs().format('YYYY-MM'));
+  const [period, setPeriod] = useState<string>(
+    searchParams.get('month') ?? dayjs().format('YYYY-MM')
+  );
   const [selectedVenueId, setSelectedVenueId] = useState<string>('');
   const [selectedCoachId, setSelectedCoachId] = useState<string>('');
+
+  const handleMonthChange = (newPeriod: string) => {
+    setPeriod(newPeriod);
+    router.replace(`/payments?month=${newPeriod}`, { scroll: false });
+  };
 
   const { data: venuesList } = useQuery<{ id: string; name: string }[]>({
     queryKey: ['venues-list'],
@@ -121,7 +131,7 @@ export default function PaymentsPage() {
           <input
             type="month"
             value={period}
-            onChange={(e) => setPeriod(e.target.value)}
+            onChange={(e) => handleMonthChange(e.target.value)}
             className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
@@ -185,5 +195,13 @@ export default function PaymentsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function PaymentsPage() {
+  return (
+    <Suspense fallback={<div className="text-center py-10 text-sm text-gray-400">Loading...</div>}>
+      <PaymentsContent />
+    </Suspense>
   );
 }

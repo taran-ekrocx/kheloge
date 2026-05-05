@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
@@ -35,6 +35,7 @@ interface PaymentData {
 
 function BatchPaymentDetailContent() {
   const { batchId } = useParams<{ batchId: string }>();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const { role } = useAuth();
   const isCoach = role === 'COACH';
@@ -45,7 +46,7 @@ function BatchPaymentDetailContent() {
     searchParams.get('month') ?? dayjs().format('YYYY-MM')
   );
 
-  // Keep period in sync when navigating between batch pages (soft navigation reuses the component)
+  // Re-sync period from URL when soft-navigating between batch pages (component reuse without remount)
   useEffect(() => {
     const urlMonth = searchParams.get('month');
     if (urlMonth && urlMonth !== period) {
@@ -53,6 +54,11 @@ function BatchPaymentDetailContent() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
+
+  const handleMonthChange = (newPeriod: string) => {
+    setPeriod(newPeriod);
+    router.replace(`/payments/${batchId}?month=${newPeriod}`, { scroll: false });
+  };
 
   const [markingStudentId, setMarkingStudentId] = useState<string | null>(null);
 
@@ -97,7 +103,7 @@ function BatchPaymentDetailContent() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Link href="/payments" className="text-gray-400 hover:text-gray-600">
+          <Link href={`/payments?month=${period}`} className="text-gray-400 hover:text-gray-600">
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div>
@@ -117,7 +123,7 @@ function BatchPaymentDetailContent() {
           <input
             type="month"
             value={period}
-            onChange={(e) => setPeriod(e.target.value)}
+            onChange={(e) => handleMonthChange(e.target.value)}
             className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
