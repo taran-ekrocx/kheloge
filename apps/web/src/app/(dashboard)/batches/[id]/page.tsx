@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useRef, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { ArrowLeft, Users, Clock, Calendar, User, Trophy } from 'lucide-react';
+import { ArrowLeft, Users, Clock, Calendar, User, Trophy, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 import dayjs from 'dayjs';
 
@@ -65,11 +65,183 @@ interface BatchDetail {
   feePlans?: FeePlan[];
 }
 
+function StudentMultiSelect({ students, selected, onChange }: {
+  students: { id: string; name: string; phone?: string | null }[];
+  selected: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const filtered = students.filter(
+    s => s.name.toLowerCase().includes(search.toLowerCase()) ||
+      (s.phone && s.phone.includes(search))
+  );
+  const selectedStudents = students.filter(s => selected.includes(s.id));
+
+  function toggle(id: string) {
+    onChange(selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id]);
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <div
+        onClick={() => setOpen(o => !o)}
+        className="w-full min-h-[38px] border rounded-lg px-3 py-2 text-sm cursor-pointer flex flex-wrap gap-1 items-center bg-white hover:border-blue-400 transition-colors"
+      >
+        {selectedStudents.length === 0 ? (
+          <span className="text-gray-400">Search and assign students...</span>
+        ) : (
+          selectedStudents.map(s => (
+            <span key={s.id} className="flex items-center gap-1 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full">
+              {s.name}
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); toggle(s.id); }}
+                className="hover:text-green-900 font-medium"
+              >×</button>
+            </span>
+          ))
+        )}
+      </div>
+      {open && (
+        <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg flex flex-col" style={{ maxHeight: 220 }}>
+          <div className="p-2 border-b border-gray-100">
+            <input
+              autoFocus
+              type="text"
+              placeholder="Search students..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              onClick={e => e.stopPropagation()}
+              className="w-full text-sm px-2 py-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-400"
+            />
+          </div>
+          <div className="overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="text-xs text-gray-400 p-3 text-center">No students found</p>
+            ) : (
+              filtered.map(s => (
+                <div
+                  key={s.id}
+                  onClick={() => toggle(s.id)}
+                  className={`flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 transition-colors ${selected.includes(s.id) ? 'bg-green-50' : ''}`}
+                >
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${selected.includes(s.id) ? 'bg-green-600 border-green-600' : 'border-gray-300'}`}>
+                    {selected.includes(s.id) && <span className="text-white text-[10px] leading-none">✓</span>}
+                  </div>
+                  <span>{s.name}</span>
+                  {s.phone && <span className="text-xs text-gray-400 ml-auto">{s.phone}</span>}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ManageStudentsModal({
+  batch,
+  currentEnrollments,
+  isCoach,
+  onClose,
+}: {
+  batch: BatchDetail;
+  currentEnrollments: Enrollment[];
+  isCoach: boolean;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [studentIds, setStudentIds] = useState<string[]>(
+    currentEnrollments.filter(e => e.isActive).map(e => e.student.id)
+  );
+
+  const { data: students = [], isLoading: loadingStudents } = useQuery<{ id: string; name: string; phone?: string | null }[]>({
+    queryKey: isCoach ? ['coach-org-students'] : ['students-active'],
+    queryFn: isCoach
+      ? () => api.get('/coaches/me/org-students?status=ACTIVE').then(r => r.data)
+      : () => api.get('/students?status=ACTIVE').then(r => r.data),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const mutation = useMutation({
+    mutationFn: (ids: string[]) =>
+      isCoach
+        ? api.patch(`/coaches/me/batches/${batch.id}/students`, { studentIds: ids })
+        : api.patch(`/venues/${batch.venue.id}/batches/${batch.id}`, { studentIds: ids }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['batch', batch.id] });
+      onClose();
+    },
+  });
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <h3 className="text-lg font-bold mb-1">Manage Students</h3>
+        <p className="text-sm text-gray-500 mb-4">{batch.name}</p>
+
+        <div className="mb-2">
+          <p className="text-xs font-medium text-gray-600 mb-2">
+            Assign Students
+            <span className="ml-2 text-gray-400 font-normal">
+              {studentIds.length} selected / {batch.capacity} capacity
+            </span>
+          </p>
+          {loadingStudents ? (
+            <p className="text-xs text-gray-400 py-4 text-center">Loading students...</p>
+          ) : (
+            <StudentMultiSelect
+              students={students}
+              selected={studentIds}
+              onChange={setStudentIds}
+            />
+          )}
+        </div>
+
+        {mutation.isError && (
+          <p className="text-red-500 text-xs mb-3">Failed to save. Please try again.</p>
+        )}
+
+        <div className="flex gap-3 mt-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 border rounded-lg py-2 text-sm font-medium hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => mutation.mutate(studentIds)}
+            disabled={mutation.isPending || loadingStudents}
+            className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+          >
+            {mutation.isPending ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function BatchDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { role } = useAuth();
   const isCoach = role === 'COACH';
   const [tab, setTab] = useState<Tab>('overview');
+  const [showManageStudents, setShowManageStudents] = useState(false);
 
   const { data: batch, isLoading } = useQuery<BatchDetail>({
     queryKey: ['batch', id],
@@ -227,6 +399,19 @@ export default function BatchDetailPage() {
         {/* Students tab */}
         {tab === 'students' && (
           <div>
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm font-medium text-gray-700">
+                {activeEnrollments.length} student{activeEnrollments.length !== 1 ? 's' : ''} enrolled
+              </p>
+              <button
+                onClick={() => setShowManageStudents(true)}
+                className="flex items-center gap-1.5 bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+              >
+                <UserPlus size={14} />
+                Manage Students
+              </button>
+            </div>
+
             {activeEnrollments.length === 0 ? (
               <p className="text-gray-400 text-sm">No students enrolled in this batch.</p>
             ) : (
@@ -271,6 +456,15 @@ export default function BatchDetailPage() {
           </div>
         )}
       </div>
+
+      {showManageStudents && (
+        <ManageStudentsModal
+          batch={batch}
+          currentEnrollments={batch.enrollments ?? []}
+          isCoach={isCoach}
+          onClose={() => setShowManageStudents(false)}
+        />
+      )}
     </div>
   );
 }
