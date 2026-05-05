@@ -2,6 +2,7 @@
 const nextConfig = {
   output: 'standalone',
   transpilePackages: ['@kheloge/shared'],
+  allowedDevOrigins: ['10.0.0.200'],
   images: {
     domains: ['pub-*.r2.dev', 'storage.googleapis.com'],
   },
