@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -33,7 +33,7 @@ interface PaymentData {
   batches: PaymentBatch[];
 }
 
-export default function BatchPaymentDetailPage() {
+function BatchPaymentDetailContent() {
   const { batchId } = useParams<{ batchId: string }>();
   const searchParams = useSearchParams();
   const { role } = useAuth();
@@ -44,9 +44,19 @@ export default function BatchPaymentDetailPage() {
   const [period, setPeriod] = useState<string>(
     searchParams.get('month') ?? dayjs().format('YYYY-MM')
   );
+
+  // Keep period in sync when navigating between batch pages (soft navigation reuses the component)
+  useEffect(() => {
+    const urlMonth = searchParams.get('month');
+    if (urlMonth && urlMonth !== period) {
+      setPeriod(urlMonth);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   const [markingStudentId, setMarkingStudentId] = useState<string | null>(null);
 
-  const queryParams = new URLSearchParams({ frequency: 'MONTHLY', period, batchId });
+  const queryParams = new URLSearchParams({ frequency: 'MONTHLY', period, batchId: batchId ?? '' });
 
   const { data, isLoading } = useQuery<PaymentData>({
     queryKey: isCoach
@@ -57,9 +67,12 @@ export default function BatchPaymentDetailPage() {
         ? api.get(`/coaches/me/payments?${queryParams}`).then((r) => r.data)
         : api.get(`/payments/batch-monthly?${queryParams}`).then((r) => r.data),
     enabled: (isCoach || isSuperAdmin) && !!batchId,
+    // Always fetch fresh data when landing on a batch detail page
+    staleTime: 0,
   });
 
-  const batch = data?.batches?.[0] ?? null;
+  // Find the specific batch by id to guard against the API returning multiple batches
+  const batch = data?.batches?.find((b) => b.id === batchId) ?? data?.batches?.[0] ?? null;
 
   const markPaidMutation = useMutation({
     mutationFn: ({ studentId, invoiceId, amount }: { studentId: string; invoiceId: string | null; amount: number }) =>
@@ -209,5 +222,13 @@ export default function BatchPaymentDetailPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function BatchPaymentDetailPage() {
+  return (
+    <Suspense fallback={<div className="text-center py-10 text-sm text-gray-400">Loading...</div>}>
+      <BatchPaymentDetailContent />
+    </Suspense>
   );
 }
