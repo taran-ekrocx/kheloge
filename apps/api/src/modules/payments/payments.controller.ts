@@ -65,9 +65,10 @@ export class PaymentsController {
     @Query('period') period?: string,
     @Query('venueId') venueId?: string,
     @Query('coachId') coachId?: string,
+    @Query('batchId') batchId?: string,
   ) {
     const m = month ?? new Date().toISOString().slice(0, 7);
-    return this.payments.getBatchMonthlyPayments(req.user.orgId, m, frequency, period, venueId, coachId);
+    return this.payments.getBatchMonthlyPayments(req.user.orgId, m, frequency, period, venueId, coachId, batchId);
   }
 
   @Get('dashboard/:venueId')

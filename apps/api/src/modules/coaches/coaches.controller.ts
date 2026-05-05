@@ -99,9 +99,10 @@ export class CoachesController {
     @Query('month') month?: string,
     @Query('frequency') frequency?: string,
     @Query('period') period?: string,
+    @Query('batchId') batchId?: string,
   ) {
     const m = month ?? new Date().toISOString().slice(0, 7);
-    return this.coaches.getCoachPaymentSummary(req.user.id, m, frequency, period);
+    return this.coaches.getCoachPaymentSummary(req.user.id, m, frequency, period, batchId);
   }
 
   @Post('me/payments/mark-paid')

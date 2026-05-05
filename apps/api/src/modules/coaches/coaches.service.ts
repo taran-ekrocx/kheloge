@@ -754,13 +754,13 @@ export class CoachesService {
     return null;
   }
 
-  async getCoachPaymentSummary(coachId: string, month: string, frequency?: string, period?: string) {
+  async getCoachPaymentSummary(coachId: string, month: string, frequency?: string, period?: string, batchId?: string) {
     const effectiveFrequency = frequency ?? 'MONTHLY';
     const effectivePeriod = period ?? month;
     const dateRange = this.getPeriodDateRange(effectiveFrequency, effectivePeriod);
 
     const batchCoaches = await this.prisma.batchCoach.findMany({
-      where: { coachId },
+      where: { coachId, ...(batchId ? { batchId } : {}) },
       include: {
         batch: {
           include: {

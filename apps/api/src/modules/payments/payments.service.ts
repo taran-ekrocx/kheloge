@@ -516,7 +516,7 @@ export class PaymentsService {
     return null;
   }
 
-  async getBatchMonthlyPayments(orgId: string, month: string, frequency?: string, period?: string, venueId?: string, coachId?: string) {
+  async getBatchMonthlyPayments(orgId: string, month: string, frequency?: string, period?: string, venueId?: string, coachId?: string, batchId?: string) {
     const effectiveFrequency = frequency ?? 'MONTHLY';
     const effectivePeriod = period ?? month;
     const dateRange = this.getPeriodDateRange(effectiveFrequency, effectivePeriod);
@@ -527,6 +527,7 @@ export class PaymentsService {
         isActive: true,
         ...(venueId ? { venueId } : {}),
         ...(coachId ? { coaches: { some: { coachId } } } : {}),
+        ...(batchId ? { id: batchId } : {}),
       },
       include: {
         sport: { select: { id: true, name: true } },
