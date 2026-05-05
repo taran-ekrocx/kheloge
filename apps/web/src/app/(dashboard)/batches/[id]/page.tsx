@@ -247,7 +247,7 @@ function ManageStudentsModal({
 
 export default function BatchDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { role } = useAuth();
+  const { role, userId } = useAuth();
   const isCoach = role === 'COACH';
   const isSuperAdmin = role === 'SUPER_ADMIN';
   const canViewPayments = isCoach || isSuperAdmin;
@@ -405,7 +405,9 @@ export default function BatchDetailPage() {
                               <User size={14} className="text-gray-400" />
                             </div>
                           )}
-                          <span className="text-sm font-medium text-gray-900 flex-1">{coach.name}</span>
+                          <span className="text-sm font-medium text-gray-900 flex-1">
+                            {isCoach && coach.id === userId ? 'You' : coach.name}
+                          </span>
                           {isPrimary && (
                             <span className="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
                               Primary
