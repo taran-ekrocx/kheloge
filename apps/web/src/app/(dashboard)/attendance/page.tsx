@@ -39,6 +39,7 @@ interface Batch {
   sport: { name: string };
   venue: { id: string; name: string };
   _count: { enrollments: number };
+  coaches: { id: string; name: string; photoUrl?: string | null }[];
 }
 
 interface Coach {
@@ -256,7 +257,9 @@ export default function AttendanceIndexPage() {
     onSettled: () => setStartingSession(null),
   });
 
-  const todayBatches = batches.filter(b => b.days?.includes(TODAY_DOW));
+  const todayBatches = batches
+    .filter(b => b.days?.includes(TODAY_DOW))
+    .sort((a, b) => a.startTime.localeCompare(b.startTime));
   const otherBatches = batches.filter(b => !b.days?.includes(TODAY_DOW));
   const pastSessions = sessionHistory.filter(s => s.endedAt);
 
@@ -354,7 +357,7 @@ export default function AttendanceIndexPage() {
                 </div>
               )}
 
-              {otherBatches.length > 0 && (
+              {!isSuperAdmin && otherBatches.length > 0 && (
                 <div>
                   <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
                     Other Batches
@@ -1080,6 +1083,11 @@ function BatchRow({
             {isCoach && batch.venue?.name && (
               <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-medium">
                 {batch.venue.name}
+              </span>
+            )}
+            {!isCoach && batch.coaches?.length > 0 && (
+              <span className="text-gray-600">
+                {batch.coaches.map(c => c.name).join(', ')}
               </span>
             )}
           </div>
