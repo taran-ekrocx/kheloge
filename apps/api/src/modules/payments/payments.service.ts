@@ -598,14 +598,13 @@ export class PaymentsService {
           invoice?.status === 'PAID' ||
           (!!invoice && !!invoicePaymentMap.get(invoice.id)) ||
           (!invoice && !!standalonePaymentMap.get(student.id));
-        const standalonePay = standalonePaymentMap.get(student.id);
         return {
           id: student.id,
           name: student.name,
           phone: student.phone,
           invoiceId: invoice?.id ?? null,
           status: isPaid ? 'PAID' : 'PENDING',
-          amount: invoice ? Number(invoice.amount) : (standalonePay ? Number(standalonePay.amount) : defaultAmount),
+          amount: invoice ? Number(invoice.amount) : defaultAmount,
         };
       });
 
