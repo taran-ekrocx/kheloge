@@ -16,6 +16,7 @@ interface PaymentStudent {
   invoiceId: string | null;
   status: string;
   amount: number;
+  paidAt: string | null;
 }
 
 interface PaymentBatch {
@@ -188,6 +189,7 @@ function BatchPaymentDetailContent() {
                     <th className="text-left px-5 py-3 font-medium text-gray-600">Phone</th>
                     <th className="text-left px-5 py-3 font-medium text-gray-600">Amount</th>
                     <th className="text-left px-5 py-3 font-medium text-gray-600">Payment Status</th>
+                    <th className="text-left px-5 py-3 font-medium text-gray-600">Paid On</th>
                     {isCoach && <th className="px-5 py-3" />}
                   </tr>
                 </thead>
@@ -212,6 +214,11 @@ function BatchPaymentDetailContent() {
                               <Clock className="w-3 h-3" /> Pending
                             </span>
                           )}
+                        </td>
+                        <td className="px-5 py-3 text-gray-500 text-sm">
+                          {isPaid && student.paidAt
+                            ? dayjs(student.paidAt).format('D MMM YYYY')
+                            : '—'}
                         </td>
                         {isCoach && (
                           <td className="px-5 py-3 text-right">

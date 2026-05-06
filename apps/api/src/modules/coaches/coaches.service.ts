@@ -767,7 +767,7 @@ export class CoachesService {
           ...(dateRange ? { paidAt: { gte: dateRange.start, lt: dateRange.end } } : {}),
           status: 'PAID' as any,
         },
-        select: { id: true, studentId: true, invoiceId: true, amount: true },
+        select: { id: true, studentId: true, invoiceId: true, amount: true, paidAt: true },
         orderBy: { paidAt: 'desc' },
       }) : [],
     ]);
@@ -797,6 +797,7 @@ export class CoachesService {
           invoice?.status === 'PAID' ||
           (!!invoice && !!invoicePaymentMap.get(invoice.id)) ||
           (!invoice && !!standalonePaymentMap.get(student.id));
+        const linkedPayment = invoice ? invoicePaymentMap.get(invoice.id) : standalonePaymentMap.get(student.id);
         return {
           id: student.id,
           name: student.name,
@@ -804,6 +805,7 @@ export class CoachesService {
           invoiceId: invoice?.id ?? null,
           status: isPaid ? 'PAID' : 'PENDING',
           amount: invoice ? Number(invoice.amount) : defaultAmount,
+          paidAt: isPaid ? (linkedPayment?.paidAt ?? null) : null,
         };
       });
 
