@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
 import { useAuth } from '@/hooks/useAuth';
-import { Search, UserPlus, Filter, X, Edit2, Trash2, User, Plus, Eye } from 'lucide-react';
+import { Search, UserPlus, Filter, X, Trash2, User, Plus, Eye } from 'lucide-react';
 import Link from 'next/link';
 import { STATE_NAMES, getDistricts } from '@/lib/india-locations';
 
@@ -945,12 +945,6 @@ export default function CoachesPage() {
                             <Eye size={15} />
                           </Link>
                         )}
-                        <button
-                          onClick={() => { setEditing(c); setShowModal(true); }}
-                          className="text-gray-400 hover:text-blue-600 transition-colors"
-                        >
-                          <Edit2 size={15} />
-                        </button>
                         <button
                           onClick={() => { if (confirm(`Remove coach "${c.name}"?`)) deleteMutation.mutate(c.id); }}
                           className="text-gray-400 hover:text-red-500 transition-colors"
