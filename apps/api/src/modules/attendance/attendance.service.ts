@@ -280,13 +280,16 @@ export class AttendanceService {
     });
   }
 
-  async getAllSessions(venueId?: string, coachId?: string) {
+  async getAllSessions(venueId?: string, coachId?: string, batchId?: string) {
     const where: any = { endedAt: { not: null } };
     if (venueId) {
       where.batch = { venueId };
     }
     if (coachId) {
       where.coachId = coachId;
+    }
+    if (batchId) {
+      where.batchId = batchId;
     }
 
     const sessions = await this.prisma.attendanceSession.findMany({

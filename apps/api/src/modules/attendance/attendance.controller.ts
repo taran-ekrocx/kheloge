@@ -76,8 +76,9 @@ export class AttendanceController {
   getAllSessions(
     @Query('venueId') venueId?: string,
     @Query('coachId') coachId?: string,
+    @Query('batchId') batchId?: string,
   ) {
-    return this.attendance.getAllSessions(venueId, coachId);
+    return this.attendance.getAllSessions(venueId, coachId, batchId);
   }
 
   @Get('sessions/coach-summary')

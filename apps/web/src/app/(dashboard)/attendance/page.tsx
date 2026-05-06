@@ -110,6 +110,9 @@ export default function AttendanceIndexPage() {
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
   const [filterCoachId, setFilterCoachId] = useState<string>('');
   const [saVenueFilter, setSaVenueFilter] = useState('');
+  const [saTodayCoachFilter, setSaTodayCoachFilter] = useState('');
+  const [saTodayBatchFilter, setSaTodayBatchFilter] = useState('');
+  const [saHistoryBatchFilter, setSaHistoryBatchFilter] = useState('');
   const [filterDate, setFilterDate] = useState('');
   const [filterVenueId, setFilterVenueId] = useState('');
   const [filterSportName, setFilterSportName] = useState('');
@@ -215,15 +218,16 @@ export default function AttendanceIndexPage() {
   const { data: coaches = [] } = useQuery<Coach[]>({
     queryKey: ['coaches'],
     queryFn: () => api.get('/coaches?status=ACTIVE').then(r => r.data),
-    enabled: isAdmin && (tab === 'history' || tab === 'monthly'),
+    enabled: isAdmin && (tab === 'today' || tab === 'history' || tab === 'monthly'),
   });
 
   const { data: adminSessionHistory = [] } = useQuery<AdminSessionHistoryItem[]>({
-    queryKey: ['admin-session-history', effectiveVenueId, filterCoachId],
+    queryKey: ['admin-session-history', effectiveVenueId, filterCoachId, saHistoryBatchFilter],
     queryFn: () => {
       const params = new URLSearchParams();
       if (effectiveVenueId) params.set('venueId', effectiveVenueId);
       if (filterCoachId) params.set('coachId', filterCoachId);
+      if (saHistoryBatchFilter) params.set('batchId', saHistoryBatchFilter);
       return api.get(`/attendance/sessions?${params.toString()}`).then(r => r.data);
     },
     enabled: isAdmin && tab === 'history',
@@ -261,6 +265,14 @@ export default function AttendanceIndexPage() {
     .filter(b => b.days?.includes(TODAY_DOW))
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
   const otherBatches = batches.filter(b => !b.days?.includes(TODAY_DOW));
+
+  const displayedTodayBatches = useMemo(() => {
+    return todayBatches.filter(b => {
+      if (saTodayCoachFilter && !b.coaches?.some(c => c.id === saTodayCoachFilter)) return false;
+      if (saTodayBatchFilter && b.id !== saTodayBatchFilter) return false;
+      return true;
+    });
+  }, [todayBatches, saTodayCoachFilter, saTodayBatchFilter]);
   const pastSessions = sessionHistory.filter(s => s.endedAt);
 
   return (
@@ -304,14 +316,30 @@ export default function AttendanceIndexPage() {
       {tab === 'today' && (
         <>
           {isSuperAdmin && (
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <select
                 value={saVenueFilter}
-                onChange={(e) => setSaVenueFilter(e.target.value)}
+                onChange={(e) => { setSaVenueFilter(e.target.value); setSaTodayBatchFilter(''); }}
                 className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">All Venues</option>
                 {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+              </select>
+              <select
+                value={saTodayCoachFilter}
+                onChange={(e) => { setSaTodayCoachFilter(e.target.value); setSaTodayBatchFilter(''); }}
+                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Coaches</option>
+                {coaches.map(c => <option key={c.id} value={c.userId}>{c.name}</option>)}
+              </select>
+              <select
+                value={saTodayBatchFilter}
+                onChange={(e) => setSaTodayBatchFilter(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Batches</option>
+                {todayBatches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </div>
           )}
@@ -333,13 +361,13 @@ export default function AttendanceIndexPage() {
                 </div>
               )}
 
-              {todayBatches.length > 0 && (
+              {displayedTodayBatches.length > 0 && (
                 <div>
                   <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
                     Today&apos;s Batches
                   </h3>
                   <div className="space-y-2">
-                    {todayBatches.map((batch) => (
+                    {displayedTodayBatches.map((batch) => (
                       <BatchRow
                         key={batch.id} batch={batch} highlight
                         isCoach={isCoach}
@@ -543,21 +571,34 @@ export default function AttendanceIndexPage() {
               </select>
             </div>
           )}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Coach</label>
-            <select
-              value={filterCoachId}
-              onChange={e => { setFilterCoachId(e.target.value); setExpandedSession(null); }}
-              className="w-full sm:w-72 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">All coaches</option>
-              {coaches.map(c => {
-                const count = coachSessionSummary.find(s => s.coachId === c.userId)?.sessionCount ?? 0;
-                return (
-                  <option key={c.id} value={c.userId}>{c.name} ({count} session{count !== 1 ? 's' : ''})</option>
-                );
-              })}
-            </select>
+          <div className="flex flex-wrap gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Coach</label>
+              <select
+                value={filterCoachId}
+                onChange={e => { setFilterCoachId(e.target.value); setExpandedSession(null); }}
+                className="w-full sm:w-64 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All coaches</option>
+                {coaches.map(c => {
+                  const count = coachSessionSummary.find(s => s.coachId === c.userId)?.sessionCount ?? 0;
+                  return (
+                    <option key={c.id} value={c.userId}>{c.name} ({count} session{count !== 1 ? 's' : ''})</option>
+                  );
+                })}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Batch</label>
+              <select
+                value={saHistoryBatchFilter}
+                onChange={e => { setSaHistoryBatchFilter(e.target.value); setExpandedSession(null); }}
+                className="w-full sm:w-64 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Batches</option>
+                {batches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </div>
           </div>
 
           {coachSessionSummary.length > 0 && (
