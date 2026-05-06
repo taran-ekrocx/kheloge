@@ -20,7 +20,7 @@ const NAV_OPERATIONS = [
   { href: '/batches', label: 'Batches', icon: Calendar },
   { href: '/coaches', label: 'Coaches', icon: UserCheck, hideForCoach: true },
   { href: '/attendance', label: 'Attendance', icon: CheckSquare },
-  { href: '/fees', label: 'Fees', icon: Receipt, hideForCoach: true },
+  { href: '/fees', label: 'Fees', icon: Receipt, hideForCoach: true, hideForSuperAdmin: true },
   { href: '/payments', label: 'Payments', icon: CreditCard },
   { href: '/earnings', label: 'Earnings', icon: TrendingUp, showOnlyForCoach: true },
   { href: '/coach-payouts', label: 'Coach Payout', icon: Wallet, showOnlyForSuperAdmin: true },
@@ -79,6 +79,7 @@ function NavGroup({ label, items, isCoach, isSuperAdmin }: { label: string; item
   const pathname = usePathname();
   const visibleItems = items.filter((item) => {
     if ((item as any).hideForCoach && isCoach) return false;
+    if ((item as any).hideForSuperAdmin && isSuperAdmin) return false;
     if ((item as any).showOnlyForCoach && !isCoach) return false;
     if ((item as any).showOnlyForSuperAdmin && !isSuperAdmin) return false;
     return true;

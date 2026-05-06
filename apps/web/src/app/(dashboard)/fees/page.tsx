@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
 import { useAuth } from '@/hooks/useAuth';
@@ -49,16 +50,11 @@ const STATUS_STYLES: Record<string, string> = {
 
 // ── Batch Fees Tab ─────────────────────────────────────────────────────────
 
-function BatchFeesTab({ venueId, isSuperAdmin }: { venueId: string; isSuperAdmin?: boolean }) {
-  const allVenues = isSuperAdmin && !venueId;
-
+function BatchFeesTab({ venueId }: { venueId: string }) {
   const { data: batches = [], isLoading } = useQuery<Batch[]>({
-    queryKey: ['batches', venueId, allVenues],
-    queryFn: () =>
-      allVenues
-        ? api.get('/batches').then((r) => r.data)
-        : api.get(`/venues/${venueId}/batches`).then((r) => r.data),
-    enabled: allVenues || !!venueId,
+    queryKey: ['batches', venueId],
+    queryFn: () => api.get(`/venues/${venueId}/batches`).then((r) => r.data),
+    enabled: !!venueId,
   });
 
   if (isLoading) {
@@ -88,11 +84,6 @@ function BatchFeesTab({ venueId, isSuperAdmin }: { venueId: string; isSuperAdmin
                   <span className="inline-block mt-1 text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">
                     {batch.sport?.name}
                   </span>
-                  {allVenues && batch.venue && (
-                    <span className="inline-block mt-1 ml-1 text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                      {batch.venue.name}
-                    </span>
-                  )}
                 </div>
                 <span
                   className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -137,15 +128,13 @@ function BatchFeesTab({ venueId, isSuperAdmin }: { venueId: string; isSuperAdmin
 
 // ── Invoices Tab ───────────────────────────────────────────────────────────
 
-function InvoicesTab({ venueId, isSuperAdmin }: { venueId: string; isSuperAdmin?: boolean }) {
+function InvoicesTab({ venueId }: { venueId: string }) {
   const queryClient = useQueryClient();
 
   const { data: invoices = [], isLoading } = useQuery<Invoice[]>({
     queryKey: ['venue-invoices', venueId],
-    queryFn: () => isSuperAdmin && !venueId
-      ? api.get('/payments/invoices').then((r) => r.data)
-      : api.get(`/payments/venues/${venueId}/invoices`).then((r) => r.data),
-    enabled: isSuperAdmin ? true : !!venueId,
+    queryFn: () => api.get(`/payments/venues/${venueId}/invoices`).then((r) => r.data),
+    enabled: !!venueId,
   });
 
   const markPaidMutation = useMutation({
@@ -249,20 +238,16 @@ type Tab = 'batches' | 'invoices';
 export default function FeesPage() {
   const { venueId } = useVenue();
   const { role } = useAuth();
-  const isSuperAdmin = role === 'SUPER_ADMIN';
+  const router = useRouter();
   const [tab, setTab] = useState<Tab>('batches');
-  const [saVenueFilter, setSaVenueFilter] = useState('');
 
-  const { data: venues = [] } = useQuery<{ id: string; name: string }[]>({
-    queryKey: ['venues-list'],
-    queryFn: () => api.get('/venues').then(r => r.data),
-    enabled: isSuperAdmin,
-    staleTime: 5 * 60 * 1000,
-  });
+  useEffect(() => {
+    if (role === 'SUPER_ADMIN') router.replace('/dashboard');
+  }, [role, router]);
 
-  const effectiveVenueId = isSuperAdmin ? saVenueFilter : venueId;
+  if (role === 'SUPER_ADMIN') return null;
 
-  if (!venueId && !isSuperAdmin) {
+  if (!venueId) {
     return (
       <div className="flex items-center justify-center h-64 text-gray-400">
         No venue selected.
@@ -272,24 +257,11 @@ export default function FeesPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Fee Desk</h2>
-          <p className="text-gray-500 text-sm">View batch fees and manage invoices</p>
-        </div>
-        {isSuperAdmin && (
-          <select
-            value={saVenueFilter}
-            onChange={(e) => setSaVenueFilter(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">All Venues</option>
-            {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-          </select>
-        )}
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900">Fee Desk</h2>
+        <p className="text-gray-500 text-sm">View batch fees and manage invoices</p>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
         <button
           onClick={() => setTab('batches')}
@@ -312,9 +284,9 @@ export default function FeesPage() {
       </div>
 
       {tab === 'batches' ? (
-        <BatchFeesTab venueId={effectiveVenueId} isSuperAdmin={isSuperAdmin} />
+        <BatchFeesTab venueId={venueId} />
       ) : (
-        <InvoicesTab venueId={effectiveVenueId} isSuperAdmin={isSuperAdmin} />
+        <InvoicesTab venueId={venueId} />
       )}
     </div>
   );
