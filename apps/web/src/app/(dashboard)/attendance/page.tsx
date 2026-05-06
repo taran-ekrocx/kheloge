@@ -357,7 +357,7 @@ export default function AttendanceIndexPage() {
                 </div>
               )}
 
-              {!isSuperAdmin && otherBatches.length > 0 && (
+              {!isSuperAdmin && !isCoach && otherBatches.length > 0 && (
                 <div>
                   <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
                     Other Batches
