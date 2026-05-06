@@ -48,7 +48,7 @@ interface CoachProfile {
   paymentValue?: number | string;
 }
 interface Coach {
-  id: string; name: string; phone: string; email?: string;
+  id: string; userId: string; name: string; phone: string; email?: string;
   status: string; state?: string; district?: string; city?: string; region?: string;
   createdAt: string;
   venue?: { id: string; name: string };
@@ -154,6 +154,9 @@ export default function CoachDetailPage() {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<ReturnType<typeof buildForm> | null>(null);
 
+  // role starts null on first render (useAuth reads localStorage in useEffect)
+  const authLoading = role === null;
+
   const { data: coach, isLoading } = useQuery<Coach>({
     queryKey: ['coach', id],
     queryFn: () => api.get(`/coaches/${id}`).then((r) => r.data),
@@ -168,8 +171,9 @@ export default function CoachDetailPage() {
 
   const { data: attendance = [], isLoading: attendanceLoading } = useQuery<CoachAttendance[]>({
     queryKey: ['coach-attendance', id],
-    queryFn: () => api.get(`/attendance/coach-attendance?coachId=${id}&months=3`).then((r) => r.data),
-    enabled: tab === 'attendance' && isSuperAdmin && !!id,
+    // use userId (User primary key) — the attendance table records by user id, not org-user id
+    queryFn: () => api.get(`/attendance/coach-attendance?coachId=${coach!.userId}&months=3`).then((r) => r.data),
+    enabled: tab === 'attendance' && isSuperAdmin && !!coach?.userId,
   });
 
   const saveMutation = useMutation({
@@ -236,6 +240,10 @@ export default function CoachDetailPage() {
 
   const addExp = () => setProfileField('coachingExperience', [...(form?.profile.coachingExperience ?? []), { ...EMPTY_EXP }]);
   const removeExp = (i: number) => setProfileField('coachingExperience', form?.profile.coachingExperience.filter((_, idx) => idx !== i));
+
+  if (authLoading) {
+    return <div className="text-center py-10 text-sm text-gray-400">Loading...</div>;
+  }
 
   if (!isSuperAdmin) {
     return (
