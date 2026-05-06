@@ -1,80 +1,116 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
-import { ArrowLeft, User, Calendar, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { ArrowLeft, Calendar, CheckCircle, XCircle, Clock, Pencil, X, Check } from 'lucide-react';
 import Link from 'next/link';
 import dayjs from 'dayjs';
+import { STATE_NAMES, getDistricts } from '@/lib/india-locations';
+
+// ── Constants (mirror coaches list page) ────────────────────────────────────
+
+const PLAYING_LEVELS = ['District', 'State', 'National', 'International'];
+const KEY_SKILLS = [
+  'Training Kids', 'Training Adults', 'Fitness Conditioning',
+  'Discipline & Team Management', 'Event Management', 'Communication Skills',
+];
+const RESPONSIBILITIES = [
+  'Conduct structured training sessions', 'Plan weekly training schedules',
+  'Focus on skill development & fitness', 'Maintain safety during sessions',
+  'Track student performance', 'Assist in events & demo classes',
+];
+const PAYMENT_TYPES = [
+  { value: 'FIXED_PAYMENT', label: 'Fixed Payment' },
+  { value: 'REVENUE_PERCENTAGE', label: 'Revenue Percentage' },
+  { value: 'PER_SESSION_PAYOUT', label: 'Per Session Payout' },
+];
+
+// ── Types ────────────────────────────────────────────────────────────────────
 
 type Tab = 'overview' | 'attendance';
 
-interface CoachBatch {
-  batchId: string;
-  isPrimary: boolean;
-  id: string;
-  name: string;
-  sport: { id: string; name: string };
+interface EducationDetail {
+  qualification: string; institute: string; year: string;
+  remarks: string; sportsCertifications: string;
 }
-
+interface CoachingExp {
+  organization: string; role: string; duration: string; responsibilities: string;
+}
 interface CoachProfile {
-  educationDetails?: { degree?: string; institution?: string; year?: string }[];
+  educationDetails?: EducationDetail[];
   sportSpecialization?: string;
   playingLevels?: string[];
   achievements?: string;
-  coachingExperience?: { role?: string; organization?: string; duration?: string }[];
+  coachingExperience?: CoachingExp[];
   keySkills?: string[];
   responsibilities?: string[];
   expectedSalary?: string;
   joiningAvailability?: string;
   paymentType?: string;
-  paymentValue?: number;
+  paymentValue?: number | string;
 }
-
 interface Coach {
-  id: string;
-  name: string;
-  phone: string;
-  email?: string;
-  photoUrl?: string;
-  status: string;
-  state?: string;
-  district?: string;
-  city?: string;
-  region?: string;
+  id: string; name: string; phone: string; email?: string;
+  status: string; state?: string; district?: string; city?: string; region?: string;
   createdAt: string;
   venue?: { id: string; name: string };
   sports?: { id: string; name: string; icon?: string }[];
-  batches?: CoachBatch[];
+  batches?: { batchId: string; isPrimary: boolean; id: string; name: string; sport: { name: string } }[];
   profile?: CoachProfile | null;
 }
-
+interface Sport { id: string; name: string; icon?: string; }
 interface CoachAttendance {
-  id: string;
-  date: string;
-  status: 'PRESENT' | 'ABSENT' | 'LATE';
-  batchId: string;
+  id: string; date: string; status: 'PRESENT' | 'ABSENT' | 'LATE'; batchId: string;
   batch?: { id: string; name: string };
   session?: { id: string; startedAt: string; endedAt?: string };
 }
 
+const EMPTY_EDU: EducationDetail = { qualification: '', institute: '', year: '', remarks: '', sportsCertifications: '' };
+const EMPTY_EXP: CoachingExp = { organization: '', role: '', duration: '', responsibilities: '' };
+
+function buildForm(coach: Coach) {
+  return {
+    name: coach.name,
+    phone: coach.phone,
+    email: coach.email ?? '',
+    status: coach.status,
+    state: coach.state ?? '',
+    district: coach.district ?? '',
+    city: coach.city ?? '',
+    region: coach.region ?? '',
+    sportIds: (coach.sports ?? []).map((s) => s.id),
+    profile: {
+      educationDetails: (coach.profile?.educationDetails?.length ? coach.profile.educationDetails : [{ ...EMPTY_EDU }]) as EducationDetail[],
+      sportSpecialization: coach.profile?.sportSpecialization ?? '',
+      playingLevels: coach.profile?.playingLevels ?? [],
+      achievements: coach.profile?.achievements ?? '',
+      coachingExperience: (coach.profile?.coachingExperience?.length ? coach.profile.coachingExperience : [{ ...EMPTY_EXP }]) as CoachingExp[],
+      keySkills: coach.profile?.keySkills ?? [],
+      responsibilities: coach.profile?.responsibilities ?? [],
+      expectedSalary: coach.profile?.expectedSalary ?? '',
+      joiningAvailability: coach.profile?.joiningAvailability ?? '',
+      paymentType: (coach.profile as any)?.paymentType ?? '',
+      paymentValue: (coach.profile as any)?.paymentValue != null ? String((coach.profile as any).paymentValue) : '',
+    },
+  };
+}
+
+// ── Small helpers ────────────────────────────────────────────────────────────
+
 function StatusBadge({ status }: { status: 'PRESENT' | 'ABSENT' | 'LATE' }) {
-  if (status === 'PRESENT') {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-1 rounded-full">
-        <CheckCircle className="w-3 h-3" /> Present
-      </span>
-    );
-  }
-  if (status === 'LATE') {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-yellow-700 bg-yellow-50 px-2 py-1 rounded-full">
-        <Clock className="w-3 h-3" /> Late
-      </span>
-    );
-  }
+  if (status === 'PRESENT') return (
+    <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-1 rounded-full">
+      <CheckCircle className="w-3 h-3" /> Present
+    </span>
+  );
+  if (status === 'LATE') return (
+    <span className="inline-flex items-center gap-1 text-xs font-medium text-yellow-700 bg-yellow-50 px-2 py-1 rounded-full">
+      <Clock className="w-3 h-3" /> Late
+    </span>
+  );
   return (
     <span className="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-50 px-2 py-1 rounded-full">
       <XCircle className="w-3 h-3" /> Absent
@@ -82,21 +118,46 @@ function StatusBadge({ status }: { status: 'PRESENT' | 'ABSENT' | 'LATE' }) {
   );
 }
 
-function InfoRow({ label, value }: { label: string; value?: string | null }) {
-  if (!value) return null;
+function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col sm:flex-row sm:gap-4">
-      <span className="text-sm text-gray-500 sm:w-40 shrink-0">{label}</span>
-      <span className="text-sm text-gray-900">{value}</span>
+    <div className="bg-white rounded-xl border border-gray-100 p-6 space-y-3">
+      <h3 className="font-semibold text-gray-800 text-base">{title}</h3>
+      {children}
     </div>
   );
 }
+
+function InfoRow({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div className="flex flex-col sm:flex-row sm:gap-4">
+      <span className="text-sm text-gray-500 sm:w-44 shrink-0">{label}</span>
+      <span className="text-sm text-gray-900">{value || <span className="text-gray-300">—</span>}</span>
+    </div>
+  );
+}
+
+function Chips({ items }: { items?: string[] }) {
+  if (!items?.length) return <span className="text-sm text-gray-300">—</span>;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {items.map((i) => <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{i}</span>)}
+    </div>
+  );
+}
+
+const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
+
+// ── Main Page ────────────────────────────────────────────────────────────────
 
 export default function CoachDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { role } = useAuth();
   const isSuperAdmin = role === 'SUPER_ADMIN';
+  const queryClient = useQueryClient();
+
   const [tab, setTab] = useState<Tab>('overview');
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState<ReturnType<typeof buildForm> | null>(null);
 
   const { data: coach, isLoading } = useQuery<Coach>({
     queryKey: ['coach', id],
@@ -104,11 +165,82 @@ export default function CoachDetailPage() {
     enabled: isSuperAdmin && !!id,
   });
 
+  const { data: sports = [] } = useQuery<Sport[]>({
+    queryKey: ['sports'],
+    queryFn: () => api.get('/sports').then((r) => r.data),
+    enabled: editing,
+  });
+
   const { data: attendance = [], isLoading: attendanceLoading } = useQuery<CoachAttendance[]>({
     queryKey: ['coach-attendance', id],
     queryFn: () => api.get(`/attendance/coach-attendance?coachId=${id}&months=3`).then((r) => r.data),
     enabled: tab === 'attendance' && isSuperAdmin && !!id,
   });
+
+  const saveMutation = useMutation({
+    mutationFn: () => {
+      if (!form) throw new Error('No form');
+      const payload = {
+        name: form.name,
+        phone: form.phone,
+        email: form.email || undefined,
+        status: form.status,
+        state: form.state || undefined,
+        district: form.district || undefined,
+        city: form.city || undefined,
+        region: form.region || undefined,
+        sportIds: form.sportIds,
+        profile: {
+          ...form.profile,
+          paymentType: form.profile.paymentType || undefined,
+          paymentValue: form.profile.paymentValue ? Number(form.profile.paymentValue) : undefined,
+        },
+      };
+      return api.patch(`/coaches/${id}`, payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['coach', id] });
+      queryClient.invalidateQueries({ queryKey: ['coaches-global'] });
+      setEditing(false);
+    },
+  });
+
+  const startEdit = () => {
+    if (coach) setForm(buildForm(coach));
+    setEditing(true);
+  };
+  const cancelEdit = () => { setEditing(false); setForm(null); };
+
+  // form helpers
+  const districts = useMemo(() => (form?.state ? getDistricts(form.state) : []), [form?.state]);
+
+  const setField = (key: string, value: unknown) =>
+    setForm((f) => f ? { ...f, [key]: value } : f);
+
+  const setProfileField = (key: string, value: unknown) =>
+    setForm((f) => f ? { ...f, profile: { ...f.profile, [key]: value } } : f);
+
+  const toggleArr = (field: 'playingLevels' | 'keySkills' | 'responsibilities', val: string) =>
+    setProfileField(field, (form?.profile[field] as string[] ?? []).includes(val)
+      ? (form?.profile[field] as string[]).filter((v) => v !== val)
+      : [...(form?.profile[field] as string[] ?? []), val]);
+
+  const toggleSport = (sportId: string) =>
+    setField('sportIds', (form?.sportIds ?? []).includes(sportId)
+      ? (form?.sportIds ?? []).filter((s) => s !== sportId)
+      : [...(form?.sportIds ?? []), sportId]);
+
+  const updateEdu = (i: number, k: keyof EducationDetail, v: string) =>
+    setProfileField('educationDetails', form?.profile.educationDetails.map((e, idx) => idx === i ? { ...e, [k]: v } : e));
+
+  const addEdu = () => setProfileField('educationDetails', [...(form?.profile.educationDetails ?? []), { ...EMPTY_EDU }]);
+  const removeEdu = (i: number) => setProfileField('educationDetails', form?.profile.educationDetails.filter((_, idx) => idx !== i));
+
+  const updateExp = (i: number, k: keyof CoachingExp, v: string) =>
+    setProfileField('coachingExperience', form?.profile.coachingExperience.map((e, idx) => idx === i ? { ...e, [k]: v } : e));
+
+  const addExp = () => setProfileField('coachingExperience', [...(form?.profile.coachingExperience ?? []), { ...EMPTY_EXP }]);
+  const removeExp = (i: number) => setProfileField('coachingExperience', form?.profile.coachingExperience.filter((_, idx) => idx !== i));
 
   if (!isSuperAdmin) {
     return (
@@ -118,33 +250,52 @@ export default function CoachDetailPage() {
     );
   }
 
-  const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
-    { key: 'overview', label: 'Overview', icon: <User className="w-4 h-4" /> },
-    { key: 'attendance', label: 'Attendance', icon: <Calendar className="w-4 h-4" /> },
+  const tabs: { key: Tab; label: string }[] = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'attendance', label: 'Attendance' },
   ];
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <Link href="/coaches" className="text-gray-400 hover:text-gray-600">
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">
-            {isLoading ? 'Loading...' : (coach?.name ?? 'Coach Details')}
-          </h2>
-          {coach && (
-            <p className="text-sm text-gray-500">
-              {coach.venue?.name ?? ''}
-              {coach.status && (
-                <span className={`ml-2 text-xs font-medium px-2 py-0.5 rounded-full ${coach.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Link href="/coaches" className="text-gray-400 hover:text-gray-600">
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">
+              {isLoading ? 'Loading...' : (coach?.name ?? 'Coach Details')}
+            </h2>
+            {coach && (
+              <p className="text-sm text-gray-500 flex items-center gap-2">
+                {coach.venue?.name}
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${coach.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                   {coach.status}
                 </span>
-              )}
-            </p>
-          )}
+              </p>
+            )}
+          </div>
         </div>
+        {tab === 'overview' && coach && !editing && (
+          <button onClick={startEdit} className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 border border-blue-200 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors">
+            <Pencil className="w-4 h-4" /> Edit
+          </button>
+        )}
+        {tab === 'overview' && editing && (
+          <div className="flex gap-2">
+            <button onClick={cancelEdit} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors">
+              <X className="w-4 h-4" /> Cancel
+            </button>
+            <button
+              onClick={() => saveMutation.mutate()}
+              disabled={saveMutation.isPending}
+              className="flex items-center gap-1.5 text-sm text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg disabled:opacity-50 transition-colors"
+            >
+              <Check className="w-4 h-4" /> {saveMutation.isPending ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
@@ -152,14 +303,11 @@ export default function CoachDetailPage() {
         {tabs.map((t) => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key)}
+            onClick={() => { setTab(t.key); if (t.key !== 'overview') cancelEdit(); }}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              tab === t.key
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+              tab === t.key ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
-            {t.icon}
             {t.label}
           </button>
         ))}
@@ -171,149 +319,261 @@ export default function CoachDetailPage() {
         <div className="text-center py-10 text-sm text-gray-400">Coach not found.</div>
       ) : (
         <>
-          {/* Overview Tab */}
-          {tab === 'overview' && (
-            <div className="space-y-6">
-              {/* Basic Info */}
-              <div className="bg-white rounded-xl border border-gray-100 p-6 space-y-3">
-                <h3 className="font-semibold text-gray-800 mb-4">Basic Information</h3>
-                <InfoRow label="Name" value={coach.name} />
-                <InfoRow label="Phone" value={coach.phone} />
+          {/* ── Overview Tab ─────────────────────────────────────────────── */}
+          {tab === 'overview' && !editing && (
+            <div className="space-y-5">
+              <SectionCard title="Basic Details">
+                <InfoRow label="Full Name" value={coach.name} />
+                <InfoRow label="Mobile Number" value={coach.phone} />
                 <InfoRow label="Email" value={coach.email} />
-                <InfoRow label="Venue" value={coach.venue?.name} />
+                <InfoRow label="Status" value={coach.status} />
                 <InfoRow label="State" value={coach.state} />
                 <InfoRow label="District" value={coach.district} />
                 <InfoRow label="City" value={coach.city} />
                 <InfoRow label="Region" value={coach.region} />
-                <InfoRow label="Joined" value={coach.createdAt ? dayjs(coach.createdAt).format('DD MMM YYYY') : undefined} />
-              </div>
+                <InfoRow label="Venue" value={coach.venue?.name} />
+                <InfoRow label="Joined" value={dayjs(coach.createdAt).format('DD MMM YYYY')} />
+                <div className="flex flex-col sm:flex-row sm:gap-4">
+                  <span className="text-sm text-gray-500 sm:w-44 shrink-0">Sports</span>
+                  {coach.sports?.length ? (
+                    <div className="flex flex-wrap gap-1">
+                      {coach.sports.map((s) => (
+                        <span key={s.id} className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
+                          {s.icon ? `${s.icon} ` : ''}{s.name}
+                        </span>
+                      ))}
+                    </div>
+                  ) : <span className="text-sm text-gray-300">—</span>}
+                </div>
+              </SectionCard>
 
-              {/* Sports */}
-              {coach.sports && coach.sports.length > 0 && (
-                <div className="bg-white rounded-xl border border-gray-100 p-6">
-                  <h3 className="font-semibold text-gray-800 mb-4">Sports</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {coach.sports.map((s) => (
-                      <span key={s.id} className="text-sm bg-blue-50 text-blue-700 px-3 py-1 rounded-full">
-                        {s.icon ? `${s.icon} ` : ''}{s.name}
-                      </span>
+              <SectionCard title="Education & Certifications">
+                {coach.profile?.educationDetails?.length ? (
+                  coach.profile.educationDetails.map((edu, i) => (
+                    <div key={i} className="border border-gray-100 rounded-lg p-3 space-y-2">
+                      <InfoRow label="Qualification" value={(edu as any).qualification} />
+                      <InfoRow label="Institute" value={(edu as any).institute} />
+                      <InfoRow label="Year" value={(edu as any).year} />
+                      <InfoRow label="Sports Certifications" value={(edu as any).sportsCertifications} />
+                      <InfoRow label="Remarks" value={(edu as any).remarks} />
+                    </div>
+                  ))
+                ) : <span className="text-sm text-gray-300">—</span>}
+              </SectionCard>
+
+              <SectionCard title="Sports Background">
+                <InfoRow label="Specialization" value={coach.profile?.sportSpecialization} />
+                <div className="flex flex-col sm:flex-row sm:gap-4">
+                  <span className="text-sm text-gray-500 sm:w-44 shrink-0">Playing Levels</span>
+                  <Chips items={coach.profile?.playingLevels} />
+                </div>
+                <InfoRow label="Achievements" value={coach.profile?.achievements} />
+              </SectionCard>
+
+              <SectionCard title="Experience & Skills">
+                {coach.profile?.coachingExperience?.length ? (
+                  <div className="space-y-3">
+                    {coach.profile.coachingExperience.map((exp, i) => (
+                      <div key={i} className="border border-gray-100 rounded-lg p-3 space-y-2">
+                        <InfoRow label="Organization" value={(exp as any).organization} />
+                        <InfoRow label="Role" value={(exp as any).role} />
+                        <InfoRow label="Duration" value={(exp as any).duration} />
+                        <InfoRow label="Responsibilities" value={(exp as any).responsibilities} />
+                      </div>
                     ))}
                   </div>
+                ) : <span className="text-sm text-gray-300">—</span>}
+                <div className="flex flex-col sm:flex-row sm:gap-4">
+                  <span className="text-sm text-gray-500 sm:w-44 shrink-0">Key Skills</span>
+                  <Chips items={coach.profile?.keySkills} />
                 </div>
-              )}
+                <div className="flex flex-col sm:flex-row sm:gap-4">
+                  <span className="text-sm text-gray-500 sm:w-44 shrink-0">Responsibilities</span>
+                  <Chips items={coach.profile?.responsibilities} />
+                </div>
+              </SectionCard>
 
-              {/* Batches */}
+              <SectionCard title="Payment Details">
+                <InfoRow label="Payment Type" value={PAYMENT_TYPES.find((p) => p.value === (coach.profile as any)?.paymentType)?.label ?? (coach.profile as any)?.paymentType} />
+                <InfoRow label="Payment Value" value={(coach.profile as any)?.paymentValue != null ? `₹${Number((coach.profile as any).paymentValue).toLocaleString()}` : undefined} />
+                <InfoRow label="Expected Salary" value={coach.profile?.expectedSalary} />
+                <InfoRow label="Joining Availability" value={coach.profile?.joiningAvailability} />
+              </SectionCard>
+
               {coach.batches && coach.batches.length > 0 && (
-                <div className="bg-white rounded-xl border border-gray-100 p-6">
-                  <h3 className="font-semibold text-gray-800 mb-4">Assigned Batches</h3>
+                <SectionCard title="Assigned Batches">
                   <div className="space-y-2">
                     {coach.batches.map((b) => (
-                      <div key={b.batchId} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                      <div key={b.batchId} className="flex items-center justify-between py-1 border-b border-gray-50 last:border-0">
                         <div>
                           <span className="text-sm font-medium text-gray-900">{b.name}</span>
                           <span className="text-xs text-gray-400 ml-2">{b.sport.name}</span>
                         </div>
-                        {b.isPrimary && (
-                          <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">Primary</span>
-                        )}
+                        {b.isPrimary && <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">Primary</span>}
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
-
-              {/* Profile / Qualifications */}
-              {coach.profile && (
-                <div className="bg-white rounded-xl border border-gray-100 p-6 space-y-4">
-                  <h3 className="font-semibold text-gray-800">Qualifications & Profile</h3>
-
-                  {coach.profile.sportSpecialization && (
-                    <InfoRow label="Specialization" value={coach.profile.sportSpecialization} />
-                  )}
-
-                  {coach.profile.playingLevels && coach.profile.playingLevels.length > 0 && (
-                    <div className="flex flex-col sm:flex-row sm:gap-4">
-                      <span className="text-sm text-gray-500 sm:w-40 shrink-0">Playing Levels</span>
-                      <div className="flex flex-wrap gap-1">
-                        {coach.profile.playingLevels.map((l) => (
-                          <span key={l} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{l}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {coach.profile.keySkills && coach.profile.keySkills.length > 0 && (
-                    <div className="flex flex-col sm:flex-row sm:gap-4">
-                      <span className="text-sm text-gray-500 sm:w-40 shrink-0">Key Skills</span>
-                      <div className="flex flex-wrap gap-1">
-                        {coach.profile.keySkills.map((s) => (
-                          <span key={s} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{s}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {coach.profile.achievements && (
-                    <InfoRow label="Achievements" value={coach.profile.achievements} />
-                  )}
-
-                  {coach.profile.expectedSalary && (
-                    <InfoRow label="Expected Salary" value={coach.profile.expectedSalary} />
-                  )}
-
-                  {coach.profile.joiningAvailability && (
-                    <InfoRow label="Available From" value={coach.profile.joiningAvailability} />
-                  )}
-
-                  {(coach.profile.paymentType || coach.profile.paymentValue) && (
-                    <InfoRow
-                      label="Payment"
-                      value={[coach.profile.paymentType, coach.profile.paymentValue != null ? `₹${coach.profile.paymentValue.toLocaleString()}` : undefined].filter(Boolean).join(' — ')}
-                    />
-                  )}
-
-                  {coach.profile.educationDetails && coach.profile.educationDetails.length > 0 && (
-                    <div className="flex flex-col sm:flex-row sm:gap-4">
-                      <span className="text-sm text-gray-500 sm:w-40 shrink-0">Education</span>
-                      <div className="space-y-1">
-                        {coach.profile.educationDetails.map((e, i) => (
-                          <div key={i} className="text-sm text-gray-900">
-                            {[e.degree, e.institution, e.year].filter(Boolean).join(', ')}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {coach.profile.coachingExperience && coach.profile.coachingExperience.length > 0 && (
-                    <div className="flex flex-col sm:flex-row sm:gap-4">
-                      <span className="text-sm text-gray-500 sm:w-40 shrink-0">Experience</span>
-                      <div className="space-y-1">
-                        {coach.profile.coachingExperience.map((e, i) => (
-                          <div key={i} className="text-sm text-gray-900">
-                            {[e.role, e.organization, e.duration].filter(Boolean).join(', ')}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                </SectionCard>
               )}
             </div>
           )}
 
-          {/* Attendance Tab */}
+          {/* ── Edit Mode ────────────────────────────────────────────────── */}
+          {tab === 'overview' && editing && form && (
+            <div className="space-y-5">
+              {/* Basic Details */}
+              <SectionCard title="Basic Details">
+                <div className="space-y-3">
+                  <input placeholder="Full Name *" value={form.name} onChange={(e) => setField('name', e.target.value)} className={inputCls} />
+                  <input placeholder="Mobile Number *" value={form.phone} onChange={(e) => setField('phone', e.target.value)} className={inputCls} />
+                  <input type="email" placeholder="Email" value={form.email} onChange={(e) => setField('email', e.target.value)} className={inputCls} />
+                  <select value={form.status} onChange={(e) => setField('status', e.target.value)} className={inputCls}>
+                    <option value="ACTIVE">Active</option>
+                    <option value="INACTIVE">Inactive</option>
+                  </select>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider pt-1">Location</p>
+                  <select value={form.state} onChange={(e) => { setField('state', e.target.value); setField('district', ''); setField('city', ''); }} className={inputCls}>
+                    <option value="">Select State</option>
+                    {STATE_NAMES.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <select value={form.district} onChange={(e) => { setField('district', e.target.value); setField('city', ''); }} disabled={!form.state} className={`${inputCls} disabled:bg-gray-50 disabled:text-gray-400`}>
+                    <option value="">Select District</option>
+                    {districts.map((d) => <option key={d.name} value={d.name}>{d.name}</option>)}
+                  </select>
+                  <input placeholder="Region" value={form.region} onChange={(e) => setField('region', e.target.value)} className={inputCls} />
+                </div>
+              </SectionCard>
+
+              {/* Sports */}
+              <SectionCard title="Assign Sports">
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {sports.map((sport) => (
+                    <label key={sport.id} className="flex items-center gap-2 cursor-pointer py-1">
+                      <input type="checkbox" checked={form.sportIds.includes(sport.id)} onChange={() => toggleSport(sport.id)} className="h-4 w-4 rounded border-gray-300 text-blue-600" />
+                      <span className="text-sm text-gray-700">{sport.icon && <span className="mr-1">{sport.icon}</span>}{sport.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </SectionCard>
+
+              {/* Education */}
+              <SectionCard title="Education & Certifications">
+                <div className="space-y-4">
+                  {form.profile.educationDetails.map((edu, i) => (
+                    <div key={i} className="border border-gray-100 rounded-lg p-3 space-y-2">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-medium text-gray-500">Entry {i + 1}</span>
+                        {form.profile.educationDetails.length > 1 && (
+                          <button onClick={() => removeEdu(i)} className="text-gray-300 hover:text-red-400"><X size={14} /></button>
+                        )}
+                      </div>
+                      <input placeholder="Qualification" value={edu.qualification} onChange={(e) => updateEdu(i, 'qualification', e.target.value)} className={inputCls} />
+                      <input placeholder="Institute" value={edu.institute} onChange={(e) => updateEdu(i, 'institute', e.target.value)} className={inputCls} />
+                      <input placeholder="Year" value={edu.year} onChange={(e) => updateEdu(i, 'year', e.target.value)} className={inputCls} />
+                      <input placeholder="Sports Certifications" value={edu.sportsCertifications} onChange={(e) => updateEdu(i, 'sportsCertifications', e.target.value)} className={inputCls} />
+                      <input placeholder="Remarks" value={edu.remarks} onChange={(e) => updateEdu(i, 'remarks', e.target.value)} className={inputCls} />
+                    </div>
+                  ))}
+                  <button onClick={addEdu} className="text-sm text-blue-600 hover:text-blue-800">+ Add Education</button>
+                </div>
+              </SectionCard>
+
+              {/* Sports Background */}
+              <SectionCard title="Sports Background">
+                <input placeholder="Sport Specialization" value={form.profile.sportSpecialization} onChange={(e) => setProfileField('sportSpecialization', e.target.value)} className={inputCls} />
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Playing Levels</p>
+                  <div className="flex flex-wrap gap-2">
+                    {PLAYING_LEVELS.map((l) => (
+                      <label key={l} className="flex items-center gap-1.5 cursor-pointer">
+                        <input type="checkbox" checked={form.profile.playingLevels.includes(l)} onChange={() => toggleArr('playingLevels', l)} className="h-4 w-4 rounded border-gray-300 text-blue-600" />
+                        <span className="text-sm text-gray-700">{l}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <textarea placeholder="Achievements" value={form.profile.achievements} onChange={(e) => setProfileField('achievements', e.target.value)} rows={2} className={`${inputCls} resize-none`} />
+              </SectionCard>
+
+              {/* Experience & Skills */}
+              <SectionCard title="Experience & Skills">
+                <div className="space-y-4">
+                  {form.profile.coachingExperience.map((exp, i) => (
+                    <div key={i} className="border border-gray-100 rounded-lg p-3 space-y-2">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-medium text-gray-500">Entry {i + 1}</span>
+                        {form.profile.coachingExperience.length > 1 && (
+                          <button onClick={() => removeExp(i)} className="text-gray-300 hover:text-red-400"><X size={14} /></button>
+                        )}
+                      </div>
+                      <input placeholder="Organization" value={exp.organization} onChange={(e) => updateExp(i, 'organization', e.target.value)} className={inputCls} />
+                      <input placeholder="Role" value={exp.role} onChange={(e) => updateExp(i, 'role', e.target.value)} className={inputCls} />
+                      <input placeholder="Duration" value={exp.duration} onChange={(e) => updateExp(i, 'duration', e.target.value)} className={inputCls} />
+                      <input placeholder="Responsibilities" value={exp.responsibilities} onChange={(e) => updateExp(i, 'responsibilities', e.target.value)} className={inputCls} />
+                    </div>
+                  ))}
+                  <button onClick={addExp} className="text-sm text-blue-600 hover:text-blue-800">+ Add Experience</button>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Key Skills</p>
+                  <div className="space-y-1">
+                    {KEY_SKILLS.map((s) => (
+                      <label key={s} className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={form.profile.keySkills.includes(s)} onChange={() => toggleArr('keySkills', s)} className="h-4 w-4 rounded border-gray-300 text-blue-600" />
+                        <span className="text-sm text-gray-700">{s}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Responsibilities</p>
+                  <div className="space-y-1">
+                    {RESPONSIBILITIES.map((r) => (
+                      <label key={r} className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={form.profile.responsibilities.includes(r)} onChange={() => toggleArr('responsibilities', r)} className="h-4 w-4 rounded border-gray-300 text-blue-600" />
+                        <span className="text-sm text-gray-700">{r}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </SectionCard>
+
+              {/* Payment Details */}
+              <SectionCard title="Payment Details">
+                <select value={form.profile.paymentType} onChange={(e) => setProfileField('paymentType', e.target.value)} className={inputCls}>
+                  <option value="">Select Payment Type</option>
+                  {PAYMENT_TYPES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+                </select>
+                {form.profile.paymentType && (
+                  <input
+                    type="number"
+                    placeholder={form.profile.paymentType === 'REVENUE_PERCENTAGE' ? 'Percentage (%)' : 'Amount (₹)'}
+                    value={form.profile.paymentValue}
+                    onChange={(e) => setProfileField('paymentValue', e.target.value)}
+                    className={inputCls}
+                  />
+                )}
+                <input placeholder="Expected Salary" value={form.profile.expectedSalary} onChange={(e) => setProfileField('expectedSalary', e.target.value)} className={inputCls} />
+                <input placeholder="Joining Availability" value={form.profile.joiningAvailability} onChange={(e) => setProfileField('joiningAvailability', e.target.value)} className={inputCls} />
+              </SectionCard>
+            </div>
+          )}
+
+          {/* ── Attendance Tab ───────────────────────────────────────────── */}
           {tab === 'attendance' && (
-            <div className="space-y-4">
+            <div>
               {attendanceLoading ? (
                 <div className="text-center py-10 text-sm text-gray-400">Loading attendance...</div>
               ) : attendance.length === 0 ? (
-                <div className="text-center py-10 text-sm text-gray-400">No attendance records found for the last 3 months.</div>
+                <div className="text-center py-10 text-sm text-gray-400">No attendance records in the last 3 months.</div>
               ) : (
                 <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
                   <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-                    <h3 className="font-semibold text-gray-800">Session Attendance (Last 3 Months)</h3>
-                    <div className="flex gap-3 text-xs text-gray-500">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-gray-400" />
+                      <h3 className="font-semibold text-gray-800">Session Attendance — Last 3 Months</h3>
+                    </div>
+                    <div className="flex gap-3 text-xs">
                       <span className="text-green-600 font-medium">{attendance.filter((a) => a.status === 'PRESENT').length} Present</span>
                       <span className="text-yellow-600 font-medium">{attendance.filter((a) => a.status === 'LATE').length} Late</span>
                       <span className="text-red-600 font-medium">{attendance.filter((a) => a.status === 'ABSENT').length} Absent</span>
@@ -338,9 +598,7 @@ export default function CoachDetailPage() {
                               ? `${dayjs(record.session.startedAt).format('h:mm A')}${record.session.endedAt ? ` – ${dayjs(record.session.endedAt).format('h:mm A')}` : ''}`
                               : '—'}
                           </td>
-                          <td className="px-5 py-3">
-                            <StatusBadge status={record.status} />
-                          </td>
+                          <td className="px-5 py-3"><StatusBadge status={record.status} /></td>
                         </tr>
                       ))}
                     </tbody>
