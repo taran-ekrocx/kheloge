@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
-import { CheckCircle, Clock, ArrowLeft } from 'lucide-react';
+import { CheckCircle, Clock, ArrowLeft, UserCircle } from 'lucide-react';
 import dayjs from 'dayjs';
 import Link from 'next/link';
 
@@ -114,7 +114,6 @@ function BatchPaymentDetailContent() {
             {batch && (
               <p className="text-gray-500 text-sm">
                 {batch.sport.name}{batch.venue ? ` · ${batch.venue.name}` : ''}
-                {batch.coaches && batch.coaches.length > 0 ? ` · ${batch.coaches.map((c) => c.name).join(', ')}` : ''}
                 {batch.fee != null && batch.fee > 0 ? ` · ₹${batch.fee.toLocaleString()}/mo` : ''}
               </p>
             )}
@@ -139,6 +138,17 @@ function BatchPaymentDetailContent() {
         </div>
       ) : (
         <>
+          {/* Coach Info */}
+          {batch.coaches && batch.coaches.length > 0 && (
+            <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+              <UserCircle className="w-5 h-5 text-blue-500 shrink-0" />
+              <span className="text-sm text-blue-700 font-medium">
+                Collected by:&nbsp;
+                <span className="font-semibold">{batch.coaches.map((c) => c.name).join(', ')}</span>
+              </span>
+            </div>
+          )}
+
           {/* Summary Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
