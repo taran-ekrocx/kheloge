@@ -5,7 +5,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
 import { useAuth } from '@/hooks/useAuth';
-import { Search, UserPlus, Filter, X, Edit2, Trash2, User, Plus } from 'lucide-react';
+import { Search, UserPlus, Filter, X, Edit2, Trash2, User, Plus, Eye } from 'lucide-react';
+import Link from 'next/link';
 import { STATE_NAMES, getDistricts } from '@/lib/india-locations';
 
 const COACH_STEP_LABELS = [
@@ -935,6 +936,15 @@ export default function CoachesPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2 justify-end">
+                        {isSuperAdmin && (
+                          <Link
+                            href={`/coaches/${c.id}`}
+                            className="text-gray-400 hover:text-blue-600 transition-colors"
+                            title="View coach details"
+                          >
+                            <Eye size={15} />
+                          </Link>
+                        )}
                         <button
                           onClick={() => { setEditing(c); setShowModal(true); }}
                           className="text-gray-400 hover:text-blue-600 transition-colors"

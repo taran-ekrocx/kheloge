@@ -210,42 +210,11 @@ export class CoachesService {
 
   async findOne(organizationId: string, orgUserId: string) {
     const orgUser = await this.prisma.organizationUser.findFirst({
-      where: { id: orgUserId, organizationId, role: UserRole.COACH, isActive: true },
-      include: {
-        user: {
-          include: {
-            coachBatches: {
-              include: {
-                batch: {
-                  include: {
-                    sport: true,
-                    venue: { select: { id: true, name: true } },
-                    _count: { select: { enrollments: true } },
-                  },
-                },
-              },
-            },
-          },
-        },
-        venue: { select: { id: true, name: true } },
-      },
+      where: { id: orgUserId, organizationId, role: UserRole.COACH },
+      include: VENUE_COACH_INCLUDE,
     });
     if (!orgUser) throw new NotFoundException('Coach not found');
-
-    const { user, venue, ...rest } = orgUser;
-    return {
-      ...rest,
-      userId: user.id,
-      name: user.name,
-      phone: user.phone,
-      photoUrl: user.photoUrl,
-      venue,
-      batches: user.coachBatches.map((bc) => ({
-        batchId: bc.batchId,
-        isPrimary: bc.isPrimary,
-        ...bc.batch,
-      })),
-    };
+    return this.mapOrgUser(orgUser);
   }
 
   // ── Venue-scoped coach CRUD ──────────────────────────────────────────────
