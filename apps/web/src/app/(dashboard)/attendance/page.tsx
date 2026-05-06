@@ -839,11 +839,11 @@ function CoachCollapsibleSummary({ items, month }: { items: MonthlySummaryItem[]
     return Array.from(coachMap.values()).map(c => ({ ...c, batches: Array.from(c.batches.values()) }));
   }, [items]);
 
-  const [expandedCoaches, setExpandedCoaches] = useState<Set<string>>(new Set());
+  const [collapsedCoaches, setCollapsedCoaches] = useState<Set<string>>(new Set());
   const [expandedBatches, setExpandedBatches] = useState<Set<string>>(new Set());
 
   const toggleCoach = (coachId: string) => {
-    setExpandedCoaches(prev => {
+    setCollapsedCoaches(prev => {
       const next = new Set(prev);
       if (next.has(coachId)) next.delete(coachId);
       else next.add(coachId);
@@ -863,7 +863,7 @@ function CoachCollapsibleSummary({ items, month }: { items: MonthlySummaryItem[]
   return (
     <div className="space-y-3">
       {coaches.map(coach => {
-        const isCoachExpanded = expandedCoaches.has(coach.coachId);
+        const isCoachExpanded = !collapsedCoaches.has(coach.coachId);
         const allStudents = coach.batches.flatMap(b => b.students);
         const totalStudents = allStudents.length;
         const coachAvgPct = totalStudents > 0
