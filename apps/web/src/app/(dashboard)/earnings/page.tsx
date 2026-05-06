@@ -4,129 +4,34 @@ import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
-import { TrendingUp, IndianRupee } from 'lucide-react';
+import { TrendingUp, CalendarCheck, Users, BarChart2 } from 'lucide-react';
 import dayjs from 'dayjs';
 
-interface EarningsBatchBase {
+interface EarningsBatch {
   id: string;
   code: string;
   name: string;
   venue: { id: string; name: string } | null;
   sport: { id: string; name: string };
   studentCount: number;
+  totalIncome: number;
+  revenue: number;
   totalPayment: number;
 }
-
-interface FixedBatch extends EarningsBatchBase {
-  monthlyPayout: number;
-}
-
-interface RevenueBatch extends EarningsBatchBase {
-  totalRevenue: number;
-  commission: number;
-}
-
-interface SessionBatch extends EarningsBatchBase {
-  sessionCount: number;
-  perSessionAmount: number;
-}
-
-type EarningsBatch = FixedBatch | RevenueBatch | SessionBatch;
 
 interface EarningsData {
   paymentType: string;
   paymentValue: number;
   totalEarnings: number;
+  totalSessions: number;
+  attendedSessions: number;
+  attendancePercentage: number;
   batches: EarningsBatch[];
 }
 
 interface FilterOption {
   id: string;
   name: string;
-}
-
-function BatchRow({ batch, paymentType }: { batch: EarningsBatch; paymentType: string }) {
-  const base = (
-    <>
-      <td className="px-4 py-3 font-mono text-xs text-gray-500">{batch.code}</td>
-      <td className="px-4 py-3 font-medium text-gray-900">{batch.name}</td>
-      <td className="px-4 py-3 text-gray-600">{batch.venue?.name ?? '—'}</td>
-      <td className="px-4 py-3 text-gray-600">{batch.sport.name}</td>
-      <td className="px-4 py-3 text-gray-700 text-center">{batch.studentCount}</td>
-    </>
-  );
-
-  if (paymentType === 'REVENUE_PERCENTAGE') {
-    const b = batch as RevenueBatch;
-    return (
-      <tr className="border-b border-gray-50 hover:bg-gray-50">
-        {base}
-        <td className="px-4 py-3 text-gray-700">₹{b.totalRevenue.toLocaleString()}</td>
-        <td className="px-4 py-3 text-blue-700 font-medium">₹{b.commission.toLocaleString()}</td>
-        <td className="px-4 py-3 text-green-700 font-semibold">₹{b.totalPayment.toLocaleString()}</td>
-      </tr>
-    );
-  }
-
-  if (paymentType === 'PER_SESSION_PAYOUT') {
-    const b = batch as SessionBatch;
-    return (
-      <tr className="border-b border-gray-50 hover:bg-gray-50">
-        {base}
-        <td className="px-4 py-3 text-gray-700 text-center">{b.sessionCount}</td>
-        <td className="px-4 py-3 text-green-700 font-semibold">₹{b.totalPayment.toLocaleString()}</td>
-      </tr>
-    );
-  }
-
-  // FIXED_PAYMENT
-  const b = batch as FixedBatch;
-  return (
-    <tr className="border-b border-gray-50 hover:bg-gray-50">
-      {base}
-      <td className="px-4 py-3 text-green-700 font-semibold">₹{b.monthlyPayout.toLocaleString()}</td>
-    </tr>
-  );
-}
-
-function TableHeader({ paymentType }: { paymentType: string }) {
-  const baseHeaders = (
-    <>
-      <th className="text-left px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wider">Batch Code</th>
-      <th className="text-left px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wider">Batch Name</th>
-      <th className="text-left px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wider">Venue</th>
-      <th className="text-left px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wider">Sport</th>
-      <th className="text-center px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wider">Students</th>
-    </>
-  );
-
-  if (paymentType === 'REVENUE_PERCENTAGE') {
-    return (
-      <tr className="bg-gray-50">
-        {baseHeaders}
-        <th className="text-left px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wider">Total Revenue</th>
-        <th className="text-left px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wider">Commission</th>
-        <th className="text-left px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wider">Total Payment</th>
-      </tr>
-    );
-  }
-
-  if (paymentType === 'PER_SESSION_PAYOUT') {
-    return (
-      <tr className="bg-gray-50">
-        {baseHeaders}
-        <th className="text-center px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wider">Sessions</th>
-        <th className="text-left px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wider">Total Payment</th>
-      </tr>
-    );
-  }
-
-  return (
-    <tr className="bg-gray-50">
-      {baseHeaders}
-      <th className="text-left px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wider">Monthly Payout</th>
-    </tr>
-  );
 }
 
 function paymentTypeLabel(type: string) {
@@ -190,6 +95,40 @@ export default function EarningsPage() {
 
   const paymentType = data?.paymentType ?? 'FIXED_PAYMENT';
   const batches = data?.batches ?? [];
+
+  const metrics = [
+    {
+      label: 'Total Sessions',
+      value: data?.totalSessions ?? 0,
+      icon: CalendarCheck,
+      color: 'blue',
+    },
+    {
+      label: 'Attended Sessions',
+      value: data?.attendedSessions ?? 0,
+      icon: Users,
+      color: 'purple',
+    },
+    {
+      label: 'Attendance',
+      value: `${data?.attendancePercentage ?? 0}%`,
+      icon: BarChart2,
+      color: 'orange',
+    },
+    {
+      label: 'Total Earnings',
+      value: `₹${(data?.totalEarnings ?? 0).toLocaleString()}`,
+      icon: TrendingUp,
+      color: 'green',
+    },
+  ] as const;
+
+  const colorMap = {
+    blue: { bg: 'bg-blue-50', icon: 'text-blue-600', value: 'text-blue-700' },
+    purple: { bg: 'bg-purple-50', icon: 'text-purple-600', value: 'text-purple-700' },
+    orange: { bg: 'bg-orange-50', icon: 'text-orange-600', value: 'text-orange-700' },
+    green: { bg: 'bg-green-50', icon: 'text-green-600', value: 'text-green-700' },
+  };
 
   return (
     <div className="space-y-6">
@@ -261,17 +200,22 @@ export default function EarningsPage() {
         )}
       </div>
 
-      {/* Total Earnings Card */}
-      <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex items-center gap-4 max-w-xs">
-        <div className="bg-green-50 rounded-lg p-3">
-          <TrendingUp className="w-6 h-6 text-green-600" />
-        </div>
-        <div>
-          <p className="text-sm text-gray-500">Total Earnings</p>
-          <p className="text-2xl font-bold text-green-600">
-            ₹{(data?.totalEarnings ?? 0).toLocaleString()}
-          </p>
-        </div>
+      {/* Summary Metrics */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {metrics.map(({ label, value, icon: Icon, color }) => {
+          const c = colorMap[color];
+          return (
+            <div key={label} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center gap-3">
+              <div className={`${c.bg} rounded-lg p-2.5`}>
+                <Icon className={`w-5 h-5 ${c.icon}`} />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">{label}</p>
+                <p className={`text-xl font-bold ${c.value}`}>{value}</p>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Batch Table */}
@@ -287,32 +231,34 @@ export default function EarningsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <TableHeader paymentType={paymentType} />
+                <tr className="bg-gray-50">
+                  <th className="text-left px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wider">Batch Code</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wider">Batch Name</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wider">Venue</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wider">Sport</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wider">Total Income</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wider">Revenue</th>
+                </tr>
               </thead>
               <tbody>
                 {batches.map((batch) => (
-                  <BatchRow key={batch.id} batch={batch} paymentType={paymentType} />
+                  <tr key={batch.id} className="border-b border-gray-50 hover:bg-gray-50">
+                    <td className="px-4 py-3 font-mono text-xs text-gray-500">{batch.code}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900">{batch.name}</td>
+                    <td className="px-4 py-3 text-gray-600">{batch.venue?.name ?? '—'}</td>
+                    <td className="px-4 py-3 text-gray-600">{batch.sport.name}</td>
+                    <td className="px-4 py-3 text-gray-700 text-right">₹{batch.totalIncome.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-green-700 font-semibold text-right">₹{batch.revenue.toLocaleString()}</td>
+                  </tr>
                 ))}
               </tbody>
               <tfoot className="bg-gray-50 border-t border-gray-200">
                 <tr>
-                  <td colSpan={5} className="px-4 py-3 font-semibold text-gray-700 text-sm">Total</td>
-                  {paymentType === 'REVENUE_PERCENTAGE' && (
-                    <>
-                      <td className="px-4 py-3 font-semibold text-gray-700">
-                        ₹{batches.reduce((s, b) => s + ((b as RevenueBatch).totalRevenue ?? 0), 0).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 font-semibold text-blue-700">
-                        ₹{batches.reduce((s, b) => s + ((b as RevenueBatch).commission ?? 0), 0).toLocaleString()}
-                      </td>
-                    </>
-                  )}
-                  {paymentType === 'PER_SESSION_PAYOUT' && (
-                    <td className="px-4 py-3 font-semibold text-center text-gray-700">
-                      {batches.reduce((s, b) => s + ((b as SessionBatch).sessionCount ?? 0), 0)}
-                    </td>
-                  )}
-                  <td className="px-4 py-3 font-bold text-green-700">
+                  <td colSpan={4} className="px-4 py-3 font-semibold text-gray-700 text-sm">Total</td>
+                  <td className="px-4 py-3 font-semibold text-gray-700 text-right">
+                    ₹{batches.reduce((s, b) => s + b.totalIncome, 0).toLocaleString()}
+                  </td>
+                  <td className="px-4 py-3 font-bold text-green-700 text-right">
                     ₹{(data?.totalEarnings ?? 0).toLocaleString()}
                   </td>
                 </tr>

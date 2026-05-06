@@ -896,40 +896,72 @@ export class CoachesService {
       return true;
     });
 
+    const batchIds = filtered.map((bc) => bc.batch.id);
+
+    const [totalSessionsCount, attendanceStats] = await Promise.all([
+      this.prisma.attendanceSession.count({
+        where: { batchId: { in: batchIds }, coachId, date: { gte: monthStart, lt: monthEnd } },
+      }),
+      this.prisma.attendance.groupBy({
+        by: ['status'],
+        where: { batchId: { in: batchIds }, date: { gte: monthStart, lt: monthEnd } },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const totalAttendanceRecords = attendanceStats.reduce((s, r) => s + r._count._all, 0);
+    const attendedSessions = attendanceStats
+      .filter((r) => r.status === 'PRESENT' || r.status === 'LATE')
+      .reduce((s, r) => s + r._count._all, 0);
+    const attendancePercentage = totalAttendanceRecords > 0
+      ? Math.round((attendedSessions / totalAttendanceRecords) * 100)
+      : 0;
+
     const batches = await Promise.all(
       filtered.map(async (bc) => {
         const batch = bc.batch;
         const studentCount = batch.enrollments.length;
         const code = batch.id.slice(0, 8).toUpperCase();
-        const base = { id: batch.id, code, name: batch.name, venue: batch.venue, sport: batch.sport, studentCount };
+        const studentIds = batch.enrollments.map((e) => e.studentId);
+
+        const incomeAgg = studentIds.length > 0
+          ? await this.prisma.payment.aggregate({
+              where: { studentId: { in: studentIds }, paidAt: { gte: monthStart, lt: monthEnd }, status: 'PAID' as any },
+              _sum: { amount: true },
+            })
+          : { _sum: { amount: 0 } };
+        const totalIncome = Number(incomeAgg._sum.amount ?? 0);
+
+        const base = { id: batch.id, code, name: batch.name, venue: batch.venue, sport: batch.sport, studentCount, totalIncome };
 
         if (paymentType === 'REVENUE_PERCENTAGE') {
-          const studentIds = batch.enrollments.map((e) => e.studentId);
-          const agg = studentIds.length > 0
-            ? await this.prisma.payment.aggregate({
-                where: { studentId: { in: studentIds }, paidAt: { gte: monthStart, lt: monthEnd }, status: 'PAID' as any },
-                _sum: { amount: true },
-              })
-            : { _sum: { amount: 0 } };
-          const totalRevenue = Number(agg._sum.amount ?? 0);
-          const commission = Math.round((totalRevenue * paymentValue) / 100);
-          return { ...base, totalRevenue, commission, totalPayment: commission };
+          const commission = Math.round((totalIncome * paymentValue) / 100);
+          return { ...base, totalRevenue: totalIncome, commission, revenue: commission, totalPayment: commission };
         }
 
         if (paymentType === 'PER_SESSION_PAYOUT') {
           const sessionCount = await this.prisma.attendanceSession.count({
             where: { batchId: batch.id, coachId, date: { gte: monthStart, lt: monthEnd } },
           });
-          return { ...base, sessionCount, perSessionAmount: paymentValue, totalPayment: sessionCount * paymentValue };
+          const revenue = sessionCount * paymentValue;
+          return { ...base, sessionCount, perSessionAmount: paymentValue, revenue, totalPayment: revenue };
         }
 
         // FIXED_PAYMENT (default)
-        return { ...base, monthlyPayout: paymentValue, totalPayment: paymentValue };
+        return { ...base, monthlyPayout: paymentValue, revenue: paymentValue, totalPayment: paymentValue };
       }),
     );
 
     const totalEarnings = batches.reduce((sum, b) => sum + b.totalPayment, 0);
-    return { paymentType, paymentValue, totalEarnings, batches };
+    return {
+      paymentType,
+      paymentValue,
+      totalEarnings,
+      totalSessions: totalSessionsCount,
+      attendedSessions,
+      attendancePercentage,
+      batches,
+    };
   }
 
   async getCoachKpiDashboard(coachId: string) {
