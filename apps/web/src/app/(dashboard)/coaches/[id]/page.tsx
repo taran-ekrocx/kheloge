@@ -17,11 +17,6 @@ const KEY_SKILLS = [
   'Training Kids', 'Training Adults', 'Fitness Conditioning',
   'Discipline & Team Management', 'Event Management', 'Communication Skills',
 ];
-const RESPONSIBILITIES = [
-  'Conduct structured training sessions', 'Plan weekly training schedules',
-  'Focus on skill development & fitness', 'Maintain safety during sessions',
-  'Track student performance', 'Assist in events & demo classes',
-];
 const PAYMENT_TYPES = [
   { value: 'FIXED_PAYMENT', label: 'Fixed Payment' },
   { value: 'REVENUE_PERCENTAGE', label: 'Revenue Percentage' },
@@ -387,17 +382,11 @@ export default function CoachDetailPage() {
                   <span className="text-sm text-gray-500 sm:w-44 shrink-0">Key Skills</span>
                   <Chips items={coach.profile?.keySkills} />
                 </div>
-                <div className="flex flex-col sm:flex-row sm:gap-4">
-                  <span className="text-sm text-gray-500 sm:w-44 shrink-0">Responsibilities</span>
-                  <Chips items={coach.profile?.responsibilities} />
-                </div>
               </SectionCard>
 
               <SectionCard title="Payment Details">
                 <InfoRow label="Payment Type" value={PAYMENT_TYPES.find((p) => p.value === (coach.profile as any)?.paymentType)?.label ?? (coach.profile as any)?.paymentType} />
                 <InfoRow label="Payment Value" value={(coach.profile as any)?.paymentValue != null ? `₹${Number((coach.profile as any).paymentValue).toLocaleString()}` : undefined} />
-                <InfoRow label="Expected Salary" value={coach.profile?.expectedSalary} />
-                <InfoRow label="Joining Availability" value={coach.profile?.joiningAvailability} />
               </SectionCard>
 
               {coach.batches && coach.batches.length > 0 && (
@@ -525,17 +514,6 @@ export default function CoachDetailPage() {
                     ))}
                   </div>
                 </div>
-                <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Responsibilities</p>
-                  <div className="space-y-1">
-                    {RESPONSIBILITIES.map((r) => (
-                      <label key={r} className="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" checked={form.profile.responsibilities.includes(r)} onChange={() => toggleArr('responsibilities', r)} className="h-4 w-4 rounded border-gray-300 text-blue-600" />
-                        <span className="text-sm text-gray-700">{r}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
               </SectionCard>
 
               {/* Payment Details */}
@@ -553,8 +531,6 @@ export default function CoachDetailPage() {
                     className={inputCls}
                   />
                 )}
-                <input placeholder="Expected Salary" value={form.profile.expectedSalary} onChange={(e) => setProfileField('expectedSalary', e.target.value)} className={inputCls} />
-                <input placeholder="Joining Availability" value={form.profile.joiningAvailability} onChange={(e) => setProfileField('joiningAvailability', e.target.value)} className={inputCls} />
               </SectionCard>
             </div>
           )}
