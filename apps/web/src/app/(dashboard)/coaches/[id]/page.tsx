@@ -177,30 +177,30 @@ export default function CoachDetailPage() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: () => {
-      if (!form) throw new Error('No form');
+    mutationFn: (currentForm: NonNullable<typeof form>) => {
       const payload = {
-        name: form.name,
-        phone: form.phone,
-        email: form.email || undefined,
-        status: form.status,
-        state: form.state || undefined,
-        district: form.district || undefined,
-        city: form.city || undefined,
-        region: form.region || undefined,
-        sportIds: form.sportIds,
+        name: currentForm.name,
+        phone: currentForm.phone,
+        email: currentForm.email || undefined,
+        status: currentForm.status,
+        state: currentForm.state || undefined,
+        district: currentForm.district || undefined,
+        city: currentForm.city || undefined,
+        region: currentForm.region || undefined,
+        sportIds: currentForm.sportIds,
         profile: {
-          ...form.profile,
-          paymentType: form.profile.paymentType || undefined,
-          paymentValue: form.profile.paymentValue ? Number(form.profile.paymentValue) : undefined,
+          ...currentForm.profile,
+          paymentType: currentForm.profile.paymentType || undefined,
+          paymentValue: currentForm.profile.paymentValue ? Number(currentForm.profile.paymentValue) : undefined,
         },
       };
       return api.patch(`/coaches/${id}`, payload);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['coach', id] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['coach', id] });
       queryClient.invalidateQueries({ queryKey: ['coaches-global'] });
       setEditing(false);
+      setForm(null);
     },
   });
 
@@ -291,7 +291,7 @@ export default function CoachDetailPage() {
               <X className="w-4 h-4" /> Cancel
             </button>
             <button
-              onClick={() => saveMutation.mutate()}
+              onClick={() => form && saveMutation.mutate(form)}
               disabled={saveMutation.isPending}
               className="flex items-center gap-1.5 text-sm text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg disabled:opacity-50 transition-colors"
             >
@@ -329,13 +329,10 @@ export default function CoachDetailPage() {
                 <InfoRow label="Full Name" value={coach.name} />
                 <InfoRow label="Mobile Number" value={coach.phone} />
                 <InfoRow label="Email" value={coach.email} />
-                <InfoRow label="Status" value={coach.status} />
                 <InfoRow label="State" value={coach.state} />
                 <InfoRow label="District" value={coach.district} />
                 <InfoRow label="City" value={coach.city} />
                 <InfoRow label="Region" value={coach.region} />
-                <InfoRow label="Venue" value={coach.venue?.name} />
-                <InfoRow label="Joined" value={dayjs(coach.createdAt).format('DD MMM YYYY')} />
                 <div className="flex flex-col sm:flex-row sm:gap-4">
                   <span className="text-sm text-gray-500 sm:w-44 shrink-0">Sports</span>
                   {coach.sports?.length ? (
@@ -424,10 +421,6 @@ export default function CoachDetailPage() {
                   <input placeholder="Full Name *" value={form.name} onChange={(e) => setField('name', e.target.value)} className={inputCls} />
                   <input placeholder="Mobile Number *" value={form.phone} onChange={(e) => setField('phone', e.target.value)} className={inputCls} />
                   <input type="email" placeholder="Email" value={form.email} onChange={(e) => setField('email', e.target.value)} className={inputCls} />
-                  <select value={form.status} onChange={(e) => setField('status', e.target.value)} className={inputCls}>
-                    <option value="ACTIVE">Active</option>
-                    <option value="INACTIVE">Inactive</option>
-                  </select>
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider pt-1">Location</p>
                   <select value={form.state} onChange={(e) => { setField('state', e.target.value); setField('district', ''); setField('city', ''); }} className={inputCls}>
                     <option value="">Select State</option>
