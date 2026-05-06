@@ -190,14 +190,22 @@ export default function CoachDetailPage() {
         sportIds: currentForm.sportIds,
         profile: {
           ...currentForm.profile,
+          // strip entries where every field is blank
+          educationDetails: currentForm.profile.educationDetails.filter(
+            (e) => e.qualification || e.institute || e.year || e.sportsCertifications || e.remarks,
+          ),
+          coachingExperience: currentForm.profile.coachingExperience.filter(
+            (e) => e.organization || e.role || e.duration || e.responsibilities,
+          ),
           paymentType: currentForm.profile.paymentType || undefined,
           paymentValue: currentForm.profile.paymentValue ? Number(currentForm.profile.paymentValue) : undefined,
         },
       };
       return api.patch(`/coaches/${id}`, payload);
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['coach', id] });
+    onSuccess: (response) => {
+      // use the updated coach returned by the PATCH — no extra GET needed
+      queryClient.setQueryData(['coach', id], response.data);
       queryClient.invalidateQueries({ queryKey: ['coaches-global'] });
       setEditing(false);
       setForm(null);
@@ -348,17 +356,20 @@ export default function CoachDetailPage() {
               </SectionCard>
 
               <SectionCard title="Education & Certifications">
-                {coach.profile?.educationDetails?.length ? (
-                  coach.profile.educationDetails.map((edu, i) => (
+                {(() => {
+                  const entries = (coach.profile?.educationDetails as any[] | undefined)?.filter(
+                    (e) => e.qualification || e.institute || e.year || e.sportsCertifications || e.remarks,
+                  ) ?? [];
+                  return entries.length ? entries.map((edu, i) => (
                     <div key={i} className="border border-gray-100 rounded-lg p-3 space-y-2">
-                      <InfoRow label="Qualification" value={(edu as any).qualification} />
-                      <InfoRow label="Institute" value={(edu as any).institute} />
-                      <InfoRow label="Year" value={(edu as any).year} />
-                      <InfoRow label="Sports Certifications" value={(edu as any).sportsCertifications} />
-                      <InfoRow label="Remarks" value={(edu as any).remarks} />
+                      <InfoRow label="Qualification" value={edu.qualification} />
+                      <InfoRow label="Institute" value={edu.institute} />
+                      <InfoRow label="Year" value={edu.year} />
+                      <InfoRow label="Sports Certifications" value={edu.sportsCertifications} />
+                      <InfoRow label="Remarks" value={edu.remarks} />
                     </div>
-                  ))
-                ) : <span className="text-sm text-gray-300">—</span>}
+                  )) : <span className="text-sm text-gray-300">—</span>;
+                })()}
               </SectionCard>
 
               <SectionCard title="Sports Background">
@@ -371,18 +382,23 @@ export default function CoachDetailPage() {
               </SectionCard>
 
               <SectionCard title="Experience & Skills">
-                {coach.profile?.coachingExperience?.length ? (
-                  <div className="space-y-3">
-                    {coach.profile.coachingExperience.map((exp, i) => (
-                      <div key={i} className="border border-gray-100 rounded-lg p-3 space-y-2">
-                        <InfoRow label="Organization" value={(exp as any).organization} />
-                        <InfoRow label="Role" value={(exp as any).role} />
-                        <InfoRow label="Duration" value={(exp as any).duration} />
-                        <InfoRow label="Responsibilities" value={(exp as any).responsibilities} />
-                      </div>
-                    ))}
-                  </div>
-                ) : <span className="text-sm text-gray-300">—</span>}
+                {(() => {
+                  const entries = (coach.profile?.coachingExperience as any[] | undefined)?.filter(
+                    (e) => e.organization || e.role || e.duration || e.responsibilities,
+                  ) ?? [];
+                  return entries.length ? (
+                    <div className="space-y-3">
+                      {entries.map((exp, i) => (
+                        <div key={i} className="border border-gray-100 rounded-lg p-3 space-y-2">
+                          <InfoRow label="Organization" value={exp.organization} />
+                          <InfoRow label="Role" value={exp.role} />
+                          <InfoRow label="Duration" value={exp.duration} />
+                          <InfoRow label="Responsibilities" value={exp.responsibilities} />
+                        </div>
+                      ))}
+                    </div>
+                  ) : <span className="text-sm text-gray-300">—</span>;
+                })()}
                 <div className="flex flex-col sm:flex-row sm:gap-4">
                   <span className="text-sm text-gray-500 sm:w-44 shrink-0">Key Skills</span>
                   <Chips items={coach.profile?.keySkills} />
