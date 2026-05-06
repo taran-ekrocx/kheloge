@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
-import { CheckCircle, Clock, ArrowLeft, UserCircle } from 'lucide-react';
+import { CheckCircle, Clock, ArrowLeft, UserCircle, Download } from 'lucide-react';
 import dayjs from 'dayjs';
 import Link from 'next/link';
 
@@ -60,6 +60,28 @@ function BatchPaymentDetailContent() {
   const handleMonthChange = (newPeriod: string) => {
     setPeriod(newPeriod);
     router.replace(`/payments/${batchId}?month=${newPeriod}`, { scroll: false });
+  };
+
+  const handleExportCSV = () => {
+    if (!batch) return;
+    const rows = [
+      ['Student Name', 'Phone', 'Amount (₹)', 'Payment Status', 'Paid On'],
+      ...batch.students.map((s) => [
+        s.name,
+        s.phone ?? '',
+        s.amount > 0 ? String(s.amount) : '',
+        s.status,
+        s.paidAt ? dayjs(s.paidAt).format('D MMM YYYY') : '',
+      ]),
+    ];
+    const csv = rows.map((r) => r.map((v) => `"${v.replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${batch.name.replace(/\s+/g, '_')}_${period}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const [markingStudentId, setMarkingStudentId] = useState<string | null>(null);
@@ -128,6 +150,15 @@ function BatchPaymentDetailContent() {
             onChange={(e) => handleMonthChange(e.target.value)}
             className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+          {batch && (
+            <button
+              onClick={handleExportCSV}
+              className="inline-flex items-center gap-1.5 text-sm bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-50"
+            >
+              <Download className="w-4 h-4" />
+              Export CSV
+            </button>
+          )}
         </div>
       </div>
 
