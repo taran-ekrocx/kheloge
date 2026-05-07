@@ -46,7 +46,7 @@ function mapBatch(b: any) {
   return {
     ...b,
     coaches: b.coaches?.map((bc: any) => bc.coach) ?? [],
-    fee: b.feePlans?.[0]?.amount ?? null,
+    fee: b.fee ?? null,
     status: b.isActive === false ? 'INACTIVE' : 'ACTIVE',
   };
 }
@@ -164,6 +164,7 @@ export class VenuesController {
       ...rest,
       ...(sportId ? { sportId } : {}),
       ...(isActive !== undefined ? { isActive } : {}),
+      ...(fee !== undefined ? { fee } : {}),
     });
     if (coachIds !== undefined) {
       await this.batchesSvc.reassignCoaches(batchId, coachIds);

@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { IsString, IsOptional, IsInt, IsArray, IsEnum, IsDateString, IsNumber, IsBoolean, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { BatchDay, FeeFrequency } from '@kheloge/database';
+import { BatchDay } from '@kheloge/database';
 import { PrismaService } from '../../database/prisma.service';
 
 export class CreateBatchDto {
@@ -18,7 +18,7 @@ export class CreateBatchDto {
   @ApiPropertyOptional() @IsOptional() @IsDateString() startDate?: string;
   @ApiPropertyOptional() @IsOptional() @IsDateString() endDate?: string;
   @ApiPropertyOptional({ description: 'Coach user IDs to assign' }) @IsOptional() @IsArray() coachIds?: string[];
-  @ApiPropertyOptional({ description: 'Monthly fee amount to create a default FeePlan' }) @IsOptional() @IsNumber() feeAmount?: number;
+  @ApiPropertyOptional({ description: 'Monthly fee amount for the batch' }) @IsOptional() @IsNumber() feeAmount?: number;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
   @ApiPropertyOptional({ description: 'Student IDs to enroll on creation' }) @IsOptional() @IsArray() studentIds?: string[];
 }
@@ -36,6 +36,7 @@ export class UpdateBatchDto {
   @ApiPropertyOptional() @IsOptional() @IsDateString() endDate?: string;
   @ApiPropertyOptional({ description: 'Coach org-user IDs to assign' }) @IsOptional() @IsArray() coachIds?: string[];
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
+  @ApiPropertyOptional({ description: 'Monthly fee amount for the batch' }) @IsOptional() @IsNumber() fee?: number;
 }
 
 export interface BatchFilters {
@@ -69,7 +70,6 @@ export class BatchesService {
             coach: { select: { id: true, name: true, photoUrl: true } },
           },
         },
-        feePlans: { where: { isActive: true } },
         _count: { select: { enrollments: { where: { isActive: true } } } },
       },
       orderBy: { createdAt: 'desc' },
@@ -94,7 +94,6 @@ export class BatchesService {
           },
         },
         _count: { select: { enrollments: true } },
-        feePlans: { where: { isActive: true } },
       },
     });
     if (!batch) throw new NotFoundException('Batch not found');
@@ -108,24 +107,15 @@ export class BatchesService {
         ...rest,
         startDate: rest.startDate ? new Date(rest.startDate) : undefined,
         endDate: rest.endDate ? new Date(rest.endDate) : undefined,
+        fee: feeAmount ?? undefined,
         coaches: coachIds?.length
           ? { create: coachIds.map((id, i) => ({ coachId: id, isPrimary: i === 0 })) }
-          : undefined,
-        feePlans: feeAmount
-          ? {
-              create: {
-                name: 'Monthly Fee',
-                amount: feeAmount,
-                frequency: FeeFrequency.MONTHLY,
-              },
-            }
           : undefined,
       },
       include: {
         sport: true,
         venue: { select: { id: true, name: true } },
         coaches: { include: { coach: { select: { id: true, name: true } } } },
-        feePlans: true,
       },
     });
 
