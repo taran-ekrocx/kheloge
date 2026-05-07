@@ -127,6 +127,7 @@ export default function AttendanceIndexPage() {
   const [monthlyBatchId, setMonthlyBatchId] = useState('');
   const [monthlyVenueId, setMonthlyVenueId] = useState('');
   const [monthlyCoachId, setMonthlyCoachId] = useState('');
+  const [monthlySportName, setMonthlySportName] = useState('');
 
   const { data: venues = [] } = useQuery<{ id: string; name: string }[]>({
     queryKey: ['venues-list'],
@@ -546,6 +547,34 @@ export default function AttendanceIndexPage() {
                 </div>
               </>
             )}
+            {isCoach && (
+              <>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Venue</label>
+                  <select
+                    value={monthlyVenueId}
+                    onChange={e => { setMonthlyVenueId(e.target.value); setMonthlyBatchId(''); }}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">All Venues</option>
+                    {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Sport</label>
+                  <select
+                    value={monthlySportName}
+                    onChange={e => setMonthlySportName(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">All Sports</option>
+                    {Array.from(new Set(monthlySummary.map(i => i.sportName).filter(Boolean))).sort().map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Batch</label>
               <select
@@ -566,7 +595,10 @@ export default function AttendanceIndexPage() {
               No attendance data found for this period.
             </div>
           ) : isCoach ? (
-            <CollapsibleBatchSummary items={monthlySummary} month={monthlyMonth} />
+            <CollapsibleBatchSummary
+              items={monthlySportName ? monthlySummary.filter(i => i.sportName === monthlySportName) : monthlySummary}
+              month={monthlyMonth}
+            />
           ) : isSuperAdmin ? (
             <CoachCollapsibleSummary items={monthlySummary} month={monthlyMonth} />
           ) : (
