@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
-import { ArrowLeft, Calendar, CheckCircle, XCircle, Clock, Pencil, X, Check } from 'lucide-react';
+import { ArrowLeft, Calendar, CheckCircle, XCircle, Pencil, X, Check } from 'lucide-react';
 import Link from 'next/link';
 import dayjs from 'dayjs';
 import { STATE_NAMES, getDistricts } from '@/lib/india-locations';
@@ -58,8 +58,8 @@ interface Coach {
 }
 interface Sport { id: string; name: string; icon?: string; }
 interface CoachAttendance {
-  id: string; date: string; status: 'PRESENT' | 'ABSENT' | 'LATE'; batchId: string;
-  batch?: { id: string; name: string };
+  id: string; date: string; status: 'PRESENT' | 'ABSENT'; batchId: string;
+  batch?: { id: string; name: string; sport?: { name: string }; venue?: { id: string; name: string } };
   session?: { id: string; startedAt: string; endedAt?: string };
 }
 
@@ -95,15 +95,10 @@ function buildForm(coach: Coach) {
 
 // ── Small helpers ────────────────────────────────────────────────────────────
 
-function StatusBadge({ status }: { status: 'PRESENT' | 'ABSENT' | 'LATE' }) {
+function StatusBadge({ status }: { status: 'PRESENT' | 'ABSENT' }) {
   if (status === 'PRESENT') return (
     <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-1 rounded-full">
       <CheckCircle className="w-3 h-3" /> Present
-    </span>
-  );
-  if (status === 'LATE') return (
-    <span className="inline-flex items-center gap-1 text-xs font-medium text-yellow-700 bg-yellow-50 px-2 py-1 rounded-full">
-      <Clock className="w-3 h-3" /> Late
     </span>
   );
   return (
@@ -153,6 +148,9 @@ export default function CoachDetailPage() {
   const [tab, setTab] = useState<Tab>('overview');
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<ReturnType<typeof buildForm> | null>(null);
+  const [attVenueId, setAttVenueId] = useState('');
+  const [attSportName, setAttSportName] = useState('');
+  const [attBatchId, setAttBatchId] = useState('');
 
   // role starts null on first render (useAuth reads localStorage in useEffect)
   const authLoading = role === null;
@@ -175,6 +173,15 @@ export default function CoachDetailPage() {
     queryFn: () => api.get(`/attendance/coach-attendance?coachId=${coach!.userId}&months=3`).then((r) => r.data),
     enabled: tab === 'attendance' && isSuperAdmin && !!coach?.userId,
   });
+
+  const filteredAttendance = useMemo(() => {
+    return attendance.filter(r => {
+      if (attVenueId && r.batch?.venue?.id !== attVenueId) return false;
+      if (attSportName && r.batch?.sport?.name !== attSportName) return false;
+      if (attBatchId && r.batchId !== attBatchId) return false;
+      return true;
+    });
+  }, [attendance, attVenueId, attSportName, attBatchId]);
 
   const saveMutation = useMutation({
     mutationFn: (currentForm: NonNullable<typeof form>) => {
@@ -560,42 +567,90 @@ export default function CoachDetailPage() {
               ) : attendance.length === 0 ? (
                 <div className="text-center py-10 text-sm text-gray-400">No attendance records in the last 3 months.</div>
               ) : (
-                <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-                  <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-gray-400" />
-                      <h3 className="font-semibold text-gray-800">Session Attendance — Last 3 Months</h3>
+                <div className="space-y-3">
+                  {/* Filters */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Venue</label>
+                      <select
+                        value={attVenueId}
+                        onChange={e => setAttVenueId(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">All Venues</option>
+                        {Array.from(new Map(attendance.filter(r => r.batch?.venue).map(r => [r.batch!.venue!.id, r.batch!.venue!])).values()).map(v => (
+                          <option key={v.id} value={v.id}>{v.name}</option>
+                        ))}
+                      </select>
                     </div>
-                    <div className="flex gap-3 text-xs">
-                      <span className="text-green-600 font-medium">{attendance.filter((a) => a.status === 'PRESENT').length} Present</span>
-                      <span className="text-yellow-600 font-medium">{attendance.filter((a) => a.status === 'LATE').length} Late</span>
-                      <span className="text-red-600 font-medium">{attendance.filter((a) => a.status === 'ABSENT').length} Absent</span>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Sport</label>
+                      <select
+                        value={attSportName}
+                        onChange={e => setAttSportName(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">All Sports</option>
+                        {Array.from(new Set(attendance.map(r => r.batch?.sport?.name).filter(Boolean))).sort().map(s => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Batch</label>
+                      <select
+                        value={attBatchId}
+                        onChange={e => setAttBatchId(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">All Batches</option>
+                        {Array.from(new Map(attendance.filter(r => r.batch).map(r => [r.batchId, r.batch!])).values()).map(b => (
+                          <option key={b.id} value={b.id}>{b.name}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="text-left px-5 py-3 font-medium text-gray-600">Date</th>
-                        <th className="text-left px-5 py-3 font-medium text-gray-600">Batch</th>
-                        <th className="text-left px-5 py-3 font-medium text-gray-600">Session Time</th>
-                        <th className="text-left px-5 py-3 font-medium text-gray-600">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {attendance.map((record) => (
-                        <tr key={record.id} className="hover:bg-gray-50">
-                          <td className="px-5 py-3 text-gray-900">{dayjs(record.date).format('DD MMM YYYY')}</td>
-                          <td className="px-5 py-3 text-gray-600">{record.batch?.name ?? '—'}</td>
-                          <td className="px-5 py-3 text-gray-500">
-                            {record.session
-                              ? `${dayjs(record.session.startedAt).format('h:mm A')}${record.session.endedAt ? ` – ${dayjs(record.session.endedAt).format('h:mm A')}` : ''}`
-                              : '—'}
-                          </td>
-                          <td className="px-5 py-3"><StatusBadge status={record.status} /></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+
+                  <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                    <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-gray-400" />
+                        <h3 className="font-semibold text-gray-800">Session Attendance — Last 3 Months</h3>
+                      </div>
+                      <div className="flex gap-3 text-xs">
+                        <span className="text-green-600 font-medium">{filteredAttendance.filter((a) => a.status === 'PRESENT').length} Present</span>
+                        <span className="text-red-600 font-medium">{filteredAttendance.filter((a) => a.status === 'ABSENT').length} Absent</span>
+                      </div>
+                    </div>
+                    {filteredAttendance.length === 0 ? (
+                      <div className="text-center py-8 text-sm text-gray-400">No records match the selected filters.</div>
+                    ) : (
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="text-left px-5 py-3 font-medium text-gray-600">Date</th>
+                            <th className="text-left px-5 py-3 font-medium text-gray-600">Batch</th>
+                            <th className="text-left px-5 py-3 font-medium text-gray-600">Session Time</th>
+                            <th className="text-left px-5 py-3 font-medium text-gray-600">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                          {filteredAttendance.map((record) => (
+                            <tr key={record.id} className="hover:bg-gray-50">
+                              <td className="px-5 py-3 text-gray-900">{dayjs(record.date).format('DD MMM YYYY')}</td>
+                              <td className="px-5 py-3 text-gray-600">{record.batch?.name ?? '—'}</td>
+                              <td className="px-5 py-3 text-gray-500">
+                                {record.session
+                                  ? `${dayjs(record.session.startedAt).format('h:mm A')}${record.session.endedAt ? ` – ${dayjs(record.session.endedAt).format('h:mm A')}` : ''}`
+                                  : '—'}
+                              </td>
+                              <td className="px-5 py-3"><StatusBadge status={record.status} /></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

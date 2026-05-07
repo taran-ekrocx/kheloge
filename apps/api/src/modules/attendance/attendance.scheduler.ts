@@ -2,6 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../../database/prisma.service';
 import { AttendanceService } from './attendance.service';
+import { CoachAttendanceStatus } from '@kheloge/database';
+
+const DOW = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'] as const;
 
 @Injectable()
 export class AttendanceScheduler {
@@ -37,6 +40,50 @@ export class AttendanceScheduler {
       if (now > autoCutoff) {
         await this.attendanceService.endSession(session.id);
         this.logger.log(`Auto-closed session ${session.id} for batch ${session.batchId}`);
+      }
+    }
+  }
+
+  @Cron('*/10 * * * *')
+  async autoMarkCoachAbsent() {
+    const now = new Date();
+    const todayDow = DOW[now.getDay()];
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+
+    const batches = await this.prisma.batch.findMany({
+      where: { isActive: true, days: { has: todayDow as any } },
+      select: {
+        id: true,
+        endTime: true,
+        coaches: { select: { coachId: true } },
+      },
+    });
+
+    for (const batch of batches) {
+      const [h, m] = batch.endTime.split(':').map(Number);
+      const endDateTime = new Date(todayStart);
+      endDateTime.setHours(h, m, 0, 0);
+
+      if (now <= endDateTime) continue;
+
+      for (const { coachId } of batch.coaches) {
+        const exists = await this.prisma.coachAttendance.findFirst({
+          where: { coachId, batchId: batch.id, date: { gte: todayStart, lt: todayEnd } },
+        });
+        if (exists) continue;
+
+        await this.prisma.coachAttendance.create({
+          data: {
+            sessionId: null,
+            coachId,
+            batchId: batch.id,
+            date: todayStart,
+            status: CoachAttendanceStatus.ABSENT,
+          },
+        });
+        this.logger.log(`Auto-marked coach ${coachId} absent for batch ${batch.id}`);
       }
     }
   }

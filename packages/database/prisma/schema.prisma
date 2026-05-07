@@ -43,7 +43,6 @@ enum AttendanceStatus {
 enum CoachAttendanceStatus {
   PRESENT
   ABSENT
-  LATE
 }
 
 enum PaymentMode {
@@ -491,7 +490,7 @@ model AttendanceSession {
 
 model CoachAttendance {
   id        String                @id @default(cuid())
-  sessionId String                @unique
+  sessionId String?               @unique
   coachId   String
   batchId   String
   date      DateTime              @db.Date
@@ -501,9 +500,9 @@ model CoachAttendance {
   createdAt DateTime              @default(now())
   updatedAt DateTime              @updatedAt
 
-  session   AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  coach     User              @relation("CoachAttendances", fields: [coachId], references: [id])
-  batch     Batch             @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  session   AttendanceSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  coach     User               @relation("CoachAttendances", fields: [coachId], references: [id])
+  batch     Batch              @relation(fields: [batchId], references: [id], onDelete: Cascade)
 
   @@map("coach_attendances")
 }

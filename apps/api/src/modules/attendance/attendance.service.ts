@@ -433,7 +433,14 @@ export class AttendanceService {
       where: { coachId, date: { gte: since } },
       include: {
         session: { select: { id: true, startedAt: true, endedAt: true } },
-        batch: { select: { id: true, name: true } },
+        batch: {
+          select: {
+            id: true,
+            name: true,
+            sport: { select: { name: true } },
+            venue: { select: { id: true, name: true } },
+          },
+        },
       },
       orderBy: { date: 'desc' },
     });
