@@ -539,6 +539,17 @@ export class AttendanceService {
       }
     });
 
+    // When viewing a specific batch, totalSessions must equal the number of sessions
+    // conducted for that batch — not just the sessions where a student has a record.
+    // Students with no record for a session are implicitly absent for it.
+    if (batchId) {
+      const totalSessionCount = sessions.length;
+      for (const entry of summaryMap.values()) {
+        entry.totalSessions = totalSessionCount;
+        entry.absent = Math.max(0, totalSessionCount - entry.present);
+      }
+    }
+
     return Array.from(summaryMap.values())
       .map((s) => ({
         ...s,
