@@ -30,7 +30,6 @@ function isWithinBatchTime(startTime: string, endTime: string): boolean {
 }
 
 type Tab = 'daily' | 'monthly';
-type DailyFilter = 'today' | 'previous';
 
 interface Batch {
   id: string;
@@ -110,7 +109,6 @@ export default function AttendanceIndexPage() {
   const today = dayjs().format('YYYY-MM-DD');
   const [startingSession, setStartingSession] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('daily');
-  const [dailyFilter, setDailyFilter] = useState<DailyFilter>('today');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [historyBatchId, setHistoryBatchId] = useState<string | null>(null);
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
@@ -133,14 +131,14 @@ export default function AttendanceIndexPage() {
   const { data: venues = [] } = useQuery<{ id: string; name: string }[]>({
     queryKey: ['venues-list'],
     queryFn: () => api.get('/venues').then(r => r.data),
-    enabled: isSuperAdmin || (isCoach && tab === 'daily' && dailyFilter === 'previous') || tab === 'monthly',
+    enabled: isSuperAdmin || (isCoach && tab === 'daily' && !!filterDate) || tab === 'monthly',
     staleTime: 5 * 60 * 1000,
   });
 
   const { data: sports = [] } = useQuery<{ id: string; name: string }[]>({
     queryKey: ['sports'],
     queryFn: () => api.get('/sports').then(r => r.data),
-    enabled: isCoach && tab === 'daily' && dailyFilter === 'previous',
+    enabled: isCoach && tab === 'daily' && !!filterDate,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -218,7 +216,7 @@ export default function AttendanceIndexPage() {
               .catch(() => [])
           )
         ).then(results => results.flat().sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())),
-    enabled: tab === 'daily' && dailyFilter === 'previous' && isCoach && (!!historyBatchId || filteredBatches.length > 0),
+    enabled: tab === 'daily' && !!filterDate && isCoach && (!!historyBatchId || filteredBatches.length > 0),
   });
 
   const { data: coaches = [] } = useQuery<Coach[]>({
@@ -236,7 +234,7 @@ export default function AttendanceIndexPage() {
       if (saHistoryBatchFilter) params.set('batchId', saHistoryBatchFilter);
       return api.get(`/attendance/sessions?${params.toString()}`).then(r => r.data);
     },
-    enabled: isAdmin && tab === 'daily' && dailyFilter === 'previous',
+    enabled: isAdmin && tab === 'daily' && !!filterDate,
   });
 
   const { data: coachSessionSummary = [] } = useQuery<CoachSessionSummary[]>({
@@ -246,7 +244,7 @@ export default function AttendanceIndexPage() {
       if (effectiveVenueId) params.set('venueId', effectiveVenueId);
       return api.get(`/attendance/sessions/coach-summary?${params.toString()}`).then(r => r.data);
     },
-    enabled: isAdmin && tab === 'daily' && dailyFilter === 'previous',
+    enabled: isAdmin && tab === 'daily' && !!filterDate,
   });
 
   const { data: expandedAttendance } = useQuery<SessionAttendanceRecord[]>({
@@ -307,7 +305,7 @@ export default function AttendanceIndexPage() {
       <div>
         <h2 className="text-2xl font-bold text-gray-900">Attendance</h2>
         <p className="text-gray-500 text-sm">
-          {dayjs().format('dddd, DD MMM YYYY')} · {tab === 'daily' && dailyFilter === 'today' ? 'Select a batch to mark attendance' : 'Session history'}
+          {dayjs().format('dddd, DD MMM YYYY')} · {tab === 'daily' && !filterDate ? 'Select a batch to mark attendance' : 'Session history'}
         </p>
       </div>
 
@@ -333,29 +331,28 @@ export default function AttendanceIndexPage() {
       )}
 
       {tab === 'daily' && (
-        <div className="space-y-6">
-          <div className="flex gap-1 bg-gray-50 border border-gray-200 p-1 rounded-lg w-fit">
-            <button
-              onClick={() => setDailyFilter('today')}
-              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                dailyFilter === 'today' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Today
-            </button>
-            <button
-              onClick={() => setDailyFilter('previous')}
-              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                dailyFilter === 'previous' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Previous
-            </button>
+        <div className="flex items-center gap-2">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
+            <input
+              type="date"
+              value={filterDate}
+              onChange={e => setFilterDate(e.target.value)}
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
+          {filterDate && (
+            <button
+              onClick={() => setFilterDate('')}
+              className="mt-5 text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1"
+            >
+              <X size={12} /> Clear
+            </button>
+          )}
         </div>
       )}
 
-      {tab === 'daily' && dailyFilter === 'today' && (
+      {tab === 'daily' && !filterDate && (
         <>
           {isSuperAdmin && (
             <div className="flex flex-wrap items-center gap-3">
@@ -452,23 +449,12 @@ export default function AttendanceIndexPage() {
         </>
       )}
 
-      {isCoach && tab === 'daily' && dailyFilter === 'previous' && (() => {
-        const displayedSessions = filterDate
-          ? pastSessions.filter(s => s.date.startsWith(filterDate))
-          : [];
+      {isCoach && tab === 'daily' && !!filterDate && (() => {
+        const displayedSessions = pastSessions.filter(s => s.date.startsWith(filterDate));
         const batchOptions = filteredBatches;
         return (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
-                <input
-                  type="date"
-                  value={filterDate}
-                  onChange={e => setFilterDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Venue</label>
                 <select
@@ -506,11 +492,7 @@ export default function AttendanceIndexPage() {
               </div>
             </div>
 
-            {!filterDate ? (
-              <div className="bg-white rounded-xl p-8 text-center text-gray-400 border border-gray-100">
-                Select a date to view session history.
-              </div>
-            ) : displayedSessions.length === 0 ? (
+            {displayedSessions.length === 0 ? (
               <div className="bg-white rounded-xl p-8 text-center text-gray-400 border border-gray-100">
                 No completed sessions found for this date.
               </div>
@@ -600,22 +582,11 @@ export default function AttendanceIndexPage() {
         </div>
       )}
 
-      {isAdmin && tab === 'daily' && dailyFilter === 'previous' && (() => {
-        const adminDisplayedSessions = filterDate
-          ? adminSessionHistory.filter(s => s.date.startsWith(filterDate))
-          : [];
+      {isAdmin && tab === 'daily' && !!filterDate && (() => {
+        const adminDisplayedSessions = adminSessionHistory.filter(s => s.date.startsWith(filterDate));
         return (
           <div className="space-y-4">
             <div className="flex flex-wrap gap-3 items-end">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
-                <input
-                  type="date"
-                  value={filterDate}
-                  onChange={e => setFilterDate(e.target.value)}
-                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
               {isSuperAdmin && (
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Venue</label>
@@ -655,11 +626,7 @@ export default function AttendanceIndexPage() {
               </div>
             </div>
 
-            {!filterDate ? (
-              <div className="bg-white rounded-xl p-8 text-center text-gray-400 border border-gray-100">
-                Select a date to view session history.
-              </div>
-            ) : adminDisplayedSessions.length === 0 ? (
+            {adminDisplayedSessions.length === 0 ? (
               <div className="bg-white rounded-xl p-8 text-center text-gray-400 border border-gray-100">
                 No completed sessions found for this date.
               </div>
