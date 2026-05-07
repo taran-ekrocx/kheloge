@@ -533,6 +533,7 @@ export class PaymentsService {
         sport: { select: { id: true, name: true } },
         venue: { select: { id: true, name: true } },
         coaches: {
+          where: { isPrimary: true },
           include: { coach: { select: { id: true, name: true } } },
         },
         feePlans: {
