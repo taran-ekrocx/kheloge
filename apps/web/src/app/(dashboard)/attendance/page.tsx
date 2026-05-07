@@ -739,7 +739,7 @@ function CollapsibleBatchSummary({ items, month }: { items: MonthlySummaryItem[]
   const batches = useMemo(() => {
     const map = new Map<string, { batchId: string; batchName: string; sportName: string; students: MonthlySummaryItem[] }>();
     items.forEach(item => {
-      const key = `${item.coachId}:${item.batchId}`;
+      const key = item.batchId;
       if (!map.has(key)) {
         map.set(key, { batchId: item.batchId, batchName: item.batchName, sportName: item.sportName, students: [] });
       }
@@ -748,91 +748,36 @@ function CollapsibleBatchSummary({ items, month }: { items: MonthlySummaryItem[]
     return Array.from(map.values());
   }, [items]);
 
-  const [expandedBatchIds, setExpandedBatchIds] = useState<Set<string>>(new Set());
-
-  const toggleBatch = (key: string) => {
-    setExpandedBatchIds(prev => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  };
-
   return (
     <div className="space-y-2">
-      {batches.map((batch, idx) => {
-        const key = `${idx}:${batch.batchId}`;
-        const isExpanded = expandedBatchIds.has(key);
+      {batches.map((batch) => {
         const totalStudents = batch.students.length;
         const avgPct = Math.round(batch.students.reduce((sum, s) => sum + s.percentage, 0) / totalStudents);
         return (
-          <div key={key} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-            <button
-              className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
-              onClick={() => toggleBatch(key)}
-            >
-              <div className="flex items-center gap-3">
-                <div className="bg-blue-50 p-2 rounded-lg">
-                  <Users size={16} className="text-blue-600" />
-                </div>
-                <div className="text-left">
-                  <p className="font-semibold text-gray-900 text-sm">{batch.batchName}</p>
-                  {batch.sportName && <p className="text-xs text-gray-500">{batch.sportName}</p>}
-                </div>
+          <button
+            key={batch.batchId}
+            className="w-full bg-white rounded-xl border border-gray-100 overflow-hidden flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
+            onClick={() => router.push(`/attendance/monthly/${batch.batchId}?month=${month}`)}
+          >
+            <div className="flex items-center gap-3">
+              <div className="bg-blue-50 p-2 rounded-lg">
+                <Users size={16} className="text-blue-600" />
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-gray-500">{totalStudents} student{totalStudents !== 1 ? 's' : ''}</span>
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                  avgPct >= 75 ? 'bg-green-100 text-green-700' : avgPct >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
-                }`}>
-                  avg {avgPct}%
-                </span>
-                {isExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+              <div className="text-left">
+                <p className="font-semibold text-gray-900 text-sm">{batch.batchName}</p>
+                {batch.sportName && <p className="text-xs text-gray-500">{batch.sportName}</p>}
               </div>
-            </button>
-
-            {isExpanded && (
-              <div className="border-t border-gray-100 overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-gray-50 border-b border-gray-100">
-                      <th className="text-left px-4 py-2.5 font-medium text-gray-600">Student</th>
-                      <th className="text-center px-4 py-2.5 font-medium text-gray-600">Sessions</th>
-                      <th className="text-center px-4 py-2.5 font-medium text-gray-600">Present</th>
-                      <th className="text-center px-4 py-2.5 font-medium text-gray-600">Absent</th>
-                      <th className="text-center px-4 py-2.5 font-medium text-gray-600">Attendance %</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {batch.students.map(student => (
-                      <tr
-                        key={student.studentId}
-                        className="hover:bg-gray-50 transition-colors cursor-pointer"
-                        onClick={() => router.push(`/attendance/student/${student.studentId}?month=${month}&batchId=${student.batchId}`)}
-                      >
-                        <td className="px-4 py-2.5 font-medium text-blue-700 hover:underline">{student.studentName}</td>
-                        <td className="px-4 py-2.5 text-center text-gray-700">{student.totalSessions}</td>
-                        <td className="px-4 py-2.5 text-center">
-                          <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">{student.present}</span>
-                        </td>
-                        <td className="px-4 py-2.5 text-center">
-                          <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-medium">{student.absent}</span>
-                        </td>
-                        <td className="px-4 py-2.5 text-center">
-                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                            student.percentage >= 75 ? 'bg-green-100 text-green-700' : student.percentage >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
-                          }`}>
-                            {student.percentage}%
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-gray-500">{totalStudents} student{totalStudents !== 1 ? 's' : ''}</span>
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                avgPct >= 75 ? 'bg-green-100 text-green-700' : avgPct >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
+              }`}>
+                avg {avgPct}%
+              </span>
+              <ChevronRight size={16} className="text-gray-400" />
+            </div>
+          </button>
         );
       })}
     </div>
@@ -865,22 +810,12 @@ function CoachCollapsibleSummary({ items, month }: { items: MonthlySummaryItem[]
   }, [items]);
 
   const [collapsedCoaches, setCollapsedCoaches] = useState<Set<string>>(new Set());
-  const [expandedBatches, setExpandedBatches] = useState<Set<string>>(new Set());
 
   const toggleCoach = (coachId: string) => {
     setCollapsedCoaches(prev => {
       const next = new Set(prev);
       if (next.has(coachId)) next.delete(coachId);
       else next.add(coachId);
-      return next;
-    });
-  };
-
-  const toggleBatch = (key: string) => {
-    setExpandedBatches(prev => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
       return next;
     });
   };
@@ -926,7 +861,6 @@ function CoachCollapsibleSummary({ items, month }: { items: MonthlySummaryItem[]
               <div className="border-t border-gray-100 space-y-0 divide-y divide-gray-100">
                 {coach.batches.map(batch => {
                   const batchKey = `${coach.coachId}:${batch.batchId}`;
-                  const isBatchExpanded = expandedBatches.has(batchKey);
                   const batchStudents = batch.students.length;
                   const batchAvgPct = batchStudents > 0
                     ? Math.round(batch.students.reduce((sum, s) => sum + s.percentage, 0) / batchStudents)
@@ -936,7 +870,7 @@ function CoachCollapsibleSummary({ items, month }: { items: MonthlySummaryItem[]
                     <div key={batchKey}>
                       <button
                         className="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors"
-                        onClick={() => toggleBatch(batchKey)}
+                        onClick={() => router.push(`/attendance/monthly/${batch.batchId}?month=${month}`)}
                       >
                         <div className="flex items-center gap-3">
                           <div className="bg-blue-50 p-1.5 rounded-md">
@@ -957,50 +891,9 @@ function CoachCollapsibleSummary({ items, month }: { items: MonthlySummaryItem[]
                           }`}>
                             avg {batchAvgPct}%
                           </span>
-                          {isBatchExpanded ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
+                          <ChevronRight size={14} className="text-gray-400" />
                         </div>
                       </button>
-
-                      {isBatchExpanded && (
-                        <div className="border-t border-gray-100 overflow-x-auto bg-gray-50/50">
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="border-b border-gray-100">
-                                <th className="text-left px-6 py-2 font-medium text-gray-500 text-xs">Student</th>
-                                <th className="text-center px-4 py-2 font-medium text-gray-500 text-xs">Sessions</th>
-                                <th className="text-center px-4 py-2 font-medium text-gray-500 text-xs">Present</th>
-                                <th className="text-center px-4 py-2 font-medium text-gray-500 text-xs">Absent</th>
-                                <th className="text-center px-4 py-2 font-medium text-gray-500 text-xs">Attendance %</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                              {batch.students.map(student => (
-                                <tr
-                                  key={student.studentId}
-                                  className="hover:bg-blue-50/50 transition-colors cursor-pointer"
-                                  onClick={() => router.push(`/attendance/student/${student.studentId}?month=${month}&batchId=${student.batchId}`)}
-                                >
-                                  <td className="px-6 py-2.5 font-medium text-blue-700 hover:underline">{student.studentName}</td>
-                                  <td className="px-4 py-2.5 text-center text-gray-600">{student.totalSessions}</td>
-                                  <td className="px-4 py-2.5 text-center">
-                                    <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium text-xs">{student.present}</span>
-                                  </td>
-                                  <td className="px-4 py-2.5 text-center">
-                                    <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-medium text-xs">{student.absent}</span>
-                                  </td>
-                                  <td className="px-4 py-2.5 text-center">
-                                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                                      student.percentage >= 75 ? 'bg-green-100 text-green-700' : student.percentage >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
-                                    }`}>
-                                      {student.percentage}%
-                                    </span>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
                     </div>
                   );
                 })}
