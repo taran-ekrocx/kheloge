@@ -243,10 +243,12 @@ export class AttendanceService {
   async endSession(sessionId: string) {
     const session = await this.prisma.attendanceSession.findUnique({ where: { id: sessionId } });
     if (!session) throw new NotFoundException('Session not found');
-    return this.prisma.attendanceSession.update({
+    const updated = await this.prisma.attendanceSession.update({
       where: { id: sessionId },
       data: { endedAt: new Date() },
     });
+    this.gateway.emitSessionEnd(session.batchId);
+    return updated;
   }
 
   async getActiveSession(batchId: string) {
@@ -401,8 +403,15 @@ export class AttendanceService {
   async getMyTodaySessions(coachId: string, date?: string) {
     const targetDate = date ? new Date(date) : new Date();
     targetDate.setUTCHours(0, 0, 0, 0);
+    // Query by batch assignment so co-coaches see sessions started by any coach in their batch
+    const batchCoaches = await this.prisma.batchCoach.findMany({
+      where: { coachId },
+      select: { batchId: true },
+    });
+    const batchIds = batchCoaches.map((bc) => bc.batchId);
+    if (batchIds.length === 0) return [];
     return this.prisma.attendanceSession.findMany({
-      where: { coachId, date: targetDate },
+      where: { batchId: { in: batchIds }, date: targetDate },
       select: { id: true, batchId: true, endedAt: true },
     });
   }

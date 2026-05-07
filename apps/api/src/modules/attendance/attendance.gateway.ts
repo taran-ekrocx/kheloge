@@ -57,4 +57,11 @@ export class AttendanceGateway implements OnGatewayConnection, OnGatewayDisconne
   emitQrCheckin(batchId: string, payload: { studentId: string; status: string; checkInAt: string }) {
     this.server.to(`batch:${batchId}`).emit('qrCheckin', payload);
   }
+
+  /**
+   * Called by AttendanceService when a session is ended so all coaches in the batch see the update.
+   */
+  emitSessionEnd(batchId: string) {
+    this.server.to(`batch:${batchId}`).emit('sessionEnd', { batchId });
+  }
 }

@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
+import { io, Socket } from 'socket.io-client';
 import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
 import { useAuth } from '@/hooks/useAuth';
@@ -95,9 +96,12 @@ interface SessionAttendanceRecord {
   student: { id: string; name: string; photoUrl: string | null };
 }
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+
 export default function AttendanceIndexPage() {
   const { venueId } = useVenue();
   const { role } = useAuth();
+  const queryClient = useQueryClient();
   const isCoach = role === 'COACH';
   const isSuperAdmin = role === 'SUPER_ADMIN';
   const isAdmin = ['SUPER_ADMIN', 'CITY_MANAGER', 'VENUE_MANAGER'].includes(role || '');
@@ -265,6 +269,27 @@ export default function AttendanceIndexPage() {
     .filter(b => b.days?.includes(TODAY_DOW))
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
   const otherBatches = batches.filter(b => !b.days?.includes(TODAY_DOW));
+
+  // Real-time session-end sync: when any coach ends a batch session, invalidate our cache immediately
+  const batchIdListKey = batches.map(b => b.id).join(',');
+  const socketRef = useRef<Socket | null>(null);
+  useEffect(() => {
+    if (!isCoach || batches.length === 0) return;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('kheloge_access_token') : null;
+    const socket = io(`${API_URL}/attendance`, { auth: { token } });
+    socketRef.current = socket;
+    batches.forEach(b => socket.emit('joinBatch', b.id));
+    socket.on('sessionEnd', () => {
+      queryClient.invalidateQueries({ queryKey: ['coach-today-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['my-active-session'] });
+    });
+    return () => {
+      batches.forEach(b => socket.emit('leaveBatch', b.id));
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCoach, batchIdListKey]);
 
   const displayedTodayBatches = useMemo(() => {
     return todayBatches.filter(b => {
