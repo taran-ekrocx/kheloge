@@ -571,7 +571,7 @@ export class PaymentsService {
       }) : [],
     ]);
 
-    const invoiceMap = new Map(invoices.map((inv) => [`${inv.studentId}:${inv.feePlanId}`, inv]));
+    const invoiceMap = new Map(invoices.map((inv) => [`${inv.studentId}:${inv.feePlanId}`, inv] as [string, typeof inv]));
     // Track invoice-linked payments and standalone payments separately
     const invoicePaymentMap = new Map<string, typeof payments[0]>();
     const standalonePaymentMap = new Map<string, typeof payments[0]>();
@@ -594,7 +594,7 @@ export class PaymentsService {
         // Find the invoice for this student across all fee plans of this batch (including old ones)
         const invoice = batch.feePlans
           .map((fp) => invoiceMap.get(`${student.id}:${fp.id}`))
-          .find(Boolean);
+          .find((x): x is NonNullable<typeof x> => x != null);
         const isPaid =
           invoice?.status === 'PAID' ||
           (!!invoice && !!invoicePaymentMap.get(invoice.id)) ||
