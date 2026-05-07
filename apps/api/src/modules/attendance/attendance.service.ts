@@ -456,7 +456,8 @@ export class AttendanceService {
       endedAt: { not: null },
     };
 
-    if (requesterRole === UserRole.COACH) {
+    if (requesterRole === UserRole.COACH && !batchId) {
+      // When viewing a specific batch detail, show all sessions for that batch across all coaches
       sessionWhere.coachId = requesterId;
     } else if (coachId) {
       sessionWhere.coachId = coachId;
@@ -510,7 +511,10 @@ export class AttendanceService {
       const session = sessionMap.get(a.sessionId);
       if (!session) return;
 
-      const key = `${session.coachId}:${session.batchId}:${a.studentId}`;
+      // When viewing a specific batch, aggregate across all coaches so each student has one row
+      const key = batchId
+        ? `${session.batchId}:${a.studentId}`
+        : `${session.coachId}:${session.batchId}:${a.studentId}`;
       if (!summaryMap.has(key)) {
         summaryMap.set(key, {
           studentId: a.studentId,
