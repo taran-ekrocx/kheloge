@@ -778,10 +778,10 @@ function CoachCollapsibleSummary({ items, month }: { items: MonthlySummaryItem[]
     return Array.from(coachMap.values()).map(c => ({ ...c, batches: Array.from(c.batches.values()) }));
   }, [items]);
 
-  const [collapsedCoaches, setCollapsedCoaches] = useState<Set<string>>(new Set());
+  const [expandedCoaches, setExpandedCoaches] = useState<Set<string>>(new Set());
 
   const toggleCoach = (coachId: string) => {
-    setCollapsedCoaches(prev => {
+    setExpandedCoaches(prev => {
       const next = new Set(prev);
       if (next.has(coachId)) next.delete(coachId);
       else next.add(coachId);
@@ -792,7 +792,7 @@ function CoachCollapsibleSummary({ items, month }: { items: MonthlySummaryItem[]
   return (
     <div className="space-y-3">
       {coaches.map(coach => {
-        const isCoachExpanded = !collapsedCoaches.has(coach.coachId);
+        const isCoachExpanded = expandedCoaches.has(coach.coachId);
         const allStudents = coach.batches.flatMap(b => b.students);
         const totalStudents = allStudents.length;
         const coachAvgPct = totalStudents > 0
@@ -847,10 +847,9 @@ function CoachCollapsibleSummary({ items, month }: { items: MonthlySummaryItem[]
                           </div>
                           <div className="text-left">
                             <p className="font-medium text-gray-800 text-sm">{batch.batchName}</p>
-                            <p className="text-xs text-gray-400">
-                              {batch.sportName && <span>{batch.sportName} · </span>}
-                              <span className="text-indigo-500 font-medium">{coach.coachName}</span>
-                            </p>
+                            {batch.sportName && (
+                              <p className="text-xs text-gray-400">{batch.sportName}</p>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
