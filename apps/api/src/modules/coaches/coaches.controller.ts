@@ -6,6 +6,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CoachesService, AssignCoachDto, CreateCoachDto, UpdateCoachDto } from './coaches.service';
 import { StudentsService, CreateStudentDto } from '../students/students.service';
+import { DemoStudentsService, CreateDemoStudentDto, UpdateDemoStudentDto } from '../students/demo-students.service';
 import { IsArray, IsString } from 'class-validator';
 
 class SyncBatchStudentsDto {
@@ -23,6 +24,7 @@ export class CoachesController {
   constructor(
     private coaches: CoachesService,
     private students: StudentsService,
+    private demoStudents: DemoStudentsService,
   ) {}
 
   @Get('me/kpi')
@@ -127,6 +129,24 @@ export class CoachesController {
     @Query('batchId') batchId?: string,
   ) {
     return this.students.findByCoach(req.user.id, { search, status, sportId, batchId });
+  }
+
+  @Get('me/demo-students')
+  @Roles(UserRole.COACH)
+  myDemoStudents(@Request() req, @Query('search') search?: string) {
+    return this.demoStudents.findByCoach(req.user.id, req.user.orgId, { search });
+  }
+
+  @Post('me/demo-students')
+  @Roles(UserRole.COACH)
+  addDemoStudent(@Request() req, @Body() dto: CreateDemoStudentDto) {
+    return this.demoStudents.create(undefined, req.user.orgId, dto);
+  }
+
+  @Patch('me/demo-students/:id')
+  @Roles(UserRole.COACH)
+  updateDemoStudent(@Request() req, @Param('id') id: string, @Body() dto: UpdateDemoStudentDto) {
+    return this.demoStudents.update(id, dto, req.user.role);
   }
 
   @Get()

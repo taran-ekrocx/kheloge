@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Param, Body, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, Query, UseGuards, Request, ForbiddenException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { UserRole } from '@kheloge/database';
@@ -58,6 +58,12 @@ export class GlobalDemoStudentsController {
   @Roles(UserRole.SUPER_ADMIN)
   findAll(@Request() req, @Query('search') search?: string) {
     return this.demoStudents.findAllForOrg(req.user.orgId, { search });
+  }
+
+  @Post()
+  @Roles(UserRole.SUPER_ADMIN)
+  create(@Request() req, @Body() dto: CreateDemoStudentDto) {
+    return this.demoStudents.create(undefined, req.user.orgId, dto);
   }
 
   @Patch(':id')

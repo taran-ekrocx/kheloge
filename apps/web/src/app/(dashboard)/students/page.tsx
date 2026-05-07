@@ -102,9 +102,11 @@ function AddDemoStudentModal({
         batchId: form.batchId || undefined,
         numberOfDemoSessions: form.numberOfDemoSessions ? parseInt(form.numberOfDemoSessions) : 0,
       };
-      return isSuperAdmin
-        ? api.post('/demo-students', payload)
-        : api.post(`/venues/${venueId}/demo-students`, payload);
+      return isCoach
+        ? api.post('/coaches/me/demo-students', payload)
+        : isSuperAdmin
+          ? api.post('/demo-students', payload)
+          : api.post(`/venues/${venueId}/demo-students`, payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['demo-students', venueId] });
@@ -506,16 +508,18 @@ export default function StudentsPage() {
     queryFn: isSuperAdmin
       ? () => api.get('/demo-students').then((r) => r.data)
       : isCoach
-        ? () => api.get(`/venues/${venueId}/demo-students`).then((r) => r.data)
+        ? () => api.get('/coaches/me/demo-students').then((r) => r.data)
         : () => api.get(`/venues/${venueId}/demo-students`).then((r) => r.data),
     enabled: isSuperAdmin || isCoach ? true : !!venueId,
   });
 
   const demoConvertMutation = useMutation({
     mutationFn: ({ id, convertedToRegular }: { id: string; convertedToRegular: boolean }) =>
-      isSuperAdmin
-        ? api.patch(`/demo-students/${id}`, { convertedToRegular })
-        : api.patch(`/venues/${venueId}/demo-students/${id}`, { convertedToRegular }),
+      isCoach
+        ? api.patch(`/coaches/me/demo-students/${id}`, { convertedToRegular })
+        : isSuperAdmin
+          ? api.patch(`/demo-students/${id}`, { convertedToRegular })
+          : api.patch(`/venues/${venueId}/demo-students/${id}`, { convertedToRegular }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['demo-students', venueId] });
       queryClient.invalidateQueries({ queryKey: ['demo-students-global'] });
