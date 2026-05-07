@@ -475,6 +475,7 @@ export class AttendanceService {
         id: true,
         batchId: true,
         coachId: true,
+        date: true,
         coach: { select: { name: true } },
         batch: { select: { id: true, name: true, sport: { select: { name: true } } } },
       },
@@ -539,11 +540,13 @@ export class AttendanceService {
       }
     });
 
-    // When viewing a specific batch, totalSessions must equal the number of sessions
-    // conducted for that batch — not just the sessions where a student has a record.
-    // Students with no record for a session are implicitly absent for it.
+    // When viewing a specific batch, totalSessions must equal the number of unique session
+    // days conducted for that batch — not the raw session record count (multiple records can
+    // exist for the same date due to test data or race conditions, but they represent one day).
+    // Students with no record for a session day are implicitly absent for it.
     if (batchId) {
-      const totalSessionCount = sessions.length;
+      const uniqueSessionDays = new Set(sessions.map((s) => s.date.toISOString().split('T')[0]));
+      const totalSessionCount = uniqueSessionDays.size;
       for (const entry of summaryMap.values()) {
         entry.totalSessions = totalSessionCount;
         entry.absent = Math.max(0, totalSessionCount - entry.present);
