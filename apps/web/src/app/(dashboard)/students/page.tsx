@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
 import { useAuth } from '@/hooks/useAuth';
-import { Search, UserPlus, ChevronRight, Download, CreditCard, User, Filter, X, Users } from 'lucide-react';
+import { Search, UserPlus, ChevronRight, Download, CreditCard, User, Filter, X, Users, Pencil } from 'lucide-react';
 import Link from 'next/link';
 
 interface Enrollment {
@@ -66,42 +66,80 @@ interface DemoStudent {
 const STEP_LABELS = ['Student Details', 'Contact Info', 'Sports Enrollment', 'Medical Info'];
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
-function AddDemoStudentModal({
+function DemoStudentModal({
   onClose,
   venueId,
   isSuperAdmin,
   isCoach,
+  editData,
 }: {
   onClose: () => void;
   venueId: string;
   isSuperAdmin: boolean;
   isCoach?: boolean;
+  editData?: DemoStudent;
 }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ name: '', phone: '', sport: '', batchId: '', numberOfDemoSessions: '' });
-  const [error, setError] = useState('');
+  const isEdit = !!editData;
+  const [form, setForm] = useState({
+    name: editData?.name ?? '',
+    phone: editData?.phone ?? '',
+    sportId: '',
+    batchId: editData?.batchId ?? '',
+    numberOfDemoSessions: editData?.numberOfDemoSessions?.toString() ?? '',
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [apiError, setApiError] = useState('');
+
+  const { data: allSports = [] } = useQuery<Sport[]>({
+    queryKey: ['sports'],
+    queryFn: () => api.get('/sports').then((r) => r.data),
+  });
 
   const { data: allBatches = [] } = useQuery<BatchOption[]>({
-    queryKey: isCoach ? ['coach-batches'] : isSuperAdmin ? ['batches-global', ''] : ['batches', venueId],
+    queryKey: isCoach ? ['coach-batches'] : isSuperAdmin ? ['batches-global', form.sportId] : ['batches', venueId],
     queryFn: isCoach
       ? () => api.get('/coaches/me/batches?status=active').then((r) => r.data)
       : isSuperAdmin
-        ? () => api.get('/batches', { params: { status: 'active' } }).then((r) => r.data)
+        ? () => api.get('/batches', { params: { status: 'active', ...(form.sportId ? { sportId: form.sportId } : {}) } }).then((r) => r.data)
         : () => api.get(`/venues/${venueId}/batches`).then((r) => r.data),
     enabled: isCoach ? true : isSuperAdmin ? true : !!venueId,
   });
 
+  const validate = () => {
+    const next: Record<string, string> = {};
+    if (!form.name.trim()) next.name = 'Full name is required';
+    if (form.phone && !/^[6-9]\d{9}$/.test(form.phone.replace(/[\s\-+]/g, '').replace(/^91/, ''))) {
+      next.phone = 'Enter a valid 10-digit mobile number';
+    }
+    if (form.numberOfDemoSessions && isNaN(parseInt(form.numberOfDemoSessions))) {
+      next.numberOfDemoSessions = 'Must be a number';
+    }
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
+  const buildPayload = () => {
+    const sportName = allSports.find((s) => s.id === form.sportId)?.name;
+    return {
+      name: form.name.trim(),
+      phone: form.phone || undefined,
+      sport: sportName || undefined,
+      batchId: form.batchId || undefined,
+      numberOfDemoSessions: form.numberOfDemoSessions ? parseInt(form.numberOfDemoSessions) : 0,
+    };
+  };
+
   const mutation = useMutation({
     mutationFn: () => {
-      if (!form.name.trim()) { setError('Name is required'); return Promise.reject(); }
-      setError('');
-      const payload = {
-        name: form.name.trim(),
-        phone: form.phone || undefined,
-        sport: form.sport || undefined,
-        batchId: form.batchId || undefined,
-        numberOfDemoSessions: form.numberOfDemoSessions ? parseInt(form.numberOfDemoSessions) : 0,
-      };
+      const payload = buildPayload();
+      if (isEdit) {
+        return isCoach
+          ? api.patch(`/coaches/me/demo-students/${editData!.id}`, payload)
+          : isSuperAdmin
+            ? api.patch(`/demo-students/${editData!.id}`, payload)
+            : api.patch(`/venues/${venueId}/demo-students/${editData!.id}`, payload);
+      }
       return isCoach
         ? api.post('/coaches/me/demo-students', payload)
         : isSuperAdmin
@@ -114,44 +152,99 @@ function AddDemoStudentModal({
       queryClient.invalidateQueries({ queryKey: ['coach-demo-students'] });
       onClose();
     },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message ?? err?.message ?? 'Something went wrong. Please try again.';
+      setApiError(Array.isArray(msg) ? msg.join(', ') : msg);
+    },
   });
 
+  const handleSubmit = () => {
+    setApiError('');
+    if (validate()) mutation.mutate();
+  };
+
   const f = 'w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
+  const ef = (field: string) => `${f} ${errors[field] ? 'border-red-400' : ''}`;
+
+  // Pre-select the sport dropdown if editing (match by sport name)
+  useState(() => {
+    if (isEdit && editData?.sport && allSports.length > 0) {
+      const match = allSports.find((s) => s.name === editData.sport);
+      if (match) setForm((prev) => ({ ...prev, sportId: match.id }));
+    }
+  });
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold">Add Demo Student</h3>
+          <h3 className="text-lg font-bold">{isEdit ? 'Edit Demo Student' : 'Add Demo Student'}</h3>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
         </div>
+
+        {apiError && (
+          <div className="mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{apiError}</div>
+        )}
+
         <div className="space-y-3">
-          <input placeholder="Full Name *" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={f} />
-          {error && <p className="text-red-500 text-xs">{error}</p>}
-          <input placeholder="Phone Number" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className={f} />
-          <input placeholder="Sport" value={form.sport} onChange={(e) => setForm({ ...form, sport: e.target.value })} className={f} />
+          <div>
+            <input
+              placeholder="Full Name *"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              className={ef('name')}
+            />
+            {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
+          </div>
+
+          <div>
+            <input
+              placeholder="Phone Number"
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              className={ef('phone')}
+            />
+            {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
+          </div>
+
+          <select
+            value={form.sportId}
+            onChange={(e) => setForm({ ...form, sportId: e.target.value, batchId: '' })}
+            className={f}
+          >
+            <option value="">Select Sport (Optional)</option>
+            {allSports.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+
           <select value={form.batchId} onChange={(e) => setForm({ ...form, batchId: e.target.value })} className={f}>
             <option value="">Select Batch (Optional)</option>
             {allBatches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
-          <input
-            type="number"
-            min="0"
-            placeholder="Number of Demo Sessions"
-            value={form.numberOfDemoSessions}
-            onChange={(e) => setForm({ ...form, numberOfDemoSessions: e.target.value })}
-            className={f}
-          />
+
+          <div>
+            <input
+              type="number"
+              min="0"
+              placeholder="Number of Demo Sessions"
+              value={form.numberOfDemoSessions}
+              onChange={(e) => setForm({ ...form, numberOfDemoSessions: e.target.value })}
+              className={ef('numberOfDemoSessions')}
+            />
+            {errors.numberOfDemoSessions && <p className="text-red-500 text-xs mt-1">{errors.numberOfDemoSessions}</p>}
+          </div>
         </div>
+
         <div className="flex gap-3 mt-5">
-          <button type="button" onClick={onClose} className="flex-1 border rounded-lg py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+          <button type="button" onClick={onClose} className="flex-1 border rounded-lg py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+            Cancel
+          </button>
           <button
             type="button"
-            onClick={() => mutation.mutate()}
+            onClick={handleSubmit}
             disabled={mutation.isPending}
             className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
           >
-            {mutation.isPending ? 'Adding...' : 'Add Demo Student'}
+            {mutation.isPending ? (isEdit ? 'Saving...' : 'Adding...') : (isEdit ? 'Save Changes' : 'Add Demo Student')}
           </button>
         </div>
       </div>
@@ -486,6 +579,7 @@ export default function StudentsPage() {
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [showAddDemo, setShowAddDemo] = useState(false);
+  const [editingDemo, setEditingDemo] = useState<DemoStudent | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [filterSport, setFilterSport] = useState('');
   const [filterBatch, setFilterBatch] = useState('');
@@ -844,6 +938,7 @@ export default function StudentsPage() {
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Batch</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Demo Sessions</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Converted to Regular</th>
+                    <th className="px-4 py-3" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -876,6 +971,17 @@ export default function StudentsPage() {
                           <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">No</span>
                         )}
                       </td>
+                      <td className="px-4 py-3 text-right">
+                        {!d.convertedToRegular && (
+                          <button
+                            onClick={() => setEditingDemo(d)}
+                            className="text-gray-400 hover:text-blue-600 transition-colors"
+                            title="Edit demo student"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -886,7 +992,8 @@ export default function StudentsPage() {
       )}
 
       {showAdd && <AddStudentModal onClose={() => setShowAdd(false)} venueId={venueId} isSuperAdmin={isSuperAdmin} isCoach={isCoach} />}
-      {showAddDemo && <AddDemoStudentModal onClose={() => setShowAddDemo(false)} venueId={venueId} isSuperAdmin={isSuperAdmin} isCoach={isCoach} />}
+      {showAddDemo && <DemoStudentModal onClose={() => setShowAddDemo(false)} venueId={venueId} isSuperAdmin={isSuperAdmin} isCoach={isCoach} />}
+      {editingDemo && <DemoStudentModal onClose={() => setEditingDemo(null)} venueId={venueId} isSuperAdmin={isSuperAdmin} isCoach={isCoach} editData={editingDemo} />}
     </div>
   );
 }
