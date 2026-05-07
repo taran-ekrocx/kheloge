@@ -5,7 +5,7 @@ import { FastifyReply, FastifyRequest } from 'fastify';
 import { UserRole, PaymentMode } from '@kheloge/database';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { PaymentsService, RecordPaymentDto, CreateInvoiceDto, CreateFeePlanDto, UpdateFeePlanDto } from './payments.service';
+import { PaymentsService, RecordPaymentDto, CreateInvoiceDto } from './payments.service';
 import { ReceiptService } from './receipt.service';
 import { InvoicePdfService } from '../invoices/invoice-pdf.service';
 
@@ -81,24 +81,6 @@ export class PaymentsController {
   @Roles(UserRole.SUPER_ADMIN, UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER, UserRole.ACCOUNTANT)
   getKpiDashboard(@Param('venueId') venueId: string) {
     return this.payments.getKpiDashboard(venueId);
-  }
-
-  @Get('venues/:venueId/fee-plans')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER, UserRole.ACCOUNTANT)
-  getVenueFeePlans(@Param('venueId') venueId: string) {
-    return this.payments.getVenueFeePlans(venueId);
-  }
-
-  @Post('venues/:venueId/fee-plans')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER)
-  createFeePlan(@Param('venueId') venueId: string, @Body() dto: CreateFeePlanDto) {
-    return this.payments.createFeePlan(venueId, dto);
-  }
-
-  @Patch('fee-plans/:feePlanId')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER)
-  updateFeePlan(@Param('feePlanId') feePlanId: string, @Body() dto: UpdateFeePlanDto) {
-    return this.payments.updateFeePlan(feePlanId, dto);
   }
 
   @Get('venues/:venueId/invoices')

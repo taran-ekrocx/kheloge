@@ -2,7 +2,7 @@ import { Process, Processor } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bull';
 import { PrismaService } from '../../database/prisma.service';
-import { PaymentStatus, FeeFrequency } from '@kheloge/database';
+import { PaymentStatus } from '@kheloge/database';
 
 export const INVOICES_QUEUE = 'invoices';
 
@@ -16,8 +16,8 @@ export class InvoicesProcessor {
   constructor(private prisma: PrismaService) {}
 
   /**
-   * Auto-generate monthly/quarterly/etc. invoices for all active enrollments
-   * whose fee plan due date matches today.
+   * Auto-generate monthly invoices for all active enrollments whose batch
+   * feeDueDay matches today.
    */
   @Process(JOB_AUTO_GENERATE)
   async handleAutoGenerate(job: Job<{ venueId?: string }>) {
@@ -25,40 +25,32 @@ export class InvoicesProcessor {
 
     const today = new Date();
     const dueDay = today.getDate();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
 
-    // Find all active fee plans whose dueDay matches today's date
-    const feePlans = await this.prisma.feePlan.findMany({
+    const batches = await this.prisma.batch.findMany({
       where: {
+        fee: { not: null },
+        feeDueDay: dueDay,
         isActive: true,
-        dueDay,
-        ...(job.data.venueId
-          ? { batch: { venueId: job.data.venueId } }
-          : {}),
+        ...(job.data.venueId ? { venueId: job.data.venueId } : {}),
       },
       include: {
-        batch: {
-          include: {
-            enrollments: { where: { isActive: true }, select: { studentId: true } },
-          },
-        },
+        enrollments: { where: { isActive: true }, select: { studentId: true } },
       },
     });
 
     let created = 0;
 
-    for (const plan of feePlans) {
-      const dueDate = new Date(today.getFullYear(), today.getMonth(), plan.dueDay);
+    for (const batch of batches) {
+      const dueDate = new Date(y, today.getMonth(), dueDay);
 
-      // Determine billing period suffix
-      const suffix = this.periodSuffix(plan.frequency, today);
-
-      for (const enrollment of plan.batch?.enrollments ?? []) {
-        // Skip if an invoice for this plan+student already exists this period
+      for (const enrollment of batch.enrollments) {
         const existing = await this.prisma.invoice.findFirst({
           where: {
             studentId: enrollment.studentId,
-            feePlanId: plan.id,
-            dueDate: { gte: new Date(dueDate.getFullYear(), dueDate.getMonth(), 1) },
+            batchId: batch.id,
+            dueDate: { gte: new Date(y, today.getMonth(), 1) },
           },
         });
         if (existing) continue;
@@ -66,10 +58,10 @@ export class InvoicesProcessor {
         await this.prisma.invoice.create({
           data: {
             studentId: enrollment.studentId,
-            feePlanId: plan.id,
-            amount: plan.amount,
+            batchId: batch.id,
+            amount: batch.fee!,
             dueDate,
-            invoiceNumber: `INV-${enrollment.studentId.slice(-4).toUpperCase()}-${suffix}`,
+            invoiceNumber: `INV-${enrollment.studentId.slice(-4).toUpperCase()}-${y}${m}`,
             status: PaymentStatus.PENDING,
           },
         });
@@ -99,24 +91,5 @@ export class InvoicesProcessor {
 
     this.logger.log(`Marked ${result.count} invoices as overdue`);
     return { marked: result.count };
-  }
-
-  private periodSuffix(frequency: FeeFrequency, date: Date): string {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const q = Math.ceil((date.getMonth() + 1) / 3);
-
-    switch (frequency) {
-      case FeeFrequency.MONTHLY:
-        return `${y}${m}`;
-      case FeeFrequency.QUARTERLY:
-        return `${y}Q${q}`;
-      case FeeFrequency.HALF_YEARLY:
-        return `${y}H${date.getMonth() < 6 ? 1 : 2}`;
-      case FeeFrequency.ANNUAL:
-        return `${y}`;
-      default:
-        return `${y}${m}`;
-    }
   }
 }

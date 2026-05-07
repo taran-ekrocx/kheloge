@@ -10,7 +10,7 @@ function mapBatch(b: any) {
   return {
     ...b,
     coaches: b.coaches?.map((bc: any) => bc.coach) ?? [],
-    fee: b.feePlans?.[0]?.amount ?? null,
+    fee: b.fee ?? null,
     status: b.isActive === false ? 'INACTIVE' : 'ACTIVE',
   };
 }

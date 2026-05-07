@@ -11,21 +11,12 @@ import dayjs from 'dayjs';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-interface FeePlan {
-  id: string;
-  name: string;
-  amount: string;
-  frequency: string;
-  dueDay: number;
-  isActive: boolean;
-}
-
 interface Batch {
   id: string;
   name: string;
   sport: { id: string; name: string };
   venue?: { id: string; name: string };
-  feePlans: FeePlan[];
+  fee: string | null;
   isActive: boolean;
   _count: { enrollments: number };
 }
@@ -37,7 +28,7 @@ interface Invoice {
   dueDate: string;
   status: string;
   student: { id: string; name: string; phone?: string };
-  feePlan: { name: string; frequency: string };
+  batch: { id: string; name: string } | null;
   payments: { id: string; amount: string; paidAt: string; mode: string }[];
 }
 
@@ -70,57 +61,53 @@ function BatchFeesTab({ venueId }: { venueId: string }) {
       <p className="text-sm text-gray-500">{batches.length} batches</p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {batches.map((batch) => {
-          const plan = batch.feePlans?.find((p) => p.isActive) ?? batch.feePlans?.[0];
-          return (
-            <div
-              key={batch.id}
-              className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 space-y-4"
-            >
-              {/* Card header */}
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="font-semibold text-gray-900">{batch.name}</p>
-                  <span className="inline-block mt-1 text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">
-                    {batch.sport?.name}
-                  </span>
-                </div>
-                <span
-                  className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${
-                    batch.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                  }`}
-                >
-                  {batch.isActive ? 'Active' : 'Inactive'}
+        {batches.map((batch) => (
+          <div
+            key={batch.id}
+            className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 space-y-4"
+          >
+            {/* Card header */}
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-semibold text-gray-900">{batch.name}</p>
+                <span className="inline-block mt-1 text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">
+                  {batch.sport?.name}
                 </span>
               </div>
+              <span
+                className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${
+                  batch.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                }`}
+              >
+                {batch.isActive ? 'Active' : 'Inactive'}
+              </span>
+            </div>
 
-              <hr className="border-gray-100" />
+            <hr className="border-gray-100" />
 
-              {/* Fee details — same icon + label + value layout as Batch Overview tab */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex items-start gap-2">
-                  <span className="text-gray-400 mt-0.5 shrink-0 text-sm font-bold leading-none">₹</span>
-                  <div>
-                    <p className="text-xs text-gray-400">Fee</p>
-                    <p className="font-medium text-sm text-gray-900">
-                      {plan
-                        ? `₹${Number(plan.amount).toLocaleString()}`
-                        : <span className="text-gray-400 italic">No fee</span>}
-                    </p>
-                  </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex items-start gap-2">
+                <span className="text-gray-400 mt-0.5 shrink-0 text-sm font-bold leading-none">₹</span>
+                <div>
+                  <p className="text-xs text-gray-400">Fee</p>
+                  <p className="font-medium text-sm text-gray-900">
+                    {batch.fee != null
+                      ? `₹${Number(batch.fee).toLocaleString()}`
+                      : <span className="text-gray-400 italic">No fee</span>}
+                  </p>
                 </div>
+              </div>
 
-                <div className="flex items-start gap-2">
-                  <Users size={14} className="text-gray-400 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-400">Students</p>
-                    <p className="font-medium text-sm text-gray-900">{batch._count?.enrollments ?? 0}</p>
-                  </div>
+              <div className="flex items-start gap-2">
+                <Users size={14} className="text-gray-400 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-xs text-gray-400">Students</p>
+                  <p className="font-medium text-sm text-gray-900">{batch._count?.enrollments ?? 0}</p>
                 </div>
               </div>
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -181,7 +168,7 @@ function InvoicesTab({ venueId }: { venueId: string }) {
               <tr>
                 <th className="text-left px-5 py-3 font-medium text-gray-600">Invoice #</th>
                 <th className="text-left px-5 py-3 font-medium text-gray-600">Student</th>
-                <th className="text-left px-5 py-3 font-medium text-gray-600">Fee Plan</th>
+                <th className="text-left px-5 py-3 font-medium text-gray-600">Batch</th>
                 <th className="text-left px-5 py-3 font-medium text-gray-600">Amount</th>
                 <th className="text-left px-5 py-3 font-medium text-gray-600">Due Date</th>
                 <th className="text-left px-5 py-3 font-medium text-gray-600">Status</th>
@@ -193,7 +180,7 @@ function InvoicesTab({ venueId }: { venueId: string }) {
                 <tr key={inv.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-5 py-3 font-mono text-xs text-gray-600">{inv.invoiceNumber}</td>
                   <td className="px-5 py-3 font-medium text-gray-900">{inv.student.name}</td>
-                  <td className="px-5 py-3 text-gray-600">{inv.feePlan.name}</td>
+                  <td className="px-5 py-3 text-gray-600">{inv.batch?.name ?? '—'}</td>
                   <td className="px-5 py-3 font-medium text-gray-900">
                     ₹{Number(inv.amount).toLocaleString()}
                   </td>

@@ -62,13 +62,6 @@ enum PaymentStatus {
   REFUNDED
 }
 
-enum FeeFrequency {
-  MONTHLY
-  QUARTERLY
-  HALF_YEARLY
-  ANNUAL
-  ONE_TIME
-}
 
 enum EnquiryStage {
   NEW
@@ -327,6 +320,8 @@ model Batch {
   isActive    Boolean   @default(true)
   startDate   DateTime?
   endDate     DateTime?
+  fee         Decimal?  @db.Decimal(10, 2)
+  feeDueDay   Int       @default(1)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -335,7 +330,7 @@ model Batch {
   coaches     BatchCoach[]
   enrollments Enrollment[]
   attendances      Attendance[]
-  feePlans         FeePlan[]
+  invoices         Invoice[]
   sessions         AttendanceSession[]
   coachAttendances CoachAttendance[]
   demoStudents     DemoStudent[]
@@ -514,32 +509,13 @@ model CoachAttendance {
 }
 
 // ─────────────────────────────────────────────
-// FEE PLAN & PAYMENTS
+// PAYMENTS
 // ─────────────────────────────────────────────
-
-model FeePlan {
-  id             String       @id @default(cuid())
-  batchId        String?
-  name           String
-  amount         Decimal      @db.Decimal(10, 2)
-  frequency      FeeFrequency
-  dueDay         Int          @default(1)  // day of month
-  lateFeeAmount  Decimal?     @db.Decimal(10, 2)
-  discountAmount Decimal?     @db.Decimal(10, 2)
-  isActive       Boolean      @default(true)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-
-  batch          Batch?    @relation(fields: [batchId], references: [id])
-  invoices       Invoice[]
-
-  @@map("fee_plans")
-}
 
 model Invoice {
   id             String        @id @default(cuid())
   studentId      String
-  feePlanId      String
+  batchId        String?
   amount         Decimal       @db.Decimal(10, 2)
   dueDate        DateTime
   status         PaymentStatus @default(PENDING)
@@ -550,7 +526,7 @@ model Invoice {
   updatedAt      DateTime      @updatedAt
 
   student        Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  feePlan        FeePlan   @relation(fields: [feePlanId], references: [id])
+  batch          Batch?    @relation(fields: [batchId], references: [id])
   payments       Payment[]
 
   @@map("invoices")

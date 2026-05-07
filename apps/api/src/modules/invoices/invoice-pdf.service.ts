@@ -25,9 +25,7 @@ export class InvoicePdfService {
         student: {
           include: { organization: true },
         },
-        feePlan: {
-          include: { batch: { include: { venue: true } } },
-        },
+        batch: { include: { venue: true } },
         payments: {
           where: { status: PaymentStatus.PAID },
           orderBy: { paidAt: 'desc' },
@@ -38,7 +36,7 @@ export class InvoicePdfService {
     if (!invoice) throw new NotFoundException('Invoice not found');
 
     const org = invoice.student.organization;
-    const venue = invoice.feePlan.batch?.venue ?? null;
+    const venue = invoice.batch?.venue ?? null;
 
     return new Promise<Buffer>((resolve, reject) => {
       const doc = new PDFDocument({ size: 'A4', margin: 50 });
@@ -171,20 +169,8 @@ export class InvoicePdfService {
         return `₹${val.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
       };
 
-      this.tableRow(doc, tableY, colDesc, colFreq, colAmt, invoice.feePlan.name, invoice.feePlan.frequency, fmtRupee(invoice.feePlan.amount));
+      this.tableRow(doc, tableY, colDesc, colFreq, colAmt, invoice.batch?.name ?? 'Monthly Fee', 'Monthly', fmtRupee(invoice.amount));
       tableY += 22;
-
-      // Discount row (if applicable)
-      if (invoice.feePlan.discountAmount && Number(invoice.feePlan.discountAmount) > 0) {
-        this.tableRow(doc, tableY, colDesc, colFreq, colAmt, 'Discount', '—', `(${fmtRupee(invoice.feePlan.discountAmount)})`, '#16a34a');
-        tableY += 22;
-      }
-
-      // Late fee row (if overdue)
-      if (invoice.status === PaymentStatus.OVERDUE && invoice.feePlan.lateFeeAmount && Number(invoice.feePlan.lateFeeAmount) > 0) {
-        this.tableRow(doc, tableY, colDesc, colFreq, colAmt, 'Late Fee', '—', fmtRupee(invoice.feePlan.lateFeeAmount), '#dc2626');
-        tableY += 22;
-      }
 
       // Total row
       doc

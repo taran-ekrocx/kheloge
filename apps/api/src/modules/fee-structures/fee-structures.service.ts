@@ -1,25 +1,15 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { FeeFrequency } from '@kheloge/database';
 import { PrismaService } from '../../database/prisma.service';
 
 export interface CreateFeeStructureDto {
   batchId: string;
-  name: string;
   amount: number;
-  frequency: FeeFrequency;
   dueDay?: number;
-  lateFeeAmount?: number;
-  discountAmount?: number;
 }
 
 export interface UpdateFeeStructureDto {
-  name?: string;
   amount?: number;
-  frequency?: FeeFrequency;
   dueDay?: number;
-  lateFeeAmount?: number;
-  discountAmount?: number;
-  isActive?: boolean;
 }
 
 export interface FeeStructureFilters {
@@ -41,66 +31,64 @@ export class FeeStructuresService {
       select: {
         id: true,
         name: true,
+        fee: true,
+        feeDueDay: true,
         sportId: true,
         sport: { select: { id: true, name: true } },
-        feePlans: true,
         _count: { select: { enrollments: { where: { isActive: true } } } },
       },
     });
 
-    return batches.flatMap((b) =>
-      b.feePlans.map((fp) => ({
-        ...fp,
-        amount: Number(fp.amount),
-        lateFeeAmount: fp.lateFeeAmount ? Number(fp.lateFeeAmount) : null,
-        discountAmount: fp.discountAmount ? Number(fp.discountAmount) : null,
-        batchId: b.id,
-        batchName: b.name,
-        sport: b.sport,
-        activeStudents: b._count.enrollments,
-      })),
-    );
+    return batches.map((b) => ({
+      batchId: b.id,
+      batchName: b.name,
+      amount: b.fee != null ? Number(b.fee) : null,
+      dueDay: b.feeDueDay,
+      sport: b.sport,
+      activeStudents: b._count.enrollments,
+    }));
   }
 
   async create(organizationId: string, dto: CreateFeeStructureDto) {
-    // Verify batch belongs to this organization
     const batch = await this.prisma.batch.findFirst({
       where: { id: dto.batchId, venue: { organizationId } },
     });
     if (!batch) throw new NotFoundException('Batch not found');
 
-    return this.prisma.feePlan.create({
-      data: {
-        batchId: dto.batchId,
-        name: dto.name,
-        amount: dto.amount,
-        frequency: dto.frequency,
-        dueDay: dto.dueDay,
-        lateFeeAmount: dto.lateFeeAmount,
-        discountAmount: dto.discountAmount,
-      },
+    return this.prisma.batch.update({
+      where: { id: dto.batchId },
+      data: { fee: dto.amount, feeDueDay: dto.dueDay ?? 1 },
+      select: { id: true, name: true, fee: true, feeDueDay: true },
     });
   }
 
+  // id is batchId after this refactor
   async update(organizationId: string, id: string, dto: UpdateFeeStructureDto) {
-    // Verify fee plan belongs to this organization via batch → venue
-    const existing = await this.prisma.feePlan.findFirst({
-      where: { id, batch: { venue: { organizationId } } },
+    const existing = await this.prisma.batch.findFirst({
+      where: { id, venue: { organizationId } },
     });
     if (!existing) throw new NotFoundException('Fee structure not found');
 
-    return this.prisma.feePlan.update({
+    return this.prisma.batch.update({
       where: { id },
-      data: { ...dto },
+      data: {
+        ...(dto.amount !== undefined ? { fee: dto.amount } : {}),
+        ...(dto.dueDay !== undefined ? { feeDueDay: dto.dueDay } : {}),
+      },
+      select: { id: true, name: true, fee: true, feeDueDay: true },
     });
   }
 
   async remove(organizationId: string, id: string) {
-    const existing = await this.prisma.feePlan.findFirst({
-      where: { id, batch: { venue: { organizationId } } },
+    const existing = await this.prisma.batch.findFirst({
+      where: { id, venue: { organizationId } },
     });
     if (!existing) throw new NotFoundException('Fee structure not found');
 
-    return this.prisma.feePlan.delete({ where: { id } });
+    return this.prisma.batch.update({
+      where: { id },
+      data: { fee: null },
+      select: { id: true, name: true, fee: true },
+    });
   }
 }

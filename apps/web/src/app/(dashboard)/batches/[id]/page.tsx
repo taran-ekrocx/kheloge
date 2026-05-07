@@ -44,10 +44,6 @@ interface Enrollment {
   student: Student;
 }
 
-interface FeePlan {
-  amount: number | string;
-}
-
 interface PaymentStudentInfo {
   id: string;
   status: string;
@@ -71,7 +67,7 @@ interface BatchDetail {
   venue: { id: string; name: string };
   coaches: BatchCoach[];
   enrollments: Enrollment[];
-  feePlans?: FeePlan[];
+  fee?: number | string | null;
 }
 
 function StudentMultiSelect({ students, selected, onChange }: {
@@ -370,13 +366,13 @@ export default function BatchDetailPage() {
                 </div>
               )}
 
-              {batch.feePlans?.[0] && (
+              {batch.fee != null && (
                 <div className="flex items-start gap-3">
                   <span className="text-gray-400 mt-0.5 shrink-0 text-sm leading-none font-bold">₹</span>
                   <div>
                     <p className="text-xs text-gray-400">Fee</p>
                     <p className="font-medium text-sm">
-                      ₹{Number(batch.feePlans[0].amount).toLocaleString()}
+                      ₹{Number(batch.fee).toLocaleString()}
                     </p>
                   </div>
                 </div>

@@ -16,7 +16,7 @@ export class ReceiptService {
       where: { id: paymentId },
       include: {
         student: { select: { name: true, phone: true, email: true } },
-        invoice: { include: { feePlan: { select: { name: true } } } },
+        invoice: { include: { batch: { select: { name: true } } } },
       },
     });
 
@@ -77,7 +77,7 @@ export class ReceiptService {
       this.row(doc, 'Status', payment.status);
       if (payment.referenceNumber) this.row(doc, 'Reference', payment.referenceNumber);
       if (payment.paidAt) this.row(doc, 'Paid On', new Date(payment.paidAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }));
-      if (payment.invoice?.feePlan) this.row(doc, 'Fee Plan', payment.invoice.feePlan.name);
+      if (payment.invoice?.batch) this.row(doc, 'Batch', payment.invoice.batch.name);
       if (payment.notes) this.row(doc, 'Notes', payment.notes);
       doc.moveDown(1);
 

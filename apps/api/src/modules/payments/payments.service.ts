@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { PrismaService } from '../../database/prisma.service';
-import { PaymentMode, PaymentStatus, FeeFrequency } from '@kheloge/database';
+import { PaymentMode, PaymentStatus } from '@kheloge/database';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import { NOTIFICATIONS_QUEUE, JOB_FEE_REMINDERS } from '../notifications/notifications.processor';
@@ -19,29 +19,9 @@ export interface RecordPaymentDto {
 
 export interface CreateInvoiceDto {
   studentId: string;
-  feePlanId: string;
+  batchId: string;
   dueDate: string;
-  amount?: number; // override fee plan amount
-}
-
-export interface CreateFeePlanDto {
-  batchId?: string;
-  name: string;
-  amount: number;
-  frequency: FeeFrequency;
-  dueDay?: number;
-  lateFeeAmount?: number;
-  discountAmount?: number;
-}
-
-export interface UpdateFeePlanDto {
-  name?: string;
   amount?: number;
-  frequency?: FeeFrequency;
-  dueDay?: number;
-  lateFeeAmount?: number;
-  discountAmount?: number;
-  isActive?: boolean;
 }
 
 @Injectable()
@@ -62,19 +42,19 @@ export class PaymentsService {
   async getStudentInvoices(studentId: string) {
     return this.prisma.invoice.findMany({
       where: { studentId },
-      include: { feePlan: true, payments: true },
+      include: { batch: { select: { id: true, name: true, fee: true } }, payments: true },
       orderBy: { dueDate: 'desc' },
     });
   }
 
   async createInvoice(dto: CreateInvoiceDto) {
-    const feePlan = await this.prisma.feePlan.findUniqueOrThrow({ where: { id: dto.feePlanId } });
+    const batch = await this.prisma.batch.findUniqueOrThrow({ where: { id: dto.batchId } });
     const invoiceNumber = `INV-${Date.now()}`;
     return this.prisma.invoice.create({
       data: {
         studentId: dto.studentId,
-        feePlanId: dto.feePlanId,
-        amount: dto.amount ?? feePlan.amount,
+        batchId: dto.batchId,
+        amount: dto.amount ?? batch.fee ?? 0,
         dueDate: new Date(dto.dueDate),
         invoiceNumber,
       },
@@ -174,42 +154,6 @@ export class PaymentsService {
     return { collected, overdue, totalStudents: students.length };
   }
 
-  // ── Fee Plan CRUD ─────────────────────────────────────────────────────────
-
-  async getVenueFeePlans(venueId: string) {
-    const batches = await this.prisma.batch.findMany({
-      where: { venueId },
-      select: {
-        id: true,
-        name: true,
-        sport: { select: { name: true } },
-        feePlans: true,
-        _count: { select: { enrollments: { where: { isActive: true } } } },
-      },
-    });
-
-    return batches.flatMap((b) =>
-      b.feePlans.map((fp) => ({
-        ...fp,
-        batchName: b.name,
-        sportName: b.sport.name,
-        activeStudents: b._count.enrollments,
-      })),
-    );
-  }
-
-  async createFeePlan(venueId: string, dto: CreateFeePlanDto) {
-    // Verify batch belongs to venue when batchId is provided
-    if (dto.batchId) {
-      await this.prisma.batch.findFirstOrThrow({ where: { id: dto.batchId, venueId } });
-    }
-    return this.prisma.feePlan.create({ data: { ...dto } });
-  }
-
-  async updateFeePlan(feePlanId: string, dto: UpdateFeePlanDto) {
-    return this.prisma.feePlan.update({ where: { id: feePlanId }, data: { ...dto } });
-  }
-
   // ── Venue Invoices ────────────────────────────────────────────────────────
 
   async getVenueInvoices(venueId: string) {
@@ -217,7 +161,7 @@ export class PaymentsService {
       where: { student: { enrollments: { some: { batch: { venueId } } } } },
       include: {
         student: { select: { id: true, name: true, phone: true } },
-        feePlan: { select: { name: true, frequency: true } },
+        batch: { select: { id: true, name: true } },
         payments: { select: { id: true, amount: true, paidAt: true, mode: true } },
       },
       orderBy: { dueDate: 'desc' },
@@ -458,19 +402,22 @@ export class PaymentsService {
       select: {
         id: true,
         name: true,
+        fee: true,
+        feeDueDay: true,
         sport: { select: { name: true } },
-        feePlans: true,
         _count: { select: { enrollments: { where: { isActive: true } } } },
       },
     });
-    return batches.flatMap((b) =>
-      b.feePlans.map((fp) => ({
-        ...fp,
+    return batches
+      .filter((b) => b.fee != null)
+      .map((b) => ({
+        batchId: b.id,
         batchName: b.name,
+        amount: Number(b.fee),
+        dueDay: b.feeDueDay,
         sportName: b.sport.name,
         activeStudents: b._count.enrollments,
-      })),
-    );
+      }));
   }
 
   async getOrgInvoices(orgId: string) {
@@ -478,7 +425,7 @@ export class PaymentsService {
       where: { student: { organizationId: orgId } },
       include: {
         student: { select: { id: true, name: true, phone: true } },
-        feePlan: { select: { name: true, frequency: true } },
+        batch: { select: { id: true, name: true } },
         payments: { select: { id: true, amount: true, paidAt: true, mode: true } },
       },
       orderBy: { dueDate: 'desc' },
@@ -517,14 +464,14 @@ export class PaymentsService {
   }
 
   async getBatchMonthlyPayments(orgId: string, month: string, frequency?: string, period?: string, venueId?: string, coachId?: string, batchId?: string) {
-    const effectiveFrequency = frequency ?? 'MONTHLY';
     const effectivePeriod = period ?? month;
-    const dateRange = this.getPeriodDateRange(effectiveFrequency, effectivePeriod);
+    const dateRange = this.getPeriodDateRange(frequency ?? 'MONTHLY', effectivePeriod);
 
     const batches = await this.prisma.batch.findMany({
       where: {
         venue: { organizationId: orgId },
         isActive: true,
+        fee: { not: null },
         ...(venueId ? { venueId } : {}),
         ...(coachId ? { coaches: { some: { coachId } } } : {}),
         ...(batchId ? { id: batchId } : {}),
@@ -536,10 +483,6 @@ export class PaymentsService {
           where: { isPrimary: true },
           include: { coach: { select: { id: true, name: true } } },
         },
-        feePlans: {
-          where: { frequency: effectiveFrequency as FeeFrequency },
-          orderBy: { createdAt: 'desc' },
-        },
         enrollments: {
           where: { isActive: true },
           include: { student: { select: { id: true, name: true, phone: true } } },
@@ -547,18 +490,17 @@ export class PaymentsService {
       },
     });
 
-    const filteredBatches = batches.filter((b) => b.feePlans.length > 0);
-    const feePlanIds = filteredBatches.flatMap((b) => b.feePlans.map((fp) => fp.id));
-    const studentIds = filteredBatches.flatMap((b) => b.enrollments.map((e) => e.student.id));
+    const batchIds = batches.map((b) => b.id);
+    const studentIds = batches.flatMap((b) => b.enrollments.map((e) => e.student.id));
 
     const [invoices, payments] = await Promise.all([
-      feePlanIds.length > 0 ? this.prisma.invoice.findMany({
+      batchIds.length > 0 ? this.prisma.invoice.findMany({
         where: {
           studentId: { in: studentIds },
-          feePlanId: { in: feePlanIds },
+          batchId: { in: batchIds },
           ...(dateRange ? { dueDate: { gte: dateRange.start, lt: dateRange.end } } : {}),
         },
-        select: { id: true, studentId: true, feePlanId: true, amount: true, status: true },
+        select: { id: true, studentId: true, batchId: true, amount: true, status: true },
       }) : [],
       studentIds.length > 0 ? this.prisma.payment.findMany({
         where: {
@@ -571,8 +513,7 @@ export class PaymentsService {
       }) : [],
     ]);
 
-    const invoiceMap = new Map(invoices.map((inv) => [`${inv.studentId}:${inv.feePlanId}`, inv] as [string, typeof inv]));
-    // Track invoice-linked payments and standalone payments separately
+    const invoiceMap = new Map(invoices.map((inv) => [`${inv.studentId}:${inv.batchId}`, inv] as [string, typeof inv]));
     const invoicePaymentMap = new Map<string, typeof payments[0]>();
     const standalonePaymentMap = new Map<string, typeof payments[0]>();
     for (const p of payments) {
@@ -583,18 +524,13 @@ export class PaymentsService {
       }
     }
 
-    const batchResults = filteredBatches.map((batch) => {
-      // feePlans is ordered by createdAt desc; first active plan is the "current" one for display
-      const feePlan = batch.feePlans.find((fp) => fp.isActive) ?? batch.feePlans[0];
-      const defaultAmount = feePlan ? Number(feePlan.amount) : 0;
+    const batchResults = batches.map((batch) => {
+      const defaultAmount = Number(batch.fee);
       const coaches = batch.coaches.map((bc) => ({ id: bc.coach.id, name: bc.coach.name }));
 
       const students = batch.enrollments.map((enrollment) => {
         const student = enrollment.student;
-        // Find the invoice for this student across all fee plans of this batch (including old ones)
-        const invoice = batch.feePlans
-          .map((fp) => invoiceMap.get(`${student.id}:${fp.id}`))
-          .find((x): x is NonNullable<typeof x> => x != null);
+        const invoice = invoiceMap.get(`${student.id}:${batch.id}`);
         const isPaid =
           invoice?.status === 'PAID' ||
           (!!invoice && !!invoicePaymentMap.get(invoice.id)) ||

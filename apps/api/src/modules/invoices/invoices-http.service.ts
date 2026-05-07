@@ -26,7 +26,7 @@ export class InvoicesHttpService {
       where.studentId = filters.studentId;
     }
     if (filters.batchId) {
-      where.feePlan = { batchId: filters.batchId };
+      where.batchId = filters.batchId;
     }
     if (filters.from || filters.to) {
       where.dueDate = {};
@@ -38,7 +38,7 @@ export class InvoicesHttpService {
       where,
       include: {
         student: { select: { id: true, name: true, phone: true } },
-        feePlan: { select: { id: true, name: true, frequency: true, batch: { select: { id: true, name: true, sport: { select: { name: true } } } } } },
+        batch: { select: { id: true, name: true, sport: { select: { name: true } } } },
         payments: { select: { id: true, amount: true, paidAt: true, mode: true } },
       },
       orderBy: { dueDate: 'desc' },

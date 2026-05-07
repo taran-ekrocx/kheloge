@@ -45,7 +45,6 @@ export class NotificationsProcessor {
         student: {
           include: { guardians: { where: { isPrimary: true } } },
         },
-        feePlan: true,
       },
     });
 
