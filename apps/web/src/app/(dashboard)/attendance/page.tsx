@@ -7,7 +7,7 @@ import { io, Socket } from 'socket.io-client';
 import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
 import { useAuth } from '@/hooks/useAuth';
-import { Calendar, Clock, Users, ChevronRight, Play, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { Calendar, Clock, Users, ChevronRight, Play, ChevronDown, ChevronUp, X, Download } from 'lucide-react';
 import Link from 'next/link';
 import dayjs from 'dayjs';
 
@@ -98,6 +98,29 @@ interface SessionAttendanceRecord {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
+function exportMonthlySummaryCSV(items: MonthlySummaryItem[], month: string, includeCoach: boolean) {
+  const headers = includeCoach
+    ? ['Coach Name', 'Batch Name', 'Sport', 'Student Name', 'Total Sessions', 'Present', 'Absent', 'Attendance %']
+    : ['Student Name', 'Batch Name', 'Sport', 'Total Sessions', 'Present', 'Absent', 'Attendance %'];
+
+  const rows = items.map(item => includeCoach
+    ? [item.coachName, item.batchName, item.sportName, item.studentName, item.totalSessions, item.present, item.absent, `${item.percentage}%`]
+    : [item.studentName, item.batchName, item.sportName, item.totalSessions, item.present, item.absent, `${item.percentage}%`]
+  );
+
+  const csv = [headers, ...rows]
+    .map(row => row.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `attendance-${month}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function AttendanceIndexPage() {
   const { venueId } = useVenue();
   const { role } = useAuth();
@@ -156,6 +179,11 @@ export default function AttendanceIndexPage() {
     enabled: tab === 'monthly',
     staleTime: 2 * 60 * 1000,
   });
+
+  const displayedMonthlySummary = useMemo(() => {
+    if (!isCoach || !monthlySportName) return monthlySummary;
+    return monthlySummary.filter(i => i.sportName === monthlySportName);
+  }, [isCoach, monthlySummary, monthlySportName]);
 
   const effectiveVenueId = isSuperAdmin ? saVenueFilter : venueId;
 
@@ -588,17 +616,26 @@ export default function AttendanceIndexPage() {
             </div>
           </div>
 
+          {!monthlySummaryLoading && displayedMonthlySummary.length > 0 && (
+            <div className="flex justify-end">
+              <button
+                onClick={() => exportMonthlySummaryCSV(displayedMonthlySummary, monthlyMonth, isSuperAdmin)}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                <Download size={14} />
+                Export CSV
+              </button>
+            </div>
+          )}
+
           {monthlySummaryLoading ? (
             <div className="text-gray-400 text-sm">Loading summary...</div>
-          ) : monthlySummary.length === 0 ? (
+          ) : displayedMonthlySummary.length === 0 ? (
             <div className="bg-white rounded-xl p-8 text-center text-gray-400 border border-gray-100">
               No attendance data found for this period.
             </div>
           ) : isCoach ? (
-            <CollapsibleBatchSummary
-              items={monthlySportName ? monthlySummary.filter(i => i.sportName === monthlySportName) : monthlySummary}
-              month={monthlyMonth}
-            />
+            <CollapsibleBatchSummary items={displayedMonthlySummary} month={monthlyMonth} />
           ) : isSuperAdmin ? (
             <CoachCollapsibleSummary items={monthlySummary} month={monthlyMonth} />
           ) : (
