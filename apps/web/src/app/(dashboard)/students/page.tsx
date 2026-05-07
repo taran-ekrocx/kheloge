@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
 import { useAuth } from '@/hooks/useAuth';
-import { Search, UserPlus, ChevronRight, Download, CreditCard, User, Filter, X } from 'lucide-react';
+import { Search, UserPlus, ChevronRight, Download, CreditCard, User, Filter, X, Users } from 'lucide-react';
 import Link from 'next/link';
 
 interface Enrollment {
@@ -50,8 +50,112 @@ interface BatchOption {
   sport: { id: string; name: string };
 }
 
+interface DemoStudent {
+  id: string;
+  name: string;
+  phone?: string;
+  sport?: string;
+  batchId?: string;
+  numberOfDemoSessions: number;
+  convertedToRegular: boolean;
+  convertedStudentId?: string;
+  convertedAt?: string;
+  batch?: { id: string; name: string; sport?: { name: string } };
+}
+
 const STEP_LABELS = ['Student Details', 'Contact Info', 'Sports Enrollment', 'Medical Info'];
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+
+function AddDemoStudentModal({
+  onClose,
+  venueId,
+  isSuperAdmin,
+  isCoach,
+}: {
+  onClose: () => void;
+  venueId: string;
+  isSuperAdmin: boolean;
+  isCoach?: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState({ name: '', phone: '', sport: '', batchId: '', numberOfDemoSessions: '' });
+  const [error, setError] = useState('');
+
+  const { data: allBatches = [] } = useQuery<BatchOption[]>({
+    queryKey: isCoach ? ['coach-batches'] : isSuperAdmin ? ['batches-global', ''] : ['batches', venueId],
+    queryFn: isCoach
+      ? () => api.get('/coaches/me/batches?status=active').then((r) => r.data)
+      : isSuperAdmin
+        ? () => api.get('/batches', { params: { status: 'active' } }).then((r) => r.data)
+        : () => api.get(`/venues/${venueId}/batches`).then((r) => r.data),
+    enabled: isCoach ? true : isSuperAdmin ? true : !!venueId,
+  });
+
+  const mutation = useMutation({
+    mutationFn: () => {
+      if (!form.name.trim()) { setError('Name is required'); return Promise.reject(); }
+      setError('');
+      const payload = {
+        name: form.name.trim(),
+        phone: form.phone || undefined,
+        sport: form.sport || undefined,
+        batchId: form.batchId || undefined,
+        numberOfDemoSessions: form.numberOfDemoSessions ? parseInt(form.numberOfDemoSessions) : 0,
+      };
+      return isSuperAdmin
+        ? api.post('/demo-students', payload)
+        : api.post(`/venues/${venueId}/demo-students`, payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['demo-students', venueId] });
+      queryClient.invalidateQueries({ queryKey: ['demo-students-global'] });
+      queryClient.invalidateQueries({ queryKey: ['coach-demo-students'] });
+      onClose();
+    },
+  });
+
+  const f = 'w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold">Add Demo Student</h3>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+        </div>
+        <div className="space-y-3">
+          <input placeholder="Full Name *" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={f} />
+          {error && <p className="text-red-500 text-xs">{error}</p>}
+          <input placeholder="Phone Number" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className={f} />
+          <input placeholder="Sport" value={form.sport} onChange={(e) => setForm({ ...form, sport: e.target.value })} className={f} />
+          <select value={form.batchId} onChange={(e) => setForm({ ...form, batchId: e.target.value })} className={f}>
+            <option value="">Select Batch (Optional)</option>
+            {allBatches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+          <input
+            type="number"
+            min="0"
+            placeholder="Number of Demo Sessions"
+            value={form.numberOfDemoSessions}
+            onChange={(e) => setForm({ ...form, numberOfDemoSessions: e.target.value })}
+            className={f}
+          />
+        </div>
+        <div className="flex gap-3 mt-5">
+          <button type="button" onClick={onClose} className="flex-1 border rounded-lg py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+          <button
+            type="button"
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending}
+            className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+          >
+            {mutation.isPending ? 'Adding...' : 'Add Demo Student'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose: () => void; venueId: string; isSuperAdmin: boolean; isCoach?: boolean }) {
   const queryClient = useQueryClient();
@@ -368,19 +472,24 @@ async function downloadIdCard(venueId: string, studentId: string, studentName: s
   URL.revokeObjectURL(url);
 }
 
+type PageTab = 'regular' | 'demo';
+
 export default function StudentsPage() {
   const { venueId } = useVenue();
   const { role } = useAuth();
   const isSuperAdmin = role === 'SUPER_ADMIN';
   const isCoach = role === 'COACH';
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState<PageTab>('regular');
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
+  const [showAddDemo, setShowAddDemo] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [filterSport, setFilterSport] = useState('');
   const [filterBatch, setFilterBatch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [demoSearch, setDemoSearch] = useState('');
 
   const { data: students = [], isLoading } = useQuery<Student[]>({
     queryKey: isSuperAdmin ? ['students-global'] : isCoach ? ['coach-students'] : ['students', venueId],
@@ -391,6 +500,39 @@ export default function StudentsPage() {
         : () => api.get(`/venues/${venueId}/students`).then((r) => r.data),
     enabled: isSuperAdmin || isCoach ? true : !!venueId,
   });
+
+  const { data: demoStudents = [], isLoading: isDemoLoading } = useQuery<DemoStudent[]>({
+    queryKey: isSuperAdmin ? ['demo-students-global'] : isCoach ? ['coach-demo-students'] : ['demo-students', venueId],
+    queryFn: isSuperAdmin
+      ? () => api.get('/demo-students').then((r) => r.data)
+      : isCoach
+        ? () => api.get(`/venues/${venueId}/demo-students`).then((r) => r.data)
+        : () => api.get(`/venues/${venueId}/demo-students`).then((r) => r.data),
+    enabled: isSuperAdmin || isCoach ? true : !!venueId,
+  });
+
+  const demoConvertMutation = useMutation({
+    mutationFn: ({ id, convertedToRegular }: { id: string; convertedToRegular: boolean }) =>
+      isSuperAdmin
+        ? api.patch(`/demo-students/${id}`, { convertedToRegular })
+        : api.patch(`/venues/${venueId}/demo-students/${id}`, { convertedToRegular }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['demo-students', venueId] });
+      queryClient.invalidateQueries({ queryKey: ['demo-students-global'] });
+      queryClient.invalidateQueries({ queryKey: ['coach-demo-students'] });
+      queryClient.invalidateQueries({ queryKey: ['students', venueId] });
+      queryClient.invalidateQueries({ queryKey: ['students-global'] });
+      queryClient.invalidateQueries({ queryKey: ['coach-students'] });
+    },
+  });
+
+  const filteredDemoStudents = useMemo(() => {
+    const q = demoSearch.toLowerCase();
+    if (!q) return demoStudents;
+    return demoStudents.filter(
+      (d) => d.name.toLowerCase().includes(q) || (d.phone ?? '').includes(q),
+    );
+  }, [demoStudents, demoSearch]);
 
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
@@ -465,173 +607,282 @@ export default function StudentsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Students</h2>
-          <p className="text-gray-500 text-sm">{filtered.length} of {students.length} students</p>
+          <p className="text-gray-500 text-sm">
+            {activeTab === 'regular'
+              ? `${filtered.length} of ${students.length} students`
+              : `${filteredDemoStudents.length} of ${demoStudents.length} demo students`}
+          </p>
         </div>
+        {activeTab === 'regular' ? (
+          <button
+            onClick={() => setShowAdd(true)}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
+          >
+            <UserPlus size={16} />
+            Add Student
+          </button>
+        ) : (
+          <button
+            onClick={() => setShowAddDemo(true)}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
+          >
+            <UserPlus size={16} />
+            Add Demo Student
+          </button>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit">
         <button
-          onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
+          onClick={() => setActiveTab('regular')}
+          className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'regular' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
         >
-          <UserPlus size={16} />
-          Add Student
+          <Users size={14} />
+          Regular Students
+        </button>
+        <button
+          onClick={() => setActiveTab('demo')}
+          className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'demo' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+        >
+          <User size={14} />
+          Demo Students
         </button>
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name, phone, or email..."
-          className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-        />
-      </div>
+      {/* Regular Students Tab */}
+      {activeTab === 'regular' && (
+        <>
+          {/* Search */}
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name, phone, or email..."
+              className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            />
+          </div>
 
-      {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-1.5 text-sm text-gray-500">
-          <Filter size={14} />
-          <span>Filter:</span>
-        </div>
-        <select
-          value={filterSport}
-          onChange={(e) => setFilterSport(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">All Sports</option>
-          {sports.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select
-          value={filterBatch}
-          onChange={(e) => setFilterBatch(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">All Batches</option>
-          {batches.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-        </select>
-        <select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">All Statuses</option>
-          {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
-        {hasFilters && (
-          <button
-            onClick={() => { setFilterSport(''); setFilterBatch(''); setFilterStatus(''); }}
-            className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
-          >
-            <X size={13} /> Clear
-          </button>
-        )}
-      </div>
+          {/* Filter bar */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1.5 text-sm text-gray-500">
+              <Filter size={14} />
+              <span>Filter:</span>
+            </div>
+            <select
+              value={filterSport}
+              onChange={(e) => setFilterSport(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Sports</option>
+              {sports.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select
+              value={filterBatch}
+              onChange={(e) => setFilterBatch(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Batches</option>
+              {batches.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            </select>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Statuses</option>
+              {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+            {hasFilters && (
+              <button
+                onClick={() => { setFilterSport(''); setFilterBatch(''); setFilterStatus(''); }}
+                className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
+              >
+                <X size={13} /> Clear
+              </button>
+            )}
+          </div>
 
-      {/* Bulk actions */}
-      {selectedIds.size > 0 && (
-        <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5">
-          <span className="text-sm font-medium text-blue-700">{selectedIds.size} selected</span>
-          <div className="flex-1" />
-          <button
-            onClick={() => exportToCsv(selectedStudents)}
-            className="flex items-center gap-1.5 text-sm text-gray-700 hover:text-gray-900 px-3 py-1.5 bg-white border rounded-lg"
-          >
-            <Download size={14} />
-            Export CSV
-          </button>
-          <button
-            onClick={handleBulkIdCards}
-            disabled={bulkLoading}
-            className="flex items-center gap-1.5 text-sm text-gray-700 hover:text-gray-900 px-3 py-1.5 bg-white border rounded-lg disabled:opacity-50"
-          >
-            <CreditCard size={14} />
-            {bulkLoading ? 'Generating...' : 'Generate ID Cards'}
-          </button>
-          <button onClick={() => setSelectedIds(new Set())} className="text-sm text-gray-500 hover:text-gray-700">
-            <X size={16} />
-          </button>
-        </div>
+          {/* Bulk actions */}
+          {selectedIds.size > 0 && (
+            <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5">
+              <span className="text-sm font-medium text-blue-700">{selectedIds.size} selected</span>
+              <div className="flex-1" />
+              <button
+                onClick={() => exportToCsv(selectedStudents)}
+                className="flex items-center gap-1.5 text-sm text-gray-700 hover:text-gray-900 px-3 py-1.5 bg-white border rounded-lg"
+              >
+                <Download size={14} />
+                Export CSV
+              </button>
+              <button
+                onClick={handleBulkIdCards}
+                disabled={bulkLoading}
+                className="flex items-center gap-1.5 text-sm text-gray-700 hover:text-gray-900 px-3 py-1.5 bg-white border rounded-lg disabled:opacity-50"
+              >
+                <CreditCard size={14} />
+                {bulkLoading ? 'Generating...' : 'Generate ID Cards'}
+              </button>
+              <button onClick={() => setSelectedIds(new Set())} className="text-sm text-gray-500 hover:text-gray-700">
+                <X size={16} />
+              </button>
+            </div>
+          )}
+
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            {isLoading ? (
+              <div className="p-8 text-center text-gray-400">Loading students...</div>
+            ) : filtered.length === 0 ? (
+              <div className="p-8 text-center text-gray-400">
+                {search || hasFilters ? 'No students match your filters.' : 'No students yet. Add your first student.'}
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th className="px-4 py-3 w-8">
+                      <input type="checkbox" checked={allSelected} onChange={toggleAll} className="rounded border-gray-300" />
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Student</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Phone</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Sport</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Batch</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
+                    <th className="px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {filtered.map((s) => {
+                    const active = s.enrollments?.filter((e) => e.isActive) ?? [];
+                    const primarySport = active[0]?.batch?.sport?.name;
+                    const batchNames = active.map((e) => e.batch?.name).filter(Boolean).join(', ');
+
+                    return (
+                      <tr key={s.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3">
+                          <input type="checkbox" checked={selectedIds.has(s.id)} onChange={() => toggleOne(s.id)} className="rounded border-gray-300" />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            {s.photoUrl ? (
+                              <img src={s.photoUrl} alt={s.name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+                                <User size={14} className="text-gray-400" />
+                              </div>
+                            )}
+                            <span className="font-medium text-gray-900">{s.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-gray-600">{s.phone || '—'}</td>
+                        <td className="px-4 py-3 text-gray-600">{primarySport || '—'}</td>
+                        <td className="px-4 py-3 text-gray-600 max-w-[160px] truncate" title={batchNames}>
+                          {batchNames || '—'}
+                        </td>
+                        <td className="px-4 py-3">
+                          {(s.status === 'ACTIVE' || s.status === 'INACTIVE') ? (
+                            <button
+                              onClick={() => statusMutation.mutate({ id: s.id, status: s.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' })}
+                              title={s.status === 'ACTIVE' ? 'Click to deactivate' : 'Click to activate'}
+                              className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${s.status === 'ACTIVE' ? 'bg-green-500' : 'bg-gray-300'}`}
+                            >
+                              <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ${s.status === 'ACTIVE' ? 'translate-x-4' : 'translate-x-0'}`} />
+                            </button>
+                          ) : (
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[s.status] ?? 'bg-gray-100 text-gray-600'}`}>
+                              {STATUS_LABELS[s.status] ?? s.status}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <Link href={`/students/${s.id}`}>
+                            <ChevronRight size={16} className="text-gray-400 ml-auto hover:text-gray-700" />
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </>
       )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        {isLoading ? (
-          <div className="p-8 text-center text-gray-400">Loading students...</div>
-        ) : filtered.length === 0 ? (
-          <div className="p-8 text-center text-gray-400">
-            {search || hasFilters ? 'No students match your filters.' : 'No students yet. Add your first student.'}
+      {/* Demo Students Tab */}
+      {activeTab === 'demo' && (
+        <>
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              value={demoSearch}
+              onChange={(e) => setDemoSearch(e.target.value)}
+              placeholder="Search by name or phone..."
+              className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            />
           </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                <th className="px-4 py-3 w-8">
-                  <input type="checkbox" checked={allSelected} onChange={toggleAll} className="rounded border-gray-300" />
-                </th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Student</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Phone</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Sport</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Batch</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filtered.map((s) => {
-                const active = s.enrollments?.filter((e) => e.isActive) ?? [];
-                const primarySport = active[0]?.batch?.sport?.name;
-                const batchNames = active.map((e) => e.batch?.name).filter(Boolean).join(', ');
 
-                return (
-                  <tr key={s.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3">
-                      <input type="checkbox" checked={selectedIds.has(s.id)} onChange={() => toggleOne(s.id)} className="rounded border-gray-300" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        {s.photoUrl ? (
-                          <img src={s.photoUrl} alt={s.name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
-                            <User size={14} className="text-gray-400" />
-                          </div>
-                        )}
-                        <span className="font-medium text-gray-900">{s.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">{s.phone || '—'}</td>
-                    <td className="px-4 py-3 text-gray-600">{primarySport || '—'}</td>
-                    <td className="px-4 py-3 text-gray-600 max-w-[160px] truncate" title={batchNames}>
-                      {batchNames || '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      {(s.status === 'ACTIVE' || s.status === 'INACTIVE') ? (
-                        <button
-                          onClick={() => statusMutation.mutate({ id: s.id, status: s.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' })}
-                          title={s.status === 'ACTIVE' ? 'Click to deactivate' : 'Click to activate'}
-                          className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${s.status === 'ACTIVE' ? 'bg-green-500' : 'bg-gray-300'}`}
-                        >
-                          <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ${s.status === 'ACTIVE' ? 'translate-x-4' : 'translate-x-0'}`} />
-                        </button>
-                      ) : (
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[s.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                          {STATUS_LABELS[s.status] ?? s.status}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <Link href={`/students/${s.id}`}>
-                        <ChevronRight size={16} className="text-gray-400 ml-auto hover:text-gray-700" />
-                      </Link>
-                    </td>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            {isDemoLoading ? (
+              <div className="p-8 text-center text-gray-400">Loading demo students...</div>
+            ) : filteredDemoStudents.length === 0 ? (
+              <div className="p-8 text-center text-gray-400">
+                {demoSearch ? 'No demo students match your search.' : 'No demo students yet. Add your first demo student.'}
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Phone</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Sport</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Batch</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Demo Sessions</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Converted to Regular</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {filteredDemoStudents.map((d) => (
+                    <tr key={d.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                            <User size={14} className="text-orange-500" />
+                          </div>
+                          <span className="font-medium text-gray-900">{d.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">{d.phone || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600">{d.sport || d.batch?.sport?.name || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600">{d.batch?.name || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600">{d.numberOfDemoSessions}</td>
+                      <td className="px-4 py-3">
+                        {d.convertedToRegular ? (
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Yes</span>
+                        ) : isCoach ? (
+                          <button
+                            onClick={() => demoConvertMutation.mutate({ id: d.id, convertedToRegular: true })}
+                            disabled={demoConvertMutation.isPending}
+                            className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-blue-100 hover:text-blue-700 transition-colors disabled:opacity-50"
+                          >
+                            No — Mark as Converted
+                          </button>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">No</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </>
+      )}
 
       {showAdd && <AddStudentModal onClose={() => setShowAdd(false)} venueId={venueId} isSuperAdmin={isSuperAdmin} isCoach={isCoach} />}
+      {showAddDemo && <AddDemoStudentModal onClose={() => setShowAddDemo(false)} venueId={venueId} isSuperAdmin={isSuperAdmin} isCoach={isCoach} />}
     </div>
   );
 }

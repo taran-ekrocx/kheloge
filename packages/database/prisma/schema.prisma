@@ -120,11 +120,12 @@ model Organization {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  cities      City[]
-  venues      Venue[]
-  users       OrganizationUser[]
-  sports      Sport[]
-  students    Student[]
+  cities        City[]
+  venues        Venue[]
+  users         OrganizationUser[]
+  sports        Sport[]
+  students      Student[]
+  demoStudents  DemoStudent[]
 
   @@map("organizations")
 }
@@ -179,6 +180,7 @@ model Venue {
   users          OrganizationUser[]
   enquiries      Enquiry[]
   holidays       VenueHoliday[]
+  demoStudents   DemoStudent[]
 
   @@unique([organizationId, slug])
   @@map("venues")
@@ -336,6 +338,7 @@ model Batch {
   feePlans         FeePlan[]
   sessions         AttendanceSession[]
   coachAttendances CoachAttendance[]
+  demoStudents     DemoStudent[]
 
   @@map("batches")
 }
@@ -421,6 +424,28 @@ model Enrollment {
 
   @@unique([studentId, batchId])
   @@map("enrollments")
+}
+
+model DemoStudent {
+  id                   String   @id @default(cuid())
+  organizationId       String?
+  venueId              String?
+  name                 String
+  phone                String?
+  sport                String?
+  batchId              String?
+  numberOfDemoSessions Int      @default(0)
+  convertedToRegular   Boolean  @default(false)
+  convertedStudentId   String?
+  convertedAt          DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  organization         Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  venue                Venue?        @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  batch                Batch?        @relation(fields: [batchId], references: [id])
+
+  @@map("demo_students")
 }
 
 // ─────────────────────────────────────────────
