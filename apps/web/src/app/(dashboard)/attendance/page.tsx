@@ -29,7 +29,8 @@ function isWithinBatchTime(startTime: string, endTime: string): boolean {
   return now.isAfter(start) && now.isBefore(end);
 }
 
-type Tab = 'today' | 'history' | 'monthly';
+type Tab = 'daily' | 'monthly';
+type DailyFilter = 'today' | 'previous';
 
 interface Batch {
   id: string;
@@ -108,7 +109,8 @@ export default function AttendanceIndexPage() {
   const router = useRouter();
   const today = dayjs().format('YYYY-MM-DD');
   const [startingSession, setStartingSession] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>('today');
+  const [tab, setTab] = useState<Tab>('daily');
+  const [dailyFilter, setDailyFilter] = useState<DailyFilter>('today');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [historyBatchId, setHistoryBatchId] = useState<string | null>(null);
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
@@ -131,14 +133,14 @@ export default function AttendanceIndexPage() {
   const { data: venues = [] } = useQuery<{ id: string; name: string }[]>({
     queryKey: ['venues-list'],
     queryFn: () => api.get('/venues').then(r => r.data),
-    enabled: isSuperAdmin || (isCoach && tab === 'history') || tab === 'monthly',
+    enabled: isSuperAdmin || (isCoach && tab === 'daily' && dailyFilter === 'previous') || tab === 'monthly',
     staleTime: 5 * 60 * 1000,
   });
 
   const { data: sports = [] } = useQuery<{ id: string; name: string }[]>({
     queryKey: ['sports'],
     queryFn: () => api.get('/sports').then(r => r.data),
-    enabled: isCoach && tab === 'history',
+    enabled: isCoach && tab === 'daily' && dailyFilter === 'previous',
     staleTime: 5 * 60 * 1000,
   });
 
@@ -216,13 +218,13 @@ export default function AttendanceIndexPage() {
               .catch(() => [])
           )
         ).then(results => results.flat().sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())),
-    enabled: tab === 'history' && isCoach && (!!historyBatchId || filteredBatches.length > 0),
+    enabled: tab === 'daily' && dailyFilter === 'previous' && isCoach && (!!historyBatchId || filteredBatches.length > 0),
   });
 
   const { data: coaches = [] } = useQuery<Coach[]>({
     queryKey: ['coaches'],
     queryFn: () => api.get('/coaches?status=ACTIVE').then(r => r.data),
-    enabled: isAdmin && (tab === 'today' || tab === 'history' || tab === 'monthly'),
+    enabled: isAdmin && (tab === 'daily' || tab === 'monthly'),
   });
 
   const { data: adminSessionHistory = [] } = useQuery<AdminSessionHistoryItem[]>({
@@ -234,7 +236,7 @@ export default function AttendanceIndexPage() {
       if (saHistoryBatchFilter) params.set('batchId', saHistoryBatchFilter);
       return api.get(`/attendance/sessions?${params.toString()}`).then(r => r.data);
     },
-    enabled: isAdmin && tab === 'history',
+    enabled: isAdmin && tab === 'daily' && dailyFilter === 'previous',
   });
 
   const { data: coachSessionSummary = [] } = useQuery<CoachSessionSummary[]>({
@@ -244,7 +246,7 @@ export default function AttendanceIndexPage() {
       if (effectiveVenueId) params.set('venueId', effectiveVenueId);
       return api.get(`/attendance/sessions/coach-summary?${params.toString()}`).then(r => r.data);
     },
-    enabled: isAdmin && tab === 'history',
+    enabled: isAdmin && tab === 'daily' && dailyFilter === 'previous',
   });
 
   const { data: expandedAttendance } = useQuery<SessionAttendanceRecord[]>({
@@ -305,27 +307,19 @@ export default function AttendanceIndexPage() {
       <div>
         <h2 className="text-2xl font-bold text-gray-900">Attendance</h2>
         <p className="text-gray-500 text-sm">
-          {dayjs().format('dddd, DD MMM YYYY')} · {tab === 'today' ? 'Select a batch to mark attendance' : 'Session history'}
+          {dayjs().format('dddd, DD MMM YYYY')} · {tab === 'daily' && dailyFilter === 'today' ? 'Select a batch to mark attendance' : 'Session history'}
         </p>
       </div>
 
       {(isCoach || isAdmin) && (
         <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit">
           <button
-            onClick={() => setTab('today')}
+            onClick={() => setTab('daily')}
             className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-              tab === 'today' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              tab === 'daily' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            Today
-          </button>
-          <button
-            onClick={() => setTab('history')}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-              tab === 'history' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            History
+            Daily
           </button>
           <button
             onClick={() => setTab('monthly')}
@@ -338,7 +332,30 @@ export default function AttendanceIndexPage() {
         </div>
       )}
 
-      {tab === 'today' && (
+      {tab === 'daily' && (
+        <div className="space-y-6">
+          <div className="flex gap-1 bg-gray-50 border border-gray-200 p-1 rounded-lg w-fit">
+            <button
+              onClick={() => setDailyFilter('today')}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                dailyFilter === 'today' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Today
+            </button>
+            <button
+              onClick={() => setDailyFilter('previous')}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                dailyFilter === 'previous' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Previous
+            </button>
+          </div>
+        </div>
+      )}
+
+      {tab === 'daily' && dailyFilter === 'today' && (
         <>
           {isSuperAdmin && (
             <div className="flex flex-wrap items-center gap-3">
@@ -435,10 +452,10 @@ export default function AttendanceIndexPage() {
         </>
       )}
 
-      {isCoach && tab === 'history' && (() => {
-        const displayedSessions = pastSessions.filter(s =>
-          !filterDate || s.date.startsWith(filterDate)
-        );
+      {isCoach && tab === 'daily' && dailyFilter === 'previous' && (() => {
+        const displayedSessions = filterDate
+          ? pastSessions.filter(s => s.date.startsWith(filterDate))
+          : [];
         const batchOptions = filteredBatches;
         return (
           <div className="space-y-4">
@@ -448,7 +465,7 @@ export default function AttendanceIndexPage() {
                 <input
                   type="date"
                   value={filterDate}
-                  onChange={e => { setFilterDate(e.target.value); setExpandedSession(null); }}
+                  onChange={e => setFilterDate(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -456,7 +473,7 @@ export default function AttendanceIndexPage() {
                 <label className="block text-xs font-medium text-gray-600 mb-1">Venue</label>
                 <select
                   value={filterVenueId}
-                  onChange={e => { setFilterVenueId(e.target.value); setHistoryBatchId(null); setExpandedSession(null); }}
+                  onChange={e => { setFilterVenueId(e.target.value); setHistoryBatchId(null); }}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">All Venues</option>
@@ -467,7 +484,7 @@ export default function AttendanceIndexPage() {
                 <label className="block text-xs font-medium text-gray-600 mb-1">Batch</label>
                 <select
                   value={historyBatchId || ''}
-                  onChange={e => { setHistoryBatchId(e.target.value || null); setExpandedSession(null); }}
+                  onChange={e => setHistoryBatchId(e.target.value || null)}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">All Batches</option>
@@ -480,7 +497,7 @@ export default function AttendanceIndexPage() {
                 <label className="block text-xs font-medium text-gray-600 mb-1">Sport</label>
                 <select
                   value={filterSportName}
-                  onChange={e => { setFilterSportName(e.target.value); setHistoryBatchId(null); setExpandedSession(null); }}
+                  onChange={e => { setFilterSportName(e.target.value); setHistoryBatchId(null); }}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">All Sports</option>
@@ -489,18 +506,20 @@ export default function AttendanceIndexPage() {
               </div>
             </div>
 
-            {displayedSessions.length === 0 ? (
+            {!filterDate ? (
               <div className="bg-white rounded-xl p-8 text-center text-gray-400 border border-gray-100">
-                No completed sessions found.
+                Select a date to view session history.
+              </div>
+            ) : displayedSessions.length === 0 ? (
+              <div className="bg-white rounded-xl p-8 text-center text-gray-400 border border-gray-100">
+                No completed sessions found for this date.
               </div>
             ) : (
               <SessionList
                 sessions={displayedSessions}
-                expandedSession={expandedSession}
-                expandedAttendance={expandedAttendance}
-                onToggleSession={(id) => setExpandedSession(expandedSession === id ? null : id)}
                 showBatch={!historyBatchId}
                 hideCoachName
+                onNavigate={(s) => router.push(`/attendance/${s.batch?.id || historyBatchId}?sessionId=${s.id}`)}
               />
             )}
           </div>
@@ -581,96 +600,79 @@ export default function AttendanceIndexPage() {
         </div>
       )}
 
-      {isAdmin && tab === 'history' && (
-        <div className="space-y-4">
-          {isSuperAdmin && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Venue</label>
-              <select
-                value={saVenueFilter}
-                onChange={(e) => { setSaVenueFilter(e.target.value); setExpandedSession(null); }}
-                className="w-full sm:w-72 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">All Venues</option>
-                {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-              </select>
-            </div>
-          )}
-          <div className="flex flex-wrap gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Coach</label>
-              <select
-                value={filterCoachId}
-                onChange={e => { setFilterCoachId(e.target.value); setExpandedSession(null); }}
-                className="w-full sm:w-64 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">All coaches</option>
-                {coaches.map(c => {
-                  const count = coachSessionSummary.find(s => s.coachId === c.userId)?.sessionCount ?? 0;
-                  return (
-                    <option key={c.id} value={c.userId}>{c.name} ({count} session{count !== 1 ? 's' : ''})</option>
-                  );
-                })}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Batch</label>
-              <select
-                value={saHistoryBatchFilter}
-                onChange={e => { setSaHistoryBatchFilter(e.target.value); setExpandedSession(null); }}
-                className="w-full sm:w-64 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">All Batches</option>
-                {batches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {coachSessionSummary.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                Sessions by Coach
-              </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-                {coachSessionSummary.map(summary => (
-                  <button
-                    key={summary.coachId}
-                    onClick={() => { setFilterCoachId(filterCoachId === summary.coachId ? '' : summary.coachId); setExpandedSession(null); }}
-                    className={`flex items-center justify-between px-3 py-2.5 rounded-lg border text-left transition-colors ${
-                      filterCoachId === summary.coachId
-                        ? 'bg-blue-50 border-blue-300 ring-1 ring-blue-300'
-                        : 'bg-white border-gray-200 hover:border-gray-300'
-                    }`}
+      {isAdmin && tab === 'daily' && dailyFilter === 'previous' && (() => {
+        const adminDisplayedSessions = filterDate
+          ? adminSessionHistory.filter(s => s.date.startsWith(filterDate))
+          : [];
+        return (
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-3 items-end">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
+                <input
+                  type="date"
+                  value={filterDate}
+                  onChange={e => setFilterDate(e.target.value)}
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              {isSuperAdmin && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Venue</label>
+                  <select
+                    value={saVenueFilter}
+                    onChange={(e) => setSaVenueFilter(e.target.value)}
+                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <span className="text-sm font-medium text-gray-800 truncate">{summary.coachName}</span>
-                    <span className={`ml-2 shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${
-                      filterCoachId === summary.coachId
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-600'
-                    }`}>
-                      {summary.sessionCount}
-                    </span>
-                  </button>
-                ))}
+                    <option value="">All Venues</option>
+                    {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                  </select>
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Coach</label>
+                <select
+                  value={filterCoachId}
+                  onChange={e => setFilterCoachId(e.target.value)}
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All Coaches</option>
+                  {coaches.map(c => (
+                    <option key={c.id} value={c.userId}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Batch</label>
+                <select
+                  value={saHistoryBatchFilter}
+                  onChange={e => setSaHistoryBatchFilter(e.target.value)}
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All Batches</option>
+                  {batches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
               </div>
             </div>
-          )}
 
-          {adminSessionHistory.length === 0 ? (
-            <div className="bg-white rounded-xl p-8 text-center text-gray-400 border border-gray-100">
-              No completed sessions found{filterCoachId ? ' for this coach' : ''}.
-            </div>
-          ) : (
-            <SessionList
-              sessions={adminSessionHistory}
-              expandedSession={expandedSession}
-              expandedAttendance={expandedAttendance}
-              onToggleSession={(id) => setExpandedSession(expandedSession === id ? null : id)}
-              showBatch
-            />
-          )}
-        </div>
-      )}
+            {!filterDate ? (
+              <div className="bg-white rounded-xl p-8 text-center text-gray-400 border border-gray-100">
+                Select a date to view session history.
+              </div>
+            ) : adminDisplayedSessions.length === 0 ? (
+              <div className="bg-white rounded-xl p-8 text-center text-gray-400 border border-gray-100">
+                No completed sessions found for this date.
+              </div>
+            ) : (
+              <SessionList
+                sessions={adminDisplayedSessions}
+                showBatch
+                onNavigate={(s) => router.push(`/attendance/${s.batch!.id}?sessionId=${s.id}`)}
+              />
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -913,13 +915,15 @@ function SessionList({
   onToggleSession,
   showBatch,
   hideCoachName,
+  onNavigate,
 }: {
   sessions: (SessionHistoryItem & { batch?: { id: string; name: string; sport: { name: string } } })[];
-  expandedSession: string | null;
-  expandedAttendance: SessionAttendanceRecord[] | undefined;
-  onToggleSession: (id: string) => void;
+  expandedSession?: string | null;
+  expandedAttendance?: SessionAttendanceRecord[] | undefined;
+  onToggleSession?: (id: string) => void;
   showBatch?: boolean;
   hideCoachName?: boolean;
+  onNavigate?: (session: SessionHistoryItem & { batch?: { id: string; name: string; sport: { name: string } } }) => void;
 }) {
   return (
     <div className="space-y-3">
@@ -928,51 +932,60 @@ function SessionList({
         const duration = s.endedAt
           ? Math.round((new Date(s.endedAt).getTime() - new Date(s.startedAt).getTime()) / 60000)
           : null;
+        const sessionMeta = (
+          <>
+            <div className="flex items-center gap-3 text-left">
+              <div className="bg-blue-50 p-2 rounded-lg">
+                <Clock size={16} className="text-blue-600" />
+              </div>
+              <div>
+                <p className="font-medium text-gray-900 text-sm">
+                  {dayjs(s.date).format('DD MMM YYYY')}
+                  {showBatch && s.batch && (
+                    <span className="ml-2 text-gray-500 font-normal">· {s.batch.name}</span>
+                  )}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {dayjs(s.startedAt).format('h:mm A')} – {s.endedAt ? dayjs(s.endedAt).format('h:mm A') : '—'}
+                  {duration !== null && <span className="ml-1">· {duration}m</span>}
+                  {!hideCoachName && <span className="ml-2 text-gray-400">Coach: {s.coach?.name}</span>}
+                  {showBatch && s.batch?.sport && (
+                    <span className="ml-2 text-gray-400">· {s.batch.sport.name}</span>
+                  )}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 text-xs">
+                <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">
+                  {s.attendanceStats.present} present
+                </span>
+                <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-medium">
+                  {s.attendanceStats.absent} absent
+                </span>
+                <span className="flex items-center gap-1 text-gray-500">
+                  <Users size={11} />
+                  {s.attendanceStats.total}
+                </span>
+              </div>
+              {onNavigate
+                ? <ChevronRight size={16} className="text-gray-400" />
+                : isExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />
+              }
+            </div>
+          </>
+        );
+
         return (
           <div key={s.id} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
             <button
               className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
-              onClick={() => onToggleSession(s.id)}
+              onClick={() => onNavigate ? onNavigate(s) : onToggleSession?.(s.id)}
             >
-              <div className="flex items-center gap-3 text-left">
-                <div className="bg-blue-50 p-2 rounded-lg">
-                  <Clock size={16} className="text-blue-600" />
-                </div>
-                <div>
-                  <p className="font-medium text-gray-900 text-sm">
-                    {dayjs(s.date).format('DD MMM YYYY')}
-                    {showBatch && s.batch && (
-                      <span className="ml-2 text-gray-500 font-normal">· {s.batch.name}</span>
-                    )}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {dayjs(s.startedAt).format('h:mm A')} – {s.endedAt ? dayjs(s.endedAt).format('h:mm A') : '—'}
-                    {duration !== null && <span className="ml-1">· {duration}m</span>}
-                    {!hideCoachName && <span className="ml-2 text-gray-400">Coach: {s.coach?.name}</span>}
-                    {showBatch && s.batch?.sport && (
-                      <span className="ml-2 text-gray-400">· {s.batch.sport.name}</span>
-                    )}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">
-                    {s.attendanceStats.present} present
-                  </span>
-                  <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-medium">
-                    {s.attendanceStats.absent} absent
-                  </span>
-                  <span className="flex items-center gap-1 text-gray-500">
-                    <Users size={11} />
-                    {s.attendanceStats.total}
-                  </span>
-                </div>
-                {isExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
-              </div>
+              {sessionMeta}
             </button>
 
-            {isExpanded && (
+            {!onNavigate && isExpanded && (
               <div className="border-t border-gray-100 divide-y divide-gray-50">
                 {!expandedAttendance ? (
                   <div className="px-4 py-4 text-center text-gray-400 text-sm">Loading...</div>
