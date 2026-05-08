@@ -48,6 +48,7 @@ interface BatchOption {
   name: string;
   sportId: string;
   sport: { id: string; name: string };
+  venue?: { id: string; name: string };
 }
 
 interface DemoStudent {
@@ -341,10 +342,6 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
     enabled: isSuperAdmin,
   });
 
-  const venuesForSport = form.sportId
-    ? allVenues.filter((v) => v.sports?.some((s) => s.sportId === form.sportId))
-    : allVenues;
-
   const { data: allBatches = [] } = useQuery<BatchOption[]>({
     queryKey: isCoach ? ['coach-batches'] : isSuperAdmin ? ['batches-global', form.sportId, form.venueId] : ['batches', venueId],
     queryFn: isCoach
@@ -355,9 +352,31 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
     enabled: isCoach ? true : isSuperAdmin ? true : !!venueId,
   });
 
-  const visibleBatches = (!isSuperAdmin && form.sportId)
-    ? allBatches.filter((b) => b.sportId === form.sportId)
-    : allBatches;
+  // Venues available for the selected sport
+  const venuesForSport = useMemo(() => {
+    if (isSuperAdmin) {
+      return form.sportId
+        ? allVenues.filter((v) => v.sports?.some((s) => s.sportId === form.sportId))
+        : allVenues;
+    }
+    if (isCoach) {
+      const seen = new Set<string>();
+      return allBatches
+        .filter((b) => !form.sportId || b.sportId === form.sportId)
+        .reduce<{ id: string; name: string }[]>((acc, b) => {
+          if (b.venue && !seen.has(b.venue.id)) { seen.add(b.venue.id); acc.push(b.venue); }
+          return acc;
+        }, []);
+    }
+    return [];
+  }, [isSuperAdmin, isCoach, allVenues, allBatches, form.sportId]);
+
+  const visibleBatches = useMemo(() => {
+    let batches = allBatches;
+    if (!isSuperAdmin && form.sportId) batches = batches.filter((b) => b.sportId === form.sportId);
+    if (isCoach && form.venueId) batches = batches.filter((b) => b.venue?.id === form.venueId);
+    return batches;
+  }, [isSuperAdmin, isCoach, allBatches, form.sportId, form.venueId]);
 
   const age = useMemo(() => {
     if (!form.dob) return null;
@@ -552,7 +571,7 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
                       {errors.sportId && <p className={err}>{errors.sportId}</p>}
                     </div>
                   )}
-                  {isSuperAdmin && (
+                  {(isSuperAdmin || isCoach) && venuesForSport.length > 0 && (
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1">Venue</label>
                       <select value={form.venueId} onChange={(e) => setForm({ ...form, venueId: e.target.value, batchId: '' })} className={f} disabled={!form.sportId}>
