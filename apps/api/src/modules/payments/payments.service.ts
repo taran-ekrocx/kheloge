@@ -633,15 +633,20 @@ export class PaymentsService {
 
             if (paymentType === 'REVENUE_PERCENTAGE') {
               const studentIds = batch.enrollments.map((e) => e.studentId);
-              const agg = studentIds.length > 0
-                ? await this.prisma.payment.aggregate({
-                    where: { studentId: { in: studentIds }, paidAt: { gte: monthStart, lt: monthEnd }, status: 'PAID' as any },
-                    _sum: { amount: true },
-                  })
-                : { _sum: { amount: 0 } };
+              const [agg, sessionCount] = await Promise.all([
+                studentIds.length > 0
+                  ? this.prisma.payment.aggregate({
+                      where: { studentId: { in: studentIds }, paidAt: { gte: monthStart, lt: monthEnd }, status: 'PAID' as any },
+                      _sum: { amount: true },
+                    })
+                  : Promise.resolve({ _sum: { amount: 0 } }),
+                this.prisma.attendanceSession.count({
+                  where: { batchId: batch.id, coachId: cId, date: { gte: monthStart, lt: monthEnd } },
+                }),
+              ]);
               const totalRevenue = Number(agg._sum.amount ?? 0);
               const commission = Math.round((totalRevenue * paymentValue) / 100);
-              return { ...base, totalRevenue, commission, totalPayment: commission };
+              return { ...base, sessionCount, totalRevenue, commission, totalPayment: commission };
             }
 
             if (paymentType === 'PER_SESSION_PAYOUT') {
