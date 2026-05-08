@@ -7,12 +7,18 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CoachesService, AssignCoachDto, CreateCoachDto, UpdateCoachDto } from './coaches.service';
 import { StudentsService, CreateStudentDto } from '../students/students.service';
 import { DemoStudentsService, CreateDemoStudentDto, UpdateDemoStudentDto } from '../students/demo-students.service';
-import { IsArray, IsString } from 'class-validator';
+import { BatchesService } from '../batches/batches.service';
+import { IsArray, IsOptional, IsString } from 'class-validator';
 
 class SyncBatchStudentsDto {
   @IsArray()
   @IsString({ each: true })
   studentIds: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  demoStudentIds?: string[];
 }
 
 
@@ -25,6 +31,7 @@ export class CoachesController {
     private coaches: CoachesService,
     private students: StudentsService,
     private demoStudents: DemoStudentsService,
+    private batches: BatchesService,
   ) {}
 
   @Get('me/kpi')
@@ -47,8 +54,12 @@ export class CoachesController {
 
   @Patch('me/batches/:id/students')
   @Roles(UserRole.COACH)
-  syncBatchStudents(@Request() req, @Param('id') batchId: string, @Body() dto: SyncBatchStudentsDto) {
-    return this.coaches.syncCoachBatchStudents(req.user.id, batchId, dto.studentIds);
+  async syncBatchStudents(@Request() req, @Param('id') batchId: string, @Body() dto: SyncBatchStudentsDto) {
+    await this.coaches.syncCoachBatchStudents(req.user.id, batchId, dto.studentIds);
+    if (dto.demoStudentIds !== undefined) {
+      await this.batches.syncDemoStudents(batchId, dto.demoStudentIds);
+    }
+    return { success: true };
   }
 
   @Get('me/org-students')
