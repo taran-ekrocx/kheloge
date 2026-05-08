@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { UserRole, StudentStatus, DemoStudentStatus } from '@kheloge/database';
 
@@ -128,11 +128,6 @@ export class DemoStudentsService {
   async update(id: string, dto: UpdateDemoStudentDto, actorRole: UserRole) {
     const demo = await this.prisma.demoStudent.findUnique({ where: { id } });
     if (!demo) throw new NotFoundException('Demo student not found');
-
-    // Super admin may not mark conversions — that is coach's responsibility
-    if (dto.convertedToRegular === true && actorRole === UserRole.SUPER_ADMIN) {
-      throw new ForbiddenException('Super admin cannot convert demo students');
-    }
 
     if (dto.convertedToRegular === true && !demo.convertedToRegular) {
       // Create a regular student and link
