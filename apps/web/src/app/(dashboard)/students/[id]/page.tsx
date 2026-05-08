@@ -96,9 +96,14 @@ export default function StudentDetailPage() {
 
   function validateEditForm(): boolean {
     const errs: Record<string, string> = {};
-    if (!editForm.name.trim()) errs.name = 'Name is required';
-    if (editForm.phone && !isValidPhone(editForm.phone)) errs.phone = 'Enter a valid 10-digit mobile number';
+    if (!editForm.name.trim()) errs.name = 'Full name is required';
+    if (!editForm.dob) errs.dob = 'Date of birth is required';
+    if (!editForm.phone.trim()) errs.phone = 'Student mobile number is required';
+    else if (!isValidPhone(editForm.phone)) errs.phone = 'Enter a valid 10-digit mobile number';
     if (editForm.email && !isValidEmail(editForm.email)) errs.email = 'Enter a valid email address';
+    if (!editForm.sportInterest) errs.sportInterest = 'Sport applied for is required';
+    const activeEnrollments = student?.enrollments?.filter((e: { isActive: boolean }) => e.isActive) ?? [];
+    if (activeEnrollments.length === 0) errs.batch = 'Student must be enrolled in at least one batch';
     setEditErrors(errs);
     return Object.keys(errs).length === 0;
   }
@@ -108,7 +113,8 @@ export default function StudentDetailPage() {
     if (!guardianForm.name.trim()) errs.name = 'Name is required';
     if (!guardianForm.phone.trim()) errs.phone = 'Phone is required';
     else if (!isValidPhone(guardianForm.phone)) errs.phone = 'Enter a valid 10-digit mobile number';
-    if (guardianForm.email && !isValidEmail(guardianForm.email)) errs.email = 'Enter a valid email address';
+    if (!guardianForm.email.trim()) errs.email = 'Email is required';
+    else if (!isValidEmail(guardianForm.email)) errs.email = 'Enter a valid email address';
     setGuardianErrors(errs);
     return Object.keys(errs).length === 0;
   }
@@ -363,7 +369,7 @@ export default function StudentDetailPage() {
                   {editErrors.name && <p className="text-red-500 text-xs mt-1">{editErrors.name}</p>}
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Phone</label>
+                  <label className="text-xs text-gray-500 mb-1 block">Phone *</label>
                   <input
                     value={editForm.phone}
                     onChange={e => { setEditForm(f => ({ ...f, phone: e.target.value })); setEditErrors(p => ({ ...p, phone: '' })); }}
@@ -382,13 +388,14 @@ export default function StudentDetailPage() {
                   {editErrors.email && <p className="text-red-500 text-xs mt-1">{editErrors.email}</p>}
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Date of Birth</label>
+                  <label className="text-xs text-gray-500 mb-1 block">Date of Birth *</label>
                   <input
                     type="date"
                     value={editForm.dob}
-                    onChange={e => setEditForm(f => ({ ...f, dob: e.target.value }))}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={e => { setEditForm(f => ({ ...f, dob: e.target.value })); setEditErrors(p => ({ ...p, dob: '' })); }}
+                    className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${editErrors.dob ? 'border-red-400' : ''}`}
                   />
+                  {editErrors.dob && <p className="text-red-500 text-xs mt-1">{editErrors.dob}</p>}
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">Status</label>
@@ -452,17 +459,18 @@ export default function StudentDetailPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Sport Applied For</label>
+                  <label className="text-xs text-gray-500 mb-1 block">Sport Applied For *</label>
                   <select
                     value={editForm.sportInterest}
-                    onChange={e => { setEditForm(f => ({ ...f, sportInterest: e.target.value })); setAddBatchId(''); }}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    onChange={e => { setEditForm(f => ({ ...f, sportInterest: e.target.value })); setAddBatchId(''); setEditErrors(p => ({ ...p, sportInterest: '' })); }}
+                    className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white ${editErrors.sportInterest ? 'border-red-400' : ''}`}
                   >
                     <option value="">— Select sport —</option>
                     {sports.map(s => (
                       <option key={s.id} value={s.name}>{s.name}</option>
                     ))}
                   </select>
+                  {editErrors.sportInterest && <p className="text-red-500 text-xs mt-1">{editErrors.sportInterest}</p>}
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">Training Level</label>
@@ -485,7 +493,8 @@ export default function StudentDetailPage() {
 
             <hr className="border-gray-100" />
             <div>
-              <p className="text-sm font-medium text-gray-700 mb-2">Enrolled Batches</p>
+              <p className="text-sm font-medium text-gray-700 mb-2">Enrolled Batches {editingProfile && <span className="text-red-500">*</span>}</p>
+              {editErrors.batch && <p className="text-red-500 text-xs mb-2">{editErrors.batch}</p>}
               {student.enrollments?.filter((e: { isActive: boolean }) => e.isActive).length > 0 ? (
                 <ul className="space-y-2">
                   {student.enrollments
@@ -634,7 +643,7 @@ export default function StudentDetailPage() {
                       <div>
                         <input
                           type="email"
-                          placeholder="Email"
+                          placeholder="Email *"
                           value={guardianForm.email}
                           onChange={e => { setGuardianForm(f => ({ ...f, email: e.target.value })); setGuardianErrors(p => ({ ...p, email: '' })); }}
                           className={`w-full border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${guardianErrors.email ? 'border-red-400' : ''}`}
