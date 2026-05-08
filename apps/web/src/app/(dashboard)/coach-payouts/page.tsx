@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import dayjs from 'dayjs';
 
 interface CoachBatch {
@@ -14,12 +15,9 @@ interface CoachBatch {
   venue: { id: string; name: string };
   sport: { id: string; name: string };
   studentCount: number;
-  // FIXED_PAYMENT
   monthlyPayout?: number;
-  // REVENUE_PERCENTAGE
   totalRevenue?: number;
   commission?: number;
-  // PER_SESSION_PAYOUT
   sessionCount?: number;
   perSessionAmount?: number;
   totalPayment: number;
@@ -39,131 +37,34 @@ interface CoachPayoutsData {
   coaches: CoachPayout[];
 }
 
+const PAYMENT_TYPE_LABELS: Record<string, string> = {
+  FIXED_PAYMENT: 'Fixed Payout',
+  REVENUE_PERCENTAGE: 'Revenue %',
+  PER_SESSION_PAYOUT: 'Per Session',
+};
+
 function PayoutTypeLabel({ type }: { type: string }) {
-  const map: Record<string, string> = {
-    FIXED_PAYMENT: 'Fixed Payout',
-    REVENUE_PERCENTAGE: 'Revenue %',
-    PER_SESSION_PAYOUT: 'Per Session',
+  const colors: Record<string, string> = {
+    FIXED_PAYMENT: 'text-purple-600 bg-purple-50',
+    REVENUE_PERCENTAGE: 'text-blue-600 bg-blue-50',
+    PER_SESSION_PAYOUT: 'text-green-600 bg-green-50',
   };
-  return <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">{map[type] ?? type}</span>;
-}
-
-function CoachSection({ coach }: { coach: CoachPayout }) {
-  const [expanded, setExpanded] = useState(false);
-
-  const headers: Record<string, string[]> = {
-    FIXED_PAYMENT: ['Batch Code', 'Batch Name', 'Venue', 'Sport', 'Students', 'Monthly Payout'],
-    REVENUE_PERCENTAGE: ['Batch Code', 'Batch Name', 'Venue', 'Sport', 'Students', 'Total Revenue', 'Commission', 'Total Payment'],
-    PER_SESSION_PAYOUT: ['Batch Code', 'Batch Name', 'Venue', 'Sport', 'Students', 'Sessions', 'Per Session', 'Total Payment'],
-  };
-  const cols = headers[coach.paymentType] ?? headers.FIXED_PAYMENT;
-
   return (
-    <div className="border border-gray-100 rounded-xl overflow-hidden">
-      <button
-        onClick={() => setExpanded((e) => !e)}
-        className="w-full flex items-center justify-between px-5 py-4 bg-white hover:bg-gray-50 text-left"
-      >
-        <div className="flex items-center gap-3">
-          {expanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
-          <div>
-            <div className="flex items-center gap-2">
-              <p className="font-semibold text-gray-900">{coach.name}</p>
-              <PayoutTypeLabel type={coach.paymentType} />
-            </div>
-            <p className="text-xs text-gray-400 mt-0.5">{coach.batches.length} batch{coach.batches.length !== 1 ? 'es' : ''}</p>
-          </div>
-        </div>
-        <div className="text-right">
-          <p className="text-sm font-semibold text-gray-900">₹{coach.totalEarnings.toLocaleString()}</p>
-          <p className="text-xs text-gray-400">Total Payout</p>
-        </div>
-      </button>
-
-      {expanded && (
-        <div className="border-t border-gray-100">
-          {coach.batches.length === 0 ? (
-            <p className="px-5 py-4 text-sm text-gray-400">No batches assigned</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50">
-                  <tr>
-                    {cols.map((h) => (
-                      <th key={h} className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {coach.batches.map((b) => (
-                    <tr key={b.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-mono text-xs text-gray-500">{b.code}</td>
-                      <td className="px-4 py-3 font-medium text-gray-900">{b.name}</td>
-                      <td className="px-4 py-3 text-gray-600">{b.venue?.name ?? '—'}</td>
-                      <td className="px-4 py-3 text-gray-600">{b.sport?.name ?? '—'}</td>
-                      <td className="px-4 py-3 text-gray-700">{b.studentCount}</td>
-                      {coach.paymentType === 'FIXED_PAYMENT' && (
-                        <td className="px-4 py-3 text-gray-900 font-medium">₹{(b.monthlyPayout ?? 0).toLocaleString()}</td>
-                      )}
-                      {coach.paymentType === 'REVENUE_PERCENTAGE' && (
-                        <>
-                          <td className="px-4 py-3 text-gray-700">₹{(b.totalRevenue ?? 0).toLocaleString()}</td>
-                          <td className="px-4 py-3 text-gray-700">{coach.paymentValue}%</td>
-                          <td className="px-4 py-3 text-gray-900 font-medium">₹{(b.commission ?? 0).toLocaleString()}</td>
-                        </>
-                      )}
-                      {coach.paymentType === 'PER_SESSION_PAYOUT' && (
-                        <>
-                          <td className="px-4 py-3 text-gray-700">{b.sessionCount ?? 0}</td>
-                          <td className="px-4 py-3 text-gray-700">₹{(b.perSessionAmount ?? 0).toLocaleString()}</td>
-                          <td className="px-4 py-3 text-gray-900 font-medium">₹{b.totalPayment.toLocaleString()}</td>
-                        </>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot className="bg-gray-50 border-t border-gray-100">
-                  <tr>
-                    <td colSpan={5} className="px-4 py-3 text-sm font-semibold text-gray-700">Total</td>
-                    {coach.paymentType === 'FIXED_PAYMENT' && (
-                      <td className="px-4 py-3 text-sm font-bold text-gray-900">₹{coach.totalEarnings.toLocaleString()}</td>
-                    )}
-                    {coach.paymentType === 'REVENUE_PERCENTAGE' && (
-                      <>
-                        <td className="px-4 py-3 text-sm font-semibold text-gray-700">
-                          ₹{coach.batches.reduce((s, b) => s + (b.totalRevenue ?? 0), 0).toLocaleString()}
-                        </td>
-                        <td />
-                        <td className="px-4 py-3 text-sm font-bold text-gray-900">₹{coach.totalEarnings.toLocaleString()}</td>
-                      </>
-                    )}
-                    {coach.paymentType === 'PER_SESSION_PAYOUT' && (
-                      <>
-                        <td className="px-4 py-3 text-sm font-semibold text-gray-700">
-                          {coach.batches.reduce((s, b) => s + (b.sessionCount ?? 0), 0)}
-                        </td>
-                        <td />
-                        <td className="px-4 py-3 text-sm font-bold text-gray-900">₹{coach.totalEarnings.toLocaleString()}</td>
-                      </>
-                    )}
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${colors[type] ?? 'text-gray-600 bg-gray-100'}`}>
+      {PAYMENT_TYPE_LABELS[type] ?? type}
+    </span>
   );
 }
 
 export default function CoachPayoutsPage() {
   const { role } = useAuth();
   const isSuperAdmin = role === 'SUPER_ADMIN';
+  const router = useRouter();
 
   const [month, setMonth] = useState(() => dayjs().format('YYYY-MM'));
   const [selectedVenueId, setSelectedVenueId] = useState('');
   const [selectedCoachId, setSelectedCoachId] = useState('');
+  const [selectedPaymentType, setSelectedPaymentType] = useState('');
 
   const { data: venuesList } = useQuery<{ id: string; name: string }[]>({
     queryKey: ['venues-list'],
@@ -173,12 +74,13 @@ export default function CoachPayoutsPage() {
 
   const { data: coachesList } = useQuery<{ id: string; name: string }[]>({
     queryKey: ['coaches-list'],
-    queryFn: () => api.get('/coaches').then((r) => {
-      const seen = new Set<string>();
-      return r.data
-        .filter((c: any) => { if (seen.has(c.userId)) return false; seen.add(c.userId); return true; })
-        .map((c: any) => ({ id: c.userId, name: c.name }));
-    }),
+    queryFn: () =>
+      api.get('/coaches').then((r) => {
+        const seen = new Set<string>();
+        return r.data
+          .filter((c: any) => { if (seen.has(c.userId)) return false; seen.add(c.userId); return true; })
+          .map((c: any) => ({ id: c.userId, name: c.name }));
+      }),
     enabled: isSuperAdmin,
   });
 
@@ -200,7 +102,10 @@ export default function CoachPayoutsPage() {
     );
   }
 
-  const coaches = data?.coaches ?? [];
+  const allCoaches = data?.coaches ?? [];
+  const coaches = selectedPaymentType
+    ? allCoaches.filter((c) => c.paymentType === selectedPaymentType)
+    : allCoaches;
   const grandTotal = coaches.reduce((s, c) => s + c.totalEarnings, 0);
 
   return (
@@ -237,6 +142,17 @@ export default function CoachPayoutsPage() {
               </select>
             </>
           )}
+          <label className="text-sm text-gray-500">Payment Type</label>
+          <select
+            value={selectedPaymentType}
+            onChange={(e) => setSelectedPaymentType(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All Types</option>
+            <option value="REVENUE_PERCENTAGE">Revenue %</option>
+            <option value="PER_SESSION_PAYOUT">Per Session</option>
+            <option value="FIXED_PAYMENT">Fixed Payout</option>
+          </select>
           <label className="text-sm text-gray-500">Month</label>
           <input
             type="month"
@@ -262,14 +178,51 @@ export default function CoachPayoutsPage() {
         </div>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         <h3 className="font-semibold text-gray-800">Coach-wise Breakdown</h3>
         {isLoading ? (
           <div className="text-center py-10 text-sm text-gray-400">Loading...</div>
         ) : coaches.length === 0 ? (
           <div className="text-center py-10 text-sm text-gray-400">No coaches found for the selected filters.</div>
         ) : (
-          coaches.map((coach) => <CoachSection key={coach.id} coach={coach} />)
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr>
+                  <th className="text-left px-5 py-3 font-medium text-gray-600">Coach</th>
+                  <th className="text-left px-5 py-3 font-medium text-gray-600">Payment Type</th>
+                  <th className="text-left px-5 py-3 font-medium text-gray-600">Batches</th>
+                  <th className="text-right px-5 py-3 font-medium text-gray-600">Total Payout</th>
+                  <th className="px-5 py-3" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {coaches.map((coach) => (
+                  <tr
+                    key={coach.id}
+                    onClick={() => router.push(`/coach-payouts/${coach.id}?month=${month}`)}
+                    className="hover:bg-gray-50 cursor-pointer transition-colors"
+                  >
+                    <td className="px-5 py-4">
+                      <p className="font-semibold text-gray-900">{coach.name}</p>
+                    </td>
+                    <td className="px-5 py-4">
+                      <PayoutTypeLabel type={coach.paymentType} />
+                    </td>
+                    <td className="px-5 py-4 text-gray-600">
+                      {coach.batches.length} batch{coach.batches.length !== 1 ? 'es' : ''}
+                    </td>
+                    <td className="px-5 py-4 text-right font-semibold text-gray-900">
+                      ₹{coach.totalEarnings.toLocaleString()}
+                    </td>
+                    <td className="px-5 py-4 text-right">
+                      <ChevronRight className="w-4 h-4 text-gray-400 ml-auto" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
