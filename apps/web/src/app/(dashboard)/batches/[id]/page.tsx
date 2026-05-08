@@ -46,6 +46,16 @@ interface DemoStudentOption {
   convertedToRegular: boolean;
 }
 
+interface BatchDemoStudent {
+  id: string;
+  name: string;
+  phone?: string | null;
+  sport?: string | null;
+  status?: string | null;
+  demoStartDate?: string | null;
+  demoEndDate?: string | null;
+}
+
 interface Enrollment {
   id: string;
   isActive: boolean;
@@ -75,6 +85,7 @@ interface BatchDetail {
   venue: { id: string; name: string };
   coaches: BatchCoach[];
   enrollments: Enrollment[];
+  demoStudents?: BatchDemoStudent[];
   fee?: number | string | null;
 }
 
@@ -398,13 +409,14 @@ export default function BatchDetailPage() {
   if (!batch) return <div className="p-8 text-gray-400">Batch not found.</div>;
 
   const activeEnrollments = batch.enrollments?.filter((e) => e.isActive) ?? [];
+  const demoBatchStudents = batch.demoStudents ?? [];
   const paymentBatch = paymentData?.batches?.find((b) => b.id === id) ?? paymentData?.batches?.[0];
   const paymentStatusMap = new Map((paymentBatch?.students ?? []).map((s) => [s.id, s.status]));
   const status = batch.isActive === false ? 'INACTIVE' : 'ACTIVE';
 
   const tabs = [
     { key: 'overview' as Tab, label: 'Overview', icon: Trophy },
-    { key: 'students' as Tab, label: `Students (${activeEnrollments.length})`, icon: Users },
+    { key: 'students' as Tab, label: `Students (${activeEnrollments.length + demoBatchStudents.length})`, icon: Users },
   ];
 
   return (
@@ -549,9 +561,15 @@ export default function BatchDetailPage() {
         {tab === 'students' && (
           <div>
             <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-              <p className="text-sm font-medium text-gray-700">
-                {activeEnrollments.length} student{activeEnrollments.length !== 1 ? 's' : ''} enrolled
-              </p>
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-sm font-medium text-gray-700">
+                  Regular Students: <span className="text-blue-600">{activeEnrollments.length}</span>
+                </span>
+                <span className="text-gray-300">|</span>
+                <span className="text-sm font-medium text-gray-700">
+                  Demo Students: <span className="text-orange-500">{demoBatchStudents.length}</span>
+                </span>
+              </div>
               <div className="flex items-center gap-2">
                 {canViewPayments && (
                   <div className="flex items-center gap-1.5">
@@ -574,10 +592,12 @@ export default function BatchDetailPage() {
               </div>
             </div>
 
+            {/* Regular Students */}
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Regular Students</p>
             {activeEnrollments.length === 0 ? (
-              <p className="text-gray-400 text-sm">No students enrolled in this batch.</p>
+              <p className="text-gray-400 text-sm mb-4">No students enrolled in this batch.</p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-2 mb-5">
                 {activeEnrollments.map((enrollment) => {
                   const student = enrollment.student;
                   const paymentStatus = paymentStatusMap.get(student.id);
@@ -628,6 +648,40 @@ export default function BatchDetailPage() {
                     </Link>
                   );
                 })}
+              </div>
+            )}
+
+            {/* Demo Students */}
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Demo Students</p>
+            {demoBatchStudents.length === 0 ? (
+              <p className="text-gray-400 text-sm">No demo students assigned to this batch.</p>
+            ) : (
+              <div className="space-y-2">
+                {demoBatchStudents.map((d) => (
+                  <div key={d.id} className="flex items-center gap-3 p-3 bg-orange-50 rounded-lg">
+                    <div className="w-9 h-9 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
+                      <User size={15} className="text-orange-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm text-gray-900">{d.name}</p>
+                      {d.phone && <p className="text-xs text-gray-400">{d.phone}</p>}
+                      {d.sport && <p className="text-xs text-gray-400">{d.sport}</p>}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {d.demoStartDate && (
+                        <span className="text-xs text-gray-400">
+                          {new Date(d.demoStartDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                          {d.demoEndDate ? ` – ${new Date(d.demoEndDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}` : ''}
+                        </span>
+                      )}
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                        d.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                      }`}>
+                        {d.status ?? 'ACTIVE'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>

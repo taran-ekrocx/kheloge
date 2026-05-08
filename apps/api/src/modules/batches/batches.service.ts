@@ -93,6 +93,10 @@ export class BatchesService {
             student: { select: { id: true, name: true, photoUrl: true, phone: true } },
           },
         },
+        demoStudents: {
+          where: { convertedToRegular: false },
+          select: { id: true, name: true, phone: true, sport: true, status: true, demoStartDate: true, demoEndDate: true },
+        },
         _count: { select: { enrollments: true } },
       },
     });
