@@ -149,7 +149,7 @@ export class BatchesService {
 
   async syncEnrollments(batchId: string, studentIds: string[]) {
     const batch = await this.prisma.batch.findUniqueOrThrow({ where: { id: batchId }, select: { capacity: true } });
-    if (studentIds.length > batch.capacity) {
+    if (batch.capacity != null && studentIds.length > batch.capacity) {
       throw new BadRequestException(`Cannot enroll ${studentIds.length} students: batch capacity is ${batch.capacity}`);
     }
 

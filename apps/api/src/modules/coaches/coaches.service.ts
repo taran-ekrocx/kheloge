@@ -667,7 +667,7 @@ export class CoachesService {
       include: { batch: { select: { capacity: true } } },
     });
     if (!assigned) throw new NotFoundException('Batch not found in your assignments');
-    if (studentIds.length > assigned.batch.capacity) {
+    if (assigned.batch.capacity != null && studentIds.length > assigned.batch.capacity) {
       throw new BadRequestException(`Cannot enroll ${studentIds.length} students: batch capacity is ${assigned.batch.capacity}`);
     }
 

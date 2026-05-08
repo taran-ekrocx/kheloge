@@ -8,6 +8,20 @@ import { useAuth } from '@/hooks/useAuth';
 import { Plus, Search, Filter, X, Edit2, Trash2, Eye } from 'lucide-react';
 import Link from 'next/link';
 
+function extractApiError(err: unknown, fallback: string): string {
+  const outer = (err as any)?.response?.data?.message;
+  if (!outer) return fallback;
+  if (typeof outer === 'string') return outer;
+  if (Array.isArray(outer)) return outer.join(', ');
+  if (typeof outer === 'object') {
+    const inner = outer.message;
+    if (typeof inner === 'string') return inner;
+    if (Array.isArray(inner)) return inner.join(', ');
+    if (typeof outer.error === 'string') return outer.error;
+  }
+  return fallback;
+}
+
 const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
 const DAY_SHORT: Record<string, string> = {
   MONDAY: 'Mon', TUESDAY: 'Tue', WEDNESDAY: 'Wed', THURSDAY: 'Thu',
@@ -522,7 +536,7 @@ function BatchModal({
           </select>
           {mutation.isError && (
             <p className="text-red-500 text-xs">
-              {(mutation.error as any)?.response?.data?.message ?? 'Failed to save batch.'}
+              {extractApiError(mutation.error, 'Failed to save batch.')}
             </p>
           )}
           <div className="flex gap-3 pt-2">

@@ -14,6 +14,20 @@ const DAY_SHORT: Record<string, string> = {
   FRIDAY: 'Fri', SATURDAY: 'Sat', SUNDAY: 'Sun',
 };
 
+function extractApiError(err: unknown, fallback: string): string {
+  const outer = (err as any)?.response?.data?.message;
+  if (!outer) return fallback;
+  if (typeof outer === 'string') return outer;
+  if (Array.isArray(outer)) return outer.join(', ');
+  if (typeof outer === 'object') {
+    const inner = outer.message;
+    if (typeof inner === 'string') return inner;
+    if (Array.isArray(inner)) return inner.join(', ');
+    if (typeof outer.error === 'string') return outer.error;
+  }
+  return fallback;
+}
+
 type Tab = 'overview' | 'students';
 
 interface Coach {
@@ -354,7 +368,7 @@ function ManageStudentsModal({
 
         {mutation.isError && (
           <p className="text-red-500 text-xs mb-3">
-            {(mutation.error as any)?.response?.data?.message ?? 'Failed to save. Please try again.'}
+            {extractApiError(mutation.error, 'Failed to save. Please try again.')}
           </p>
         )}
 
