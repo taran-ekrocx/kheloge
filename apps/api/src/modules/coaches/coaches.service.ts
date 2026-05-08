@@ -728,7 +728,7 @@ export class CoachesService {
     const dateRange = this.getPeriodDateRange(frequency ?? 'MONTHLY', effectivePeriod);
 
     const batchCoaches = await this.prisma.batchCoach.findMany({
-      where: { coachId, ...(batchId ? { batchId } : {}), batch: { isActive: true, fee: { not: null } } },
+      where: { coachId, ...(batchId ? { batchId } : {}), batch: { isActive: true, ...(batchId ? {} : { fee: { not: null } }) } },
       include: {
         batch: {
           include: {
