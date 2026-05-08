@@ -17,6 +17,7 @@ class CreateVenueBatchDto {
   @IsString() sportId: string;
   @IsOptional() @IsArray() coachIds?: string[];
   @IsOptional() @IsArray() studentIds?: string[];
+  @IsOptional() @IsArray() demoStudentIds?: string[];
   @IsOptional() @IsInt() @Min(1) @Type(() => Number) capacity?: number;
   @IsOptional() @IsNumber() @Type(() => Number) fee?: number;
   @IsString() startTime: string;
@@ -32,6 +33,7 @@ class UpdateVenueBatchDto {
   @IsOptional() @IsString() sportId?: string;
   @IsOptional() @IsArray() coachIds?: string[];
   @IsOptional() @IsArray() studentIds?: string[];
+  @IsOptional() @IsArray() demoStudentIds?: string[];
   @IsOptional() @IsInt() @Min(1) @Type(() => Number) capacity?: number;
   @IsOptional() @IsNumber() @Type(() => Number) fee?: number;
   @IsOptional() @IsString() startTime?: string;
@@ -142,11 +144,14 @@ export class VenuesController {
     @Param('venueId') venueId: string,
     @Body() dto: CreateVenueBatchDto,
   ) {
-    const { coachIds, studentIds, fee, status, ...rest } = dto;
+    const { coachIds, studentIds, demoStudentIds, fee, status, ...rest } = dto;
     const isActive = status !== 'INACTIVE';
     const batch = await this.batchesSvc.create({ ...rest, venueId, feeAmount: fee, isActive, studentIds });
     if (coachIds?.length) {
       await this.batchesSvc.reassignCoaches(batch.id, coachIds);
+    }
+    if (demoStudentIds !== undefined) {
+      await this.batchesSvc.syncDemoStudents(batch.id, demoStudentIds);
     }
     const created = await this.batchesSvc.findOne(batch.id);
     return mapBatch(created);
@@ -158,7 +163,7 @@ export class VenuesController {
     @Param('batchId') batchId: string,
     @Body() dto: UpdateVenueBatchDto,
   ) {
-    const { coachIds, studentIds, fee, status, sportId, ...rest } = dto;
+    const { coachIds, studentIds, demoStudentIds, fee, status, sportId, ...rest } = dto;
     const isActive = status !== undefined ? status !== 'INACTIVE' : undefined;
     await this.batchesSvc.update(batchId, {
       ...rest,
@@ -171,6 +176,9 @@ export class VenuesController {
     }
     if (studentIds !== undefined) {
       await this.batchesSvc.syncEnrollments(batchId, studentIds);
+    }
+    if (demoStudentIds !== undefined) {
+      await this.batchesSvc.syncDemoStudents(batchId, demoStudentIds);
     }
     const batch = await this.batchesSvc.findOne(batchId);
     return mapBatch(batch);

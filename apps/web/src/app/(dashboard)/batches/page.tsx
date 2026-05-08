@@ -17,6 +17,7 @@ const DAY_SHORT: Record<string, string> = {
 interface Sport { id: string; name: string; }
 interface Coach { id: string; userId?: string; name: string; phone?: string; sports?: { id: string; name: string }[]; }
 interface Student { id: string; name: string; phone?: string; }
+interface DemoStudentOption { id: string; name: string; phone?: string; batchId?: string; }
 interface Batch {
   id: string;
   name: string;
@@ -44,7 +45,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const DEFAULT_FORM = {
-  name: '', sportId: '', coachIds: [] as string[], studentIds: [] as string[], capacity: '', fee: '',
+  name: '', sportId: '', coachIds: [] as string[], studentIds: [] as string[], demoStudentIds: [] as string[], capacity: '', fee: '',
   startTime: '', endTime: '', days: [] as string[], status: 'ACTIVE',
   startDate: '', endDate: '',
 };
@@ -202,6 +203,85 @@ function StudentMultiSelect({ students, selected, onChange }: {
   );
 }
 
+function DemoStudentMultiSelect({ demoStudents, selected, onChange }: {
+  demoStudents: DemoStudentOption[]; selected: string[]; onChange: (ids: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const filtered = demoStudents.filter(d =>
+    d.name.toLowerCase().includes(search.toLowerCase()) || (d.phone && d.phone.includes(search))
+  );
+  const selectedDemos = demoStudents.filter(d => selected.includes(d.id));
+
+  function toggle(id: string) {
+    onChange(selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id]);
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <div
+        onClick={() => setOpen(o => !o)}
+        className="w-full min-h-[38px] border rounded-lg px-3 py-2 text-sm cursor-pointer flex flex-wrap gap-1 items-center bg-white hover:border-blue-400 transition-colors"
+      >
+        {selectedDemos.length === 0 ? (
+          <span className="text-gray-400">Search and assign demo students...</span>
+        ) : (
+          selectedDemos.map(d => (
+            <span key={d.id} className="flex items-center gap-1 bg-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded-full">
+              {d.name}
+              <button type="button" onClick={(e) => { e.stopPropagation(); toggle(d.id); }} className="hover:text-orange-900 font-medium">×</button>
+            </span>
+          ))
+        )}
+      </div>
+      {open && (
+        <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg flex flex-col" style={{ maxHeight: 220 }}>
+          <div className="p-2 border-b border-gray-100">
+            <input
+              autoFocus
+              type="text"
+              placeholder="Search demo students..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              onClick={e => e.stopPropagation()}
+              className="w-full text-sm px-2 py-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-400"
+            />
+          </div>
+          <div className="overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="text-xs text-gray-400 p-3 text-center">No demo students found</p>
+            ) : (
+              filtered.map(d => (
+                <div
+                  key={d.id}
+                  onClick={() => toggle(d.id)}
+                  className={`flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 transition-colors ${selected.includes(d.id) ? 'bg-orange-50' : ''}`}
+                >
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${selected.includes(d.id) ? 'bg-orange-500 border-orange-500' : 'border-gray-300'}`}>
+                    {selected.includes(d.id) && <span className="text-white text-[10px] leading-none">✓</span>}
+                  </div>
+                  <span>{d.name}</span>
+                  {d.phone && <span className="text-xs text-gray-400 ml-auto">{d.phone}</span>}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BatchModal({
   onClose, venueId, sports, coaches, existing, isSuperAdmin,
 }: {
@@ -227,12 +307,20 @@ function BatchModal({
     startDate: existing.startDate ? existing.startDate.split('T')[0] : '',
     endDate: existing.endDate ? existing.endDate.split('T')[0] : '',
     studentIds: [] as string[],
+    demoStudentIds: [] as string[],
   } : DEFAULT_FORM);
   const [dateError, setDateError] = useState('');
 
   const { data: students = [] } = useQuery<Student[]>({
     queryKey: ['students-active'],
     queryFn: () => api.get('/students?status=ACTIVE').then(r => r.data),
+    enabled: !!isSuperAdmin,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: allDemoStudents = [] } = useQuery<DemoStudentOption[]>({
+    queryKey: ['demo-students-global'],
+    queryFn: () => api.get('/demo-students').then(r => r.data),
     enabled: !!isSuperAdmin,
     staleTime: 5 * 60 * 1000,
   });
@@ -250,6 +338,13 @@ function BatchModal({
       setForm(f => ({ ...f, studentIds: ids }));
     }
   }, [batchDetail, existing]);
+
+  useEffect(() => {
+    if (existing && allDemoStudents.length > 0) {
+      const ids = allDemoStudents.filter(d => d.batchId === existing.id).map(d => d.id);
+      setForm(f => ({ ...f, demoStudentIds: ids }));
+    }
+  }, [allDemoStudents, existing]);
 
   const filteredCoaches = useMemo(() => {
     if (!form.sportId) return coaches;
@@ -337,6 +432,16 @@ function BatchModal({
                 students={students}
                 selected={form.studentIds}
                 onChange={(ids) => setForm(f => ({ ...f, studentIds: ids }))}
+              />
+            </div>
+          )}
+          {isSuperAdmin && (
+            <div>
+              <p className="text-xs font-medium text-gray-600 mb-2">Assign Demo Students</p>
+              <DemoStudentMultiSelect
+                demoStudents={allDemoStudents}
+                selected={form.demoStudentIds}
+                onChange={(ids) => setForm(f => ({ ...f, demoStudentIds: ids }))}
               />
             </div>
           )}

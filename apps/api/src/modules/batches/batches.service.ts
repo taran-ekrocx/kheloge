@@ -172,6 +172,31 @@ export class BatchesService {
     }
   }
 
+  async syncDemoStudents(batchId: string, demoStudentIds: string[]) {
+    const current = await this.prisma.demoStudent.findMany({
+      where: { batchId },
+      select: { id: true },
+    });
+    const currentIds = new Set(current.map((d) => d.id));
+    const newSet = new Set(demoStudentIds);
+
+    const toAssign = demoStudentIds.filter((id) => !currentIds.has(id));
+    const toUnassign = [...currentIds].filter((id) => !newSet.has(id));
+
+    if (toAssign.length) {
+      await this.prisma.demoStudent.updateMany({
+        where: { id: { in: toAssign } },
+        data: { batchId },
+      });
+    }
+    if (toUnassign.length) {
+      await this.prisma.demoStudent.updateMany({
+        where: { id: { in: toUnassign }, batchId },
+        data: { batchId: null },
+      });
+    }
+  }
+
   async reassignCoach(batchId: string, orgUserId: string) {
     await this.prisma.batchCoach.deleteMany({ where: { batchId } });
 
