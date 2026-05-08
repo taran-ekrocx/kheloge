@@ -3,7 +3,7 @@ import type { CreateStudentDto } from '../students/students.service';
 import { IsString, IsOptional, IsBoolean, IsEmail, IsIn, IsArray, ValidateNested, IsNumber } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { UserRole } from '@kheloge/database';
+import { UserRole, CoachAttendanceStatus } from '@kheloge/database';
 import { PrismaService } from '../../database/prisma.service';
 import { normalizePhone } from '../../common/utils/phone';
 
@@ -205,7 +205,29 @@ export class CoachesService {
       include: VENUE_COACH_INCLUDE,
       orderBy: { createdAt: 'desc' },
     });
-    return orgUsers.map((ou) => this.mapOrgUser(ou));
+
+    const coachUserIds = orgUsers.map((ou) => ou.user.id);
+    const attendanceCounts = coachUserIds.length
+      ? await this.prisma.coachAttendance.groupBy({
+          by: ['coachId', 'status'],
+          where: { coachId: { in: coachUserIds } },
+          _count: { _all: true },
+        })
+      : [];
+
+    const byCoach = new Map<string, { total: number; present: number }>();
+    for (const row of attendanceCounts) {
+      if (!byCoach.has(row.coachId)) byCoach.set(row.coachId, { total: 0, present: 0 });
+      const entry = byCoach.get(row.coachId)!;
+      entry.total += row._count._all;
+      if (row.status === CoachAttendanceStatus.PRESENT) entry.present += row._count._all;
+    }
+
+    return orgUsers.map((ou) => {
+      const att = byCoach.get(ou.user.id);
+      const attendanceRate = att && att.total > 0 ? Math.round((att.present / att.total) * 100) : null;
+      return { ...this.mapOrgUser(ou), attendanceRate };
+    });
   }
 
   async findOne(organizationId: string, orgUserId: string) {

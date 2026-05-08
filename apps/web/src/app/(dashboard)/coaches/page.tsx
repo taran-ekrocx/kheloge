@@ -86,6 +86,7 @@ interface Coach {
   batches?: CoachBatch[];
   _count?: { batches: number };
   profile?: CoachProfile | null;
+  attendanceRate?: number | null;
 }
 interface Sport { id: string; name: string; icon?: string; }
 
@@ -901,6 +902,7 @@ export default function CoachesPage() {
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Coach</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Phone</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Batches</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Attendance %</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
                 <th className="px-4 py-3" />
               </tr>
@@ -925,6 +927,15 @@ export default function CoachesPage() {
                     </td>
                     <td className="px-4 py-3 text-gray-600">{c.phone}</td>
                     <td className="px-4 py-3 text-gray-600">{batchCount} batch{batchCount !== 1 ? 'es' : ''}</td>
+                    <td className="px-4 py-3">
+                      {c.attendanceRate != null ? (
+                        <span className={`text-sm font-medium ${c.attendanceRate >= 75 ? 'text-green-600' : c.attendanceRate >= 50 ? 'text-yellow-600' : 'text-red-500'}`}>
+                          {c.attendanceRate}%
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 text-sm">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <button
                         onClick={() => statusMutation.mutate({ id: c.id, status: c.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' })}
