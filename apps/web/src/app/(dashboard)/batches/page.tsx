@@ -520,7 +520,11 @@ function BatchModal({
             <option value="ACTIVE">Active</option>
             <option value="INACTIVE">Inactive</option>
           </select>
-          {mutation.isError && <p className="text-red-500 text-xs">Failed to save batch.</p>}
+          {mutation.isError && (
+            <p className="text-red-500 text-xs">
+              {(mutation.error as any)?.response?.data?.message ?? 'Failed to save batch.'}
+            </p>
+          )}
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 border rounded-lg py-2 text-sm font-medium hover:bg-gray-50">
               Cancel

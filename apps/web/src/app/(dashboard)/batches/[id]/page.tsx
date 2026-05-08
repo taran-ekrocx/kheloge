@@ -353,7 +353,9 @@ function ManageStudentsModal({
         </div>
 
         {mutation.isError && (
-          <p className="text-red-500 text-xs mb-3">Failed to save. Please try again.</p>
+          <p className="text-red-500 text-xs mb-3">
+            {(mutation.error as any)?.response?.data?.message ?? 'Failed to save. Please try again.'}
+          </p>
         )}
 
         <div className="flex gap-3 mt-4">

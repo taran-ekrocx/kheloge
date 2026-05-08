@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import type { CreateStudentDto } from '../students/students.service';
 import { IsString, IsOptional, IsBoolean, IsEmail, IsIn, IsArray, ValidateNested, IsNumber } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -662,8 +662,14 @@ export class CoachesService {
   }
 
   async syncCoachBatchStudents(coachUserId: string, batchId: string, studentIds: string[]) {
-    const assigned = await this.prisma.batchCoach.findFirst({ where: { coachId: coachUserId, batchId } });
+    const assigned = await this.prisma.batchCoach.findFirst({
+      where: { coachId: coachUserId, batchId },
+      include: { batch: { select: { capacity: true } } },
+    });
     if (!assigned) throw new NotFoundException('Batch not found in your assignments');
+    if (studentIds.length > assigned.batch.capacity) {
+      throw new BadRequestException(`Cannot enroll ${studentIds.length} students: batch capacity is ${assigned.batch.capacity}`);
+    }
 
     const current = await this.prisma.enrollment.findMany({
       where: { batchId, isActive: true },

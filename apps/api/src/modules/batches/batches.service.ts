@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { IsString, IsOptional, IsInt, IsArray, IsEnum, IsDateString, IsNumber, IsBoolean, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BatchDay } from '@kheloge/database';
@@ -148,6 +148,11 @@ export class BatchesService {
   }
 
   async syncEnrollments(batchId: string, studentIds: string[]) {
+    const batch = await this.prisma.batch.findUniqueOrThrow({ where: { id: batchId }, select: { capacity: true } });
+    if (studentIds.length > batch.capacity) {
+      throw new BadRequestException(`Cannot enroll ${studentIds.length} students: batch capacity is ${batch.capacity}`);
+    }
+
     const current = await this.prisma.enrollment.findMany({
       where: { batchId, isActive: true },
       select: { studentId: true },
