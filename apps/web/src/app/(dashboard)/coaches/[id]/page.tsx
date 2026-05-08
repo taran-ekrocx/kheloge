@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
@@ -141,11 +141,13 @@ const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm foc
 
 export default function CoachDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const { role } = useAuth();
   const isSuperAdmin = role === 'SUPER_ADMIN';
   const queryClient = useQueryClient();
 
-  const [tab, setTab] = useState<Tab>('overview');
+  const initialTab = searchParams.get('tab') === 'attendance' ? 'attendance' : 'overview';
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<ReturnType<typeof buildForm> | null>(null);
   const [attVenueId, setAttVenueId] = useState('');
