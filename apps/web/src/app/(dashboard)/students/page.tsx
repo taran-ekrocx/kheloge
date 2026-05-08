@@ -60,6 +60,7 @@ interface DemoStudent {
   convertedToRegular: boolean;
   convertedStudentId?: string;
   convertedAt?: string;
+  status?: string;
   batch?: { id: string; name: string; sport?: { name: string } };
 }
 
@@ -624,6 +625,20 @@ export default function StudentsPage() {
     },
   });
 
+  const demoStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      isCoach
+        ? api.patch(`/coaches/me/demo-students/${id}`, { status })
+        : isSuperAdmin
+          ? api.patch(`/demo-students/${id}`, { status })
+          : api.patch(`/venues/${venueId}/demo-students/${id}`, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['demo-students', venueId] });
+      queryClient.invalidateQueries({ queryKey: ['demo-students-global'] });
+      queryClient.invalidateQueries({ queryKey: ['coach-demo-students'] });
+    },
+  });
+
   const filteredDemoStudents = useMemo(() => {
     const q = demoSearch.toLowerCase();
     if (!q) return demoStudents;
@@ -937,6 +952,7 @@ export default function StudentsPage() {
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Sport</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Batch</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Demo Sessions</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Converted to Regular</th>
                     <th className="px-4 py-3" />
                   </tr>
@@ -956,6 +972,19 @@ export default function StudentsPage() {
                       <td className="px-4 py-3 text-gray-600">{d.sport || d.batch?.sport?.name || '—'}</td>
                       <td className="px-4 py-3 text-gray-600">{d.batch?.name || '—'}</td>
                       <td className="px-4 py-3 text-gray-600">{d.numberOfDemoSessions}</td>
+                      <td className="px-4 py-3">
+                        {!d.convertedToRegular ? (
+                          <button
+                            onClick={() => demoStatusMutation.mutate({ id: d.id, status: (d.status ?? 'ACTIVE') === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' })}
+                            title={(d.status ?? 'ACTIVE') === 'ACTIVE' ? 'Click to deactivate' : 'Click to activate'}
+                            className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${(d.status ?? 'ACTIVE') === 'ACTIVE' ? 'bg-green-500' : 'bg-gray-300'}`}
+                          >
+                            <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ${(d.status ?? 'ACTIVE') === 'ACTIVE' ? 'translate-x-4' : 'translate-x-0'}`} />
+                          </button>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Active</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         {d.convertedToRegular ? (
                           <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Yes</span>

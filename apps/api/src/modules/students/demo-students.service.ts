@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { UserRole, StudentStatus } from '@kheloge/database';
+import { UserRole, StudentStatus, DemoStudentStatus } from '@kheloge/database';
 
 export interface CreateDemoStudentDto {
   name: string;
@@ -17,6 +17,7 @@ export interface UpdateDemoStudentDto {
   batchId?: string;
   numberOfDemoSessions?: number;
   convertedToRegular?: boolean;
+  status?: DemoStudentStatus;
 }
 
 @Injectable()
@@ -159,6 +160,7 @@ export class DemoStudentsService {
         ...(rest.sport !== undefined ? { sport: rest.sport } : {}),
         ...(rest.batchId !== undefined ? { batchId: rest.batchId } : {}),
         ...(rest.numberOfDemoSessions !== undefined ? { numberOfDemoSessions: rest.numberOfDemoSessions } : {}),
+        ...(rest.status !== undefined ? { status: rest.status } : {}),
       },
       include: { batch: { include: { sport: true } } },
     });
