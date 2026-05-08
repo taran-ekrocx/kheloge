@@ -17,7 +17,7 @@ const DAY_SHORT: Record<string, string> = {
 interface Sport { id: string; name: string; }
 interface Coach { id: string; userId?: string; name: string; phone?: string; sports?: { id: string; name: string }[]; }
 interface Student { id: string; name: string; phone?: string; }
-interface DemoStudentOption { id: string; name: string; phone?: string; batchId?: string; }
+interface DemoStudentOption { id: string; name: string; phone?: string; batchId?: string; convertedToRegular: boolean; }
 interface Batch {
   id: string;
   name: string;
@@ -439,7 +439,7 @@ function BatchModal({
             <div>
               <p className="text-xs font-medium text-gray-600 mb-2">Assign Demo Students</p>
               <DemoStudentMultiSelect
-                demoStudents={allDemoStudents}
+                demoStudents={allDemoStudents.filter(d => !d.convertedToRegular)}
                 selected={form.demoStudentIds}
                 onChange={(ids) => setForm(f => ({ ...f, demoStudentIds: ids }))}
               />
