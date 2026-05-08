@@ -62,15 +62,8 @@ export default function CoachPayoutsPage() {
   const router = useRouter();
 
   const [month, setMonth] = useState(() => dayjs().format('YYYY-MM'));
-  const [selectedVenueId, setSelectedVenueId] = useState('');
   const [selectedCoachId, setSelectedCoachId] = useState('');
   const [selectedPaymentType, setSelectedPaymentType] = useState('');
-
-  const { data: venuesList } = useQuery<{ id: string; name: string }[]>({
-    queryKey: ['venues-list'],
-    queryFn: () => api.get('/venues').then((r) => r.data),
-    enabled: isSuperAdmin,
-  });
 
   const { data: coachesList } = useQuery<{ id: string; name: string }[]>({
     queryKey: ['coaches-list'],
@@ -85,11 +78,10 @@ export default function CoachPayoutsPage() {
   });
 
   const queryParams = new URLSearchParams({ month });
-  if (selectedVenueId) queryParams.set('venueId', selectedVenueId);
   if (selectedCoachId) queryParams.set('coachId', selectedCoachId);
 
   const { data, isLoading } = useQuery<CoachPayoutsData>({
-    queryKey: ['coach-payouts', month, selectedVenueId, selectedCoachId],
+    queryKey: ['coach-payouts', month, selectedCoachId],
     queryFn: () => api.get(`/payments/coach-payouts?${queryParams}`).then((r) => r.data),
     enabled: isSuperAdmin,
   });
@@ -116,19 +108,6 @@ export default function CoachPayoutsPage() {
           <p className="text-gray-500 text-sm">Monthly payout summary for all coaches</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {venuesList && venuesList.length > 0 && (
-            <>
-              <label className="text-sm text-gray-500">Venue</label>
-              <select
-                value={selectedVenueId}
-                onChange={(e) => setSelectedVenueId(e.target.value)}
-                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">All Venues</option>
-                {venuesList.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-              </select>
-            </>
-          )}
           {coachesList && coachesList.length > 0 && (
             <>
               <label className="text-sm text-gray-500">Coach</label>
