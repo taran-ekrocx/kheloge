@@ -323,7 +323,7 @@ function BatchModal({
     studentIds: [] as string[],
     demoStudentIds: [] as string[],
   } : DEFAULT_FORM);
-  const [dateError, setDateError] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const { data: students = [] } = useQuery<Student[]>({
     queryKey: ['students-active'],
@@ -398,39 +398,48 @@ function BatchModal({
         <h3 className="text-lg font-bold mb-4">{existing ? 'Edit Batch' : 'Create Batch'}</h3>
         <form onSubmit={(e) => {
           e.preventDefault();
-          if (!form.name.trim()) { setDateError('Batch name is required.'); return; }
-          if (form.startTime && form.endTime && form.endTime <= form.startTime) {
-            setDateError('End time must be after start time.');
-            return;
-          }
-          if (form.startDate && form.endDate && form.endDate <= form.startDate) {
-            setDateError('End date must be after start date.');
-            return;
-          }
-          if (form.days.length === 0) { setDateError('Please select at least one day.'); return; }
-          setDateError('');
+          const next: Record<string, string> = {};
+          if (!form.name.trim()) next.name = 'Batch name is required';
+          if (!form.sportId) next.sportId = 'Sport is required';
+          if (!form.capacity || Number(form.capacity) < 1) next.capacity = 'Capacity is required';
+          if (!form.fee && form.fee !== '0') next.fee = 'Fee is required';
+          if (!form.startTime) next.startTime = 'Start time is required';
+          if (!form.endTime) next.endTime = 'End time is required';
+          if (form.startTime && form.endTime && form.endTime <= form.startTime) next.endTime = 'End time must be after start time';
+          if (!form.startDate) next.startDate = 'Start date is required';
+          if (!form.endDate) next.endDate = 'End date is required';
+          if (form.startDate && form.endDate && form.endDate <= form.startDate) next.endDate = 'End date must be after start date';
+          if (form.days.length === 0) next.days = 'Please select at least one day';
+          setErrors(next);
+          if (Object.keys(next).length > 0) return;
           mutation.mutate(form);
         }} className="space-y-3">
-          <input
-            required placeholder="Batch Name *"
-            value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <select
-            required value={form.sportId} onChange={(e) => {
-              const newSportId = e.target.value;
-              const compatible = new Set(
-                newSportId
-                  ? coaches.filter(c => c.sports?.some(s => s.id === newSportId)).map(c => c.id)
-                  : coaches.map(c => c.id)
-              );
-              setForm(f => ({ ...f, sportId: newSportId, coachIds: f.coachIds.filter(id => compatible.has(id)) }));
-            }}
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Select Sport *</option>
-            {sports.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
+          <div>
+            <input
+              placeholder="Batch Name *"
+              value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+              className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.name ? 'border-red-400' : ''}`}
+            />
+            {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
+          </div>
+          <div>
+            <select
+              value={form.sportId} onChange={(e) => {
+                const newSportId = e.target.value;
+                const compatible = new Set(
+                  newSportId
+                    ? coaches.filter(c => c.sports?.some(s => s.id === newSportId)).map(c => c.id)
+                    : coaches.map(c => c.id)
+                );
+                setForm(f => ({ ...f, sportId: newSportId, coachIds: f.coachIds.filter(id => compatible.has(id)) }));
+              }}
+              className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.sportId ? 'border-red-400' : ''}`}
+            >
+              <option value="">Select Sport *</option>
+              {sports.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            {errors.sportId && <p className="text-red-500 text-xs mt-1">{errors.sportId}</p>}
+          </div>
           <div>
             <p className="text-xs font-medium text-gray-600 mb-2">Assign Coaches</p>
             <CoachMultiSelect
@@ -460,56 +469,65 @@ function BatchModal({
             </div>
           )}
           <div className="grid grid-cols-2 gap-3">
-            <input
-              required type="number" min="1" placeholder="Capacity *"
-              value={form.capacity} onChange={(e) => setForm({ ...form, capacity: e.target.value })}
-              className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <input
-              type="number" min="0" placeholder="Fee (₹)"
-              value={form.fee} onChange={(e) => setForm({ ...form, fee: e.target.value })}
-              className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <div>
+              <input
+                type="number" min="1" placeholder="Capacity *"
+                value={form.capacity} onChange={(e) => setForm({ ...form, capacity: e.target.value })}
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.capacity ? 'border-red-400' : ''}`}
+              />
+              {errors.capacity && <p className="text-red-500 text-xs mt-1">{errors.capacity}</p>}
+            </div>
+            <div>
+              <input
+                type="number" min="0" placeholder="Fee (₹) *"
+                value={form.fee} onChange={(e) => setForm({ ...form, fee: e.target.value })}
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.fee ? 'border-red-400' : ''}`}
+              />
+              {errors.fee && <p className="text-red-500 text-xs mt-1">{errors.fee}</p>}
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-gray-500 mb-1 block">Start Time *</label>
               <input
-                required type="time"
+                type="time"
                 value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.startTime ? 'border-red-400' : ''}`}
               />
+              {errors.startTime && <p className="text-red-500 text-xs mt-1">{errors.startTime}</p>}
             </div>
             <div>
               <label className="text-xs text-gray-500 mb-1 block">End Time *</label>
               <input
-                required type="time"
+                type="time"
                 value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.endTime ? 'border-red-400' : ''}`}
               />
+              {errors.endTime && <p className="text-red-500 text-xs mt-1">{errors.endTime}</p>}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-gray-500 mb-1 block">Start Date</label>
+              <label className="text-xs text-gray-500 mb-1 block">Start Date *</label>
               <input
                 type="date"
                 value={form.startDate}
-                onChange={(e) => { setForm({ ...form, startDate: e.target.value }); setDateError(''); }}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.startDate ? 'border-red-400' : ''}`}
               />
+              {errors.startDate && <p className="text-red-500 text-xs mt-1">{errors.startDate}</p>}
             </div>
             <div>
-              <label className="text-xs text-gray-500 mb-1 block">End Date</label>
+              <label className="text-xs text-gray-500 mb-1 block">End Date *</label>
               <input
                 type="date"
                 value={form.endDate}
-                onChange={(e) => { setForm({ ...form, endDate: e.target.value }); setDateError(''); }}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.endDate ? 'border-red-400' : ''}`}
               />
+              {errors.endDate && <p className="text-red-500 text-xs mt-1">{errors.endDate}</p>}
             </div>
           </div>
-          {dateError && <p className="text-red-500 text-xs">{dateError}</p>}
           <div>
             <label className="text-xs text-gray-500 mb-2 block">Days *</label>
             <div className="flex flex-wrap gap-2">
@@ -526,6 +544,7 @@ function BatchModal({
                 </button>
               ))}
             </div>
+            {errors.days && <p className="text-red-500 text-xs mt-1">{errors.days}</p>}
           </div>
           <select
             value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}
