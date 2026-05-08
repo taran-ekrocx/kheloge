@@ -5,7 +5,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
-import { ArrowLeft, Calendar, CheckCircle, XCircle, Pencil, X, Check } from 'lucide-react';
+import { ArrowLeft, Calendar, CheckCircle, XCircle, Pencil, X, Check, Eye } from 'lucide-react';
 import Link from 'next/link';
 import dayjs from 'dayjs';
 import { STATE_NAMES, getDistricts } from '@/lib/india-locations';
@@ -108,6 +108,53 @@ function StatusBadge({ status }: { status: 'PRESENT' | 'ABSENT' }) {
   );
 }
 
+function SessionDetailModal({ record, onClose }: { record: CoachAttendance; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-base font-bold text-gray-900">Session Details</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+        </div>
+        <dl className="space-y-3 text-sm">
+          <div className="flex justify-between">
+            <dt className="text-gray-500">Batch</dt>
+            <dd className="font-medium text-gray-900">{record.batch?.name ?? '—'}</dd>
+          </div>
+          <div className="flex justify-between">
+            <dt className="text-gray-500">Venue</dt>
+            <dd className="font-medium text-gray-900">{record.batch?.venue?.name ?? '—'}</dd>
+          </div>
+          <div className="flex justify-between">
+            <dt className="text-gray-500">Sport</dt>
+            <dd className="font-medium text-gray-900">{record.batch?.sport?.name ?? '—'}</dd>
+          </div>
+          <div className="flex justify-between">
+            <dt className="text-gray-500">Date</dt>
+            <dd className="font-medium text-gray-900">{dayjs(record.date).format('DD MMM YYYY')}</dd>
+          </div>
+          <div className="flex justify-between">
+            <dt className="text-gray-500">Start Time</dt>
+            <dd className="font-medium text-gray-900">
+              {record.session ? dayjs(record.session.startedAt).format('h:mm A') : '—'}
+            </dd>
+          </div>
+          <div className="flex justify-between">
+            <dt className="text-gray-500">End Time</dt>
+            <dd className="font-medium text-gray-900">
+              {record.session?.endedAt ? dayjs(record.session.endedAt).format('h:mm A') : '—'}
+            </dd>
+          </div>
+          <div className="flex justify-between items-center pt-1 border-t border-gray-100">
+            <dt className="text-gray-500">Status</dt>
+            <dd><StatusBadge status={record.status} /></dd>
+          </div>
+        </dl>
+      </div>
+    </div>
+  );
+}
+
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-6 space-y-3">
@@ -153,6 +200,7 @@ export default function CoachDetailPage() {
   const [attVenueId, setAttVenueId] = useState('');
   const [attSportName, setAttSportName] = useState('');
   const [attBatchId, setAttBatchId] = useState('');
+  const [viewingRecord, setViewingRecord] = useState<CoachAttendance | null>(null);
 
   // role starts null on first render (useAuth reads localStorage in useEffect)
   const authLoading = role === null;
@@ -634,6 +682,7 @@ export default function CoachDetailPage() {
                             <th className="text-left px-5 py-3 font-medium text-gray-600">Batch</th>
                             <th className="text-left px-5 py-3 font-medium text-gray-600">Session Time</th>
                             <th className="text-left px-5 py-3 font-medium text-gray-600">Status</th>
+                            <th className="px-5 py-3" />
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
@@ -647,6 +696,15 @@ export default function CoachDetailPage() {
                                   : '—'}
                               </td>
                               <td className="px-5 py-3"><StatusBadge status={record.status} /></td>
+                              <td className="px-5 py-3 text-right">
+                                <button
+                                  onClick={() => setViewingRecord(record)}
+                                  className="text-gray-400 hover:text-blue-600 transition-colors"
+                                  title="View session details"
+                                >
+                                  <Eye size={15} />
+                                </button>
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -658,6 +716,10 @@ export default function CoachDetailPage() {
             </div>
           )}
         </>
+      )}
+
+      {viewingRecord && (
+        <SessionDetailModal record={viewingRecord} onClose={() => setViewingRecord(null)} />
       )}
     </div>
   );
