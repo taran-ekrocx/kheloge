@@ -241,9 +241,15 @@ function CoachModal({
       } else if (!extractMobileDigits(form.phone)) {
         next.phone = 'Enter a valid 10-digit mobile number (with or without +91)';
       }
-      if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      if (!form.email.trim()) {
+        next.email = 'Email is required';
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
         next.email = 'Enter a valid email address';
       }
+      if (!form.state) next.state = 'State is required';
+      if (!form.district) next.district = 'District is required';
+      if (!form.region.trim()) next.region = 'Region is required';
+      if (form.sportIds.length === 0) next.sportIds = 'Please assign at least one sport';
     }
     if (step === 2) {
       form.profile.educationDetails.forEach((edu, i) => {
@@ -253,13 +259,25 @@ function CoachModal({
         }
       });
     }
+    if (step === 3) {
+      if (!form.profile.sportSpecialization.trim()) next.sportSpecialization = 'Sport specialization is required';
+    }
     if (step === 4) {
+      const hasAnyExp = form.profile.coachingExperience.some(
+        (exp) => exp.organization.trim() || exp.role || exp.duration || exp.responsibilities
+      );
+      if (!hasAnyExp) {
+        next.coachingExperience = 'Please add at least one coaching experience entry';
+      }
       form.profile.coachingExperience.forEach((exp, i) => {
         const hasAnyData = exp.role || exp.duration || exp.responsibilities;
-        if (hasAnyData && !exp.organization.trim()) {
-          next[`exp_${i}_organization`] = 'Organization is required when other fields are filled';
+        if ((hasAnyData || hasAnyExp) && !exp.organization.trim()) {
+          next[`exp_${i}_organization`] = 'Organization is required';
         }
       });
+    }
+    if (step === 5) {
+      if (!form.profile.paymentType) next.paymentType = 'Payment type is required';
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -348,7 +366,7 @@ function CoachModal({
             <div>
               <input
                 type="email"
-                placeholder="Email"
+                placeholder="Email *"
                 value={form.email}
                 onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))}
                 className={`${inputCls}${errors.email ? ' border-red-400' : ''}`}
@@ -365,36 +383,45 @@ function CoachModal({
             </select>
 
             <div className="border-t pt-3">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Location</p>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Location *</p>
               <div className="space-y-2">
-                <select
-                  value={form.state}
-                  onChange={(e) => handleStateChange(e.target.value)}
-                  className={inputCls}
-                >
-                  <option value="">Select State</option>
-                  {STATE_NAMES.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-                <select
-                  value={form.district}
-                  onChange={(e) => handleDistrictChange(e.target.value)}
-                  disabled={!form.state}
-                  className={`${inputCls} disabled:bg-gray-50 disabled:text-gray-400`}
-                >
-                  <option value="">Select District</option>
-                  {districts.map(d => <option key={d.name} value={d.name}>{d.name}</option>)}
-                </select>
-                <input
-                  placeholder="Region"
-                  value={form.region}
-                  onChange={(e) => setForm(f => ({ ...f, region: e.target.value }))}
-                  className={inputCls}
-                />
+                <div>
+                  <select
+                    value={form.state}
+                    onChange={(e) => handleStateChange(e.target.value)}
+                    className={`${inputCls}${errors.state ? ' border-red-400' : ''}`}
+                  >
+                    <option value="">Select State *</option>
+                    {STATE_NAMES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  {errors.state && <p className="text-red-500 text-xs mt-1">{errors.state}</p>}
+                </div>
+                <div>
+                  <select
+                    value={form.district}
+                    onChange={(e) => handleDistrictChange(e.target.value)}
+                    disabled={!form.state}
+                    className={`${inputCls} disabled:bg-gray-50 disabled:text-gray-400${errors.district ? ' border-red-400' : ''}`}
+                  >
+                    <option value="">Select District *</option>
+                    {districts.map(d => <option key={d.name} value={d.name}>{d.name}</option>)}
+                  </select>
+                  {errors.district && <p className="text-red-500 text-xs mt-1">{errors.district}</p>}
+                </div>
+                <div>
+                  <input
+                    placeholder="Region *"
+                    value={form.region}
+                    onChange={(e) => setForm(f => ({ ...f, region: e.target.value }))}
+                    className={`${inputCls}${errors.region ? ' border-red-400' : ''}`}
+                  />
+                  {errors.region && <p className="text-red-500 text-xs mt-1">{errors.region}</p>}
+                </div>
               </div>
             </div>
 
             <div className="border-t pt-3">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Assign Sports</p>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Assign Sports *</p>
               {sports.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-4">No sports configured yet.</p>
               ) : (
@@ -415,6 +442,7 @@ function CoachModal({
                   ))}
                 </div>
               )}
+              {errors.sportIds && <p className="text-red-500 text-xs mt-1">{errors.sportIds}</p>}
             </div>
           </div>
         )}
@@ -475,12 +503,15 @@ function CoachModal({
         {/* Step 3: Sports Background */}
         {currentStep === 3 && (
           <div className="space-y-4">
-            <input
-              placeholder="Sport Specialization"
-              value={form.profile.sportSpecialization}
-              onChange={(e) => setForm(f => ({ ...f, profile: { ...f.profile, sportSpecialization: e.target.value } }))}
-              className={inputCls}
-            />
+            <div>
+              <input
+                placeholder="Sport Specialization *"
+                value={form.profile.sportSpecialization}
+                onChange={(e) => setForm(f => ({ ...f, profile: { ...f.profile, sportSpecialization: e.target.value } }))}
+                className={`${inputCls}${errors.sportSpecialization ? ' border-red-400' : ''}`}
+              />
+              {errors.sportSpecialization && <p className="text-red-500 text-xs mt-1">{errors.sportSpecialization}</p>}
+            </div>
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Playing Level</p>
               <div className="grid grid-cols-2 gap-2">
@@ -514,7 +545,8 @@ function CoachModal({
         {currentStep === 4 && (
           <div className="space-y-4">
             <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Coaching Experience</p>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Coaching Experience *</p>
+              {errors.coachingExperience && <p className="text-red-500 text-xs mb-2">{errors.coachingExperience}</p>}
               {form.profile.coachingExperience.map((exp, i) => (
                 <div key={i} className="border rounded-lg p-3 space-y-2 mb-3">
                   <div className="flex items-center justify-between">
@@ -584,7 +616,8 @@ function CoachModal({
         {/* Step 5: Payment Type */}
         {currentStep === 5 && (
           <div className="space-y-4">
-            <p className="text-xs text-gray-500">Select a payment type and enter the relevant amount (optional)</p>
+            <p className="text-xs text-gray-500">Select a payment type and enter the relevant amount</p>
+            {errors.paymentType && <p className="text-red-500 text-xs">{errors.paymentType}</p>}
             <div className="space-y-2">
               {PAYMENT_TYPES.map(({ value, label }) => (
                 <label key={value} className="flex items-center gap-3 cursor-pointer border rounded-lg px-3 py-2.5 hover:bg-gray-50 transition-colors">
