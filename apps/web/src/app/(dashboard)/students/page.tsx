@@ -326,7 +326,7 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
   const [form, setForm] = useState({
     name: '', dob: '', gender: '', bloodGroup: '',
     address: '', phone: '', guardianName: '', guardianPhone: '', guardianEmail: '',
-    sportId: '', trainingLevel: '', batchId: '', previousExperience: '',
+    sportId: '', venueId: '', trainingLevel: '', batchId: '', previousExperience: '',
     hasMedicalCondition: 'no', medicalConditionDetails: '', emergencyContactName: '', emergencyContactPhone: '',
   });
 
@@ -335,12 +335,22 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
     queryFn: () => api.get('/sports').then((r) => r.data),
   });
 
+  const { data: allVenues = [] } = useQuery<{ id: string; name: string; sports: { sportId: string }[] }[]>({
+    queryKey: ['venues-list'],
+    queryFn: () => api.get('/venues').then((r) => r.data),
+    enabled: isSuperAdmin,
+  });
+
+  const venuesForSport = form.sportId
+    ? allVenues.filter((v) => v.sports?.some((s) => s.sportId === form.sportId))
+    : allVenues;
+
   const { data: allBatches = [] } = useQuery<BatchOption[]>({
-    queryKey: isCoach ? ['coach-batches'] : isSuperAdmin ? ['batches-global', form.sportId] : ['batches', venueId],
+    queryKey: isCoach ? ['coach-batches'] : isSuperAdmin ? ['batches-global', form.sportId, form.venueId] : ['batches', venueId],
     queryFn: isCoach
       ? () => api.get('/coaches/me/batches?status=active').then((r) => r.data)
       : isSuperAdmin
-        ? () => api.get('/batches', { params: { status: 'active', ...(form.sportId ? { sportId: form.sportId } : {}) } }).then((r) => r.data)
+        ? () => api.get('/batches', { params: { status: 'active', ...(form.sportId ? { sportId: form.sportId } : {}), ...(form.venueId ? { venueId: form.venueId } : {}) } }).then((r) => r.data)
         : () => api.get(`/venues/${venueId}/batches`).then((r) => r.data),
     enabled: isCoach ? true : isSuperAdmin ? true : !!venueId,
   });
@@ -521,16 +531,6 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
               {/* Step 3: Sports Enrollment */}
               {currentStep === 3 && (
                 <>
-                  {allSports.length > 0 && (
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Sport Applied For *</label>
-                      <select value={form.sportId} onChange={(e) => setForm({ ...form, sportId: e.target.value, batchId: '' })} className={`${f} ${errors.sportId ? 'border-red-400' : ''}`}>
-                        <option value="">Select Sport</option>
-                        {allSports.map((sport) => <option key={sport.id} value={sport.id}>{sport.name}</option>)}
-                      </select>
-                      {errors.sportId && <p className={err}>{errors.sportId}</p>}
-                    </div>
-                  )}
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-2">Training Level</label>
                     <div className="flex gap-4">
@@ -542,6 +542,25 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
                       ))}
                     </div>
                   </div>
+                  {allSports.length > 0 && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Sport Applied For *</label>
+                      <select value={form.sportId} onChange={(e) => setForm({ ...form, sportId: e.target.value, venueId: '', batchId: '' })} className={`${f} ${errors.sportId ? 'border-red-400' : ''}`}>
+                        <option value="">Select Sport</option>
+                        {allSports.map((sport) => <option key={sport.id} value={sport.id}>{sport.name}</option>)}
+                      </select>
+                      {errors.sportId && <p className={err}>{errors.sportId}</p>}
+                    </div>
+                  )}
+                  {isSuperAdmin && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Venue</label>
+                      <select value={form.venueId} onChange={(e) => setForm({ ...form, venueId: e.target.value, batchId: '' })} className={f} disabled={!form.sportId}>
+                        <option value="">{form.sportId ? 'All Venues' : 'Select Sport first'}</option>
+                        {venuesForSport.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                      </select>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">Batch *</label>
                     <select value={form.batchId} onChange={(e) => setForm({ ...form, batchId: e.target.value })} className={`${f} ${errors.batchId ? 'border-red-400' : ''}`}>
