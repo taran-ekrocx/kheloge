@@ -197,6 +197,7 @@ export default function CoachDetailPage() {
   const [tab, setTab] = useState<Tab>(initialTab);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<ReturnType<typeof buildForm> | null>(null);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [attVenueId, setAttVenueId] = useState('');
   const [attSportName, setAttSportName] = useState('');
   const [attBatchId, setAttBatchId] = useState('');
@@ -272,8 +273,33 @@ export default function CoachDetailPage() {
   const startEdit = () => {
     if (coach) setForm(buildForm(coach));
     setEditing(true);
+    setFormErrors({});
   };
-  const cancelEdit = () => { setEditing(false); setForm(null); };
+  const cancelEdit = () => { setEditing(false); setForm(null); setFormErrors({}); };
+
+  const validateForm = (f: NonNullable<typeof form>): boolean => {
+    const next: Record<string, string> = {};
+    if (!f.name.trim()) next.name = 'Full name is required';
+    if (!f.phone.trim()) next.phone = 'Mobile number is required';
+    if (!f.email.trim()) next.email = 'Email is required';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) next.email = 'Enter a valid email address';
+    if (!f.state) next.state = 'State is required';
+    if (!f.district) next.district = 'District is required';
+    if (!f.region.trim()) next.region = 'Region is required';
+    if (f.sportIds.length === 0) next.sportIds = 'Please assign at least one sport';
+    if (!f.profile.sportSpecialization.trim()) next.sportSpecialization = 'Sport specialization is required';
+    const hasAnyExp = f.profile.coachingExperience.some(
+      (exp) => exp.organization.trim() || exp.role || exp.duration || exp.responsibilities
+    );
+    if (!hasAnyExp) next.coachingExperience = 'Please add at least one coaching experience entry';
+    f.profile.coachingExperience.forEach((exp, i) => {
+      const hasData = exp.role || exp.duration || exp.responsibilities;
+      if ((hasData || hasAnyExp) && !exp.organization.trim()) next[`exp_${i}_organization`] = 'Organization is required';
+    });
+    if (!f.profile.paymentType) next.paymentType = 'Payment type is required';
+    setFormErrors(next);
+    return Object.keys(next).length === 0;
+  };
 
   // form helpers
   const districts = useMemo(() => (form?.state ? getDistricts(form.state) : []), [form?.state]);
@@ -356,7 +382,7 @@ export default function CoachDetailPage() {
               <X className="w-4 h-4" /> Cancel
             </button>
             <button
-              onClick={() => form && saveMutation.mutate(form)}
+              onClick={() => form && validateForm(form) && saveMutation.mutate(form)}
               disabled={saveMutation.isPending}
               className="flex items-center gap-1.5 text-sm text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg disabled:opacity-50 transition-colors"
             >
@@ -491,24 +517,42 @@ export default function CoachDetailPage() {
               {/* Basic Details */}
               <SectionCard title="Basic Details">
                 <div className="space-y-3">
-                  <input placeholder="Full Name *" value={form.name} onChange={(e) => setField('name', e.target.value)} className={inputCls} />
-                  <input placeholder="Mobile Number *" value={form.phone} onChange={(e) => setField('phone', e.target.value)} className={inputCls} />
-                  <input type="email" placeholder="Email" value={form.email} onChange={(e) => setField('email', e.target.value)} className={inputCls} />
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider pt-1">Location</p>
-                  <select value={form.state} onChange={(e) => { setField('state', e.target.value); setField('district', ''); setField('city', ''); }} className={inputCls}>
-                    <option value="">Select State</option>
-                    {STATE_NAMES.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                  <select value={form.district} onChange={(e) => { setField('district', e.target.value); setField('city', ''); }} disabled={!form.state} className={`${inputCls} disabled:bg-gray-50 disabled:text-gray-400`}>
-                    <option value="">Select District</option>
-                    {districts.map((d) => <option key={d.name} value={d.name}>{d.name}</option>)}
-                  </select>
-                  <input placeholder="Region" value={form.region} onChange={(e) => setField('region', e.target.value)} className={inputCls} />
+                  <div>
+                    <input placeholder="Full Name *" value={form.name} onChange={(e) => setField('name', e.target.value)} className={`${inputCls}${formErrors.name ? ' border-red-400' : ''}`} />
+                    {formErrors.name && <p className="text-red-500 text-xs mt-1">{formErrors.name}</p>}
+                  </div>
+                  <div>
+                    <input placeholder="Mobile Number *" value={form.phone} onChange={(e) => setField('phone', e.target.value)} className={`${inputCls}${formErrors.phone ? ' border-red-400' : ''}`} />
+                    {formErrors.phone && <p className="text-red-500 text-xs mt-1">{formErrors.phone}</p>}
+                  </div>
+                  <div>
+                    <input type="email" placeholder="Email *" value={form.email} onChange={(e) => setField('email', e.target.value)} className={`${inputCls}${formErrors.email ? ' border-red-400' : ''}`} />
+                    {formErrors.email && <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>}
+                  </div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider pt-1">Location *</p>
+                  <div>
+                    <select value={form.state} onChange={(e) => { setField('state', e.target.value); setField('district', ''); setField('city', ''); }} className={`${inputCls}${formErrors.state ? ' border-red-400' : ''}`}>
+                      <option value="">Select State *</option>
+                      {STATE_NAMES.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                    {formErrors.state && <p className="text-red-500 text-xs mt-1">{formErrors.state}</p>}
+                  </div>
+                  <div>
+                    <select value={form.district} onChange={(e) => { setField('district', e.target.value); setField('city', ''); }} disabled={!form.state} className={`${inputCls} disabled:bg-gray-50 disabled:text-gray-400${formErrors.district ? ' border-red-400' : ''}`}>
+                      <option value="">Select District *</option>
+                      {districts.map((d) => <option key={d.name} value={d.name}>{d.name}</option>)}
+                    </select>
+                    {formErrors.district && <p className="text-red-500 text-xs mt-1">{formErrors.district}</p>}
+                  </div>
+                  <div>
+                    <input placeholder="Region *" value={form.region} onChange={(e) => setField('region', e.target.value)} className={`${inputCls}${formErrors.region ? ' border-red-400' : ''}`} />
+                    {formErrors.region && <p className="text-red-500 text-xs mt-1">{formErrors.region}</p>}
+                  </div>
                 </div>
               </SectionCard>
 
               {/* Sports */}
-              <SectionCard title="Assign Sports">
+              <SectionCard title="Assign Sports *">
                 <div className="space-y-1.5 max-h-48 overflow-y-auto">
                   {sports.map((sport) => (
                     <label key={sport.id} className="flex items-center gap-2 cursor-pointer py-1">
@@ -517,6 +561,7 @@ export default function CoachDetailPage() {
                     </label>
                   ))}
                 </div>
+                {formErrors.sportIds && <p className="text-red-500 text-xs mt-2">{formErrors.sportIds}</p>}
               </SectionCard>
 
               {/* Education */}
@@ -543,7 +588,10 @@ export default function CoachDetailPage() {
 
               {/* Sports Background */}
               <SectionCard title="Sports Background">
-                <input placeholder="Sport Specialization" value={form.profile.sportSpecialization} onChange={(e) => setProfileField('sportSpecialization', e.target.value)} className={inputCls} />
+                <div>
+                  <input placeholder="Sport Specialization *" value={form.profile.sportSpecialization} onChange={(e) => setProfileField('sportSpecialization', e.target.value)} className={`${inputCls}${formErrors.sportSpecialization ? ' border-red-400' : ''}`} />
+                  {formErrors.sportSpecialization && <p className="text-red-500 text-xs mt-1">{formErrors.sportSpecialization}</p>}
+                </div>
                 <div>
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Playing Levels</p>
                   <div className="flex flex-wrap gap-2">
@@ -559,8 +607,9 @@ export default function CoachDetailPage() {
               </SectionCard>
 
               {/* Experience & Skills */}
-              <SectionCard title="Experience & Skills">
+              <SectionCard title="Experience & Skills *">
                 <div className="space-y-4">
+                  {formErrors.coachingExperience && <p className="text-red-500 text-xs">{formErrors.coachingExperience}</p>}
                   {form.profile.coachingExperience.map((exp, i) => (
                     <div key={i} className="border border-gray-100 rounded-lg p-3 space-y-2">
                       <div className="flex items-center justify-between mb-1">
@@ -569,7 +618,10 @@ export default function CoachDetailPage() {
                           <button onClick={() => removeExp(i)} className="text-gray-300 hover:text-red-400"><X size={14} /></button>
                         )}
                       </div>
-                      <input placeholder="Organization" value={exp.organization} onChange={(e) => updateExp(i, 'organization', e.target.value)} className={inputCls} />
+                      <div>
+                        <input placeholder="Organization *" value={exp.organization} onChange={(e) => updateExp(i, 'organization', e.target.value)} className={`${inputCls}${formErrors[`exp_${i}_organization`] ? ' border-red-400' : ''}`} />
+                        {formErrors[`exp_${i}_organization`] && <p className="text-red-500 text-xs mt-1">{formErrors[`exp_${i}_organization`]}</p>}
+                      </div>
                       <input placeholder="Role" value={exp.role} onChange={(e) => updateExp(i, 'role', e.target.value)} className={inputCls} />
                       <input placeholder="Duration" value={exp.duration} onChange={(e) => updateExp(i, 'duration', e.target.value)} className={inputCls} />
                       <input placeholder="Responsibilities" value={exp.responsibilities} onChange={(e) => updateExp(i, 'responsibilities', e.target.value)} className={inputCls} />
@@ -591,11 +643,14 @@ export default function CoachDetailPage() {
               </SectionCard>
 
               {/* Payment Details */}
-              <SectionCard title="Payment Details">
-                <select value={form.profile.paymentType} onChange={(e) => setProfileField('paymentType', e.target.value)} className={inputCls}>
-                  <option value="">Select Payment Type</option>
-                  {PAYMENT_TYPES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-                </select>
+              <SectionCard title="Payment Details *">
+                <div>
+                  <select value={form.profile.paymentType} onChange={(e) => setProfileField('paymentType', e.target.value)} className={`${inputCls}${formErrors.paymentType ? ' border-red-400' : ''}`}>
+                    <option value="">Select Payment Type *</option>
+                    {PAYMENT_TYPES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+                  </select>
+                  {formErrors.paymentType && <p className="text-red-500 text-xs mt-1">{formErrors.paymentType}</p>}
+                </div>
                 {form.profile.paymentType && (
                   <input
                     type="number"
