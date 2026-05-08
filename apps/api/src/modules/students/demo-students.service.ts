@@ -7,7 +7,11 @@ export interface CreateDemoStudentDto {
   phone?: string;
   sport?: string;
   batchId?: string;
-  numberOfDemoSessions?: number;
+  gender?: string;
+  dob?: string;
+  email?: string;
+  demoStartDate?: string;
+  demoEndDate?: string;
 }
 
 export interface UpdateDemoStudentDto {
@@ -15,7 +19,11 @@ export interface UpdateDemoStudentDto {
   phone?: string;
   sport?: string;
   batchId?: string;
-  numberOfDemoSessions?: number;
+  gender?: string;
+  dob?: string;
+  email?: string;
+  demoStartDate?: string;
+  demoEndDate?: string;
   convertedToRegular?: boolean;
   status?: DemoStudentStatus;
 }
@@ -107,7 +115,11 @@ export class DemoStudentsService {
         phone: dto.phone ?? null,
         sport: dto.sport ?? null,
         batchId: dto.batchId ?? null,
-        numberOfDemoSessions: dto.numberOfDemoSessions ?? 0,
+        gender: dto.gender ?? null,
+        dob: dto.dob ? new Date(dto.dob) : null,
+        email: dto.email ?? null,
+        demoStartDate: dto.demoStartDate ? new Date(dto.demoStartDate) : null,
+        demoEndDate: dto.demoEndDate ? new Date(dto.demoEndDate) : null,
       },
       include: { batch: { include: { sport: true } } },
     });
@@ -159,7 +171,11 @@ export class DemoStudentsService {
         ...(rest.phone !== undefined ? { phone: rest.phone } : {}),
         ...(rest.sport !== undefined ? { sport: rest.sport } : {}),
         ...(rest.batchId !== undefined ? { batchId: rest.batchId } : {}),
-        ...(rest.numberOfDemoSessions !== undefined ? { numberOfDemoSessions: rest.numberOfDemoSessions } : {}),
+        ...(rest.gender !== undefined ? { gender: rest.gender } : {}),
+        ...(rest.dob !== undefined ? { dob: rest.dob ? new Date(rest.dob) : null } : {}),
+        ...(rest.email !== undefined ? { email: rest.email } : {}),
+        ...(rest.demoStartDate !== undefined ? { demoStartDate: rest.demoStartDate ? new Date(rest.demoStartDate) : null } : {}),
+        ...(rest.demoEndDate !== undefined ? { demoEndDate: rest.demoEndDate ? new Date(rest.demoEndDate) : null } : {}),
         ...(rest.status !== undefined ? { status: rest.status } : {}),
       },
       include: { batch: { include: { sport: true } } },

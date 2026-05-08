@@ -57,6 +57,11 @@ interface DemoStudent {
   sport?: string;
   batchId?: string;
   numberOfDemoSessions: number;
+  gender?: string;
+  dob?: string;
+  email?: string;
+  demoStartDate?: string;
+  demoEndDate?: string;
   convertedToRegular: boolean;
   convertedStudentId?: string;
   convertedAt?: string;
@@ -85,9 +90,13 @@ function DemoStudentModal({
   const [form, setForm] = useState({
     name: editData?.name ?? '',
     phone: editData?.phone ?? '',
+    email: editData?.email ?? '',
+    gender: editData?.gender ?? '',
+    dob: editData?.dob ? editData.dob.slice(0, 10) : '',
     sportId: '',
     batchId: editData?.batchId ?? '',
-    numberOfDemoSessions: editData?.numberOfDemoSessions?.toString() ?? '',
+    demoStartDate: editData?.demoStartDate ? editData.demoStartDate.slice(0, 10) : '',
+    demoEndDate: editData?.demoEndDate ? editData.demoEndDate.slice(0, 10) : '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [apiError, setApiError] = useState('');
@@ -113,8 +122,11 @@ function DemoStudentModal({
     if (form.phone && !/^[6-9]\d{9}$/.test(form.phone.replace(/[\s\-+]/g, '').replace(/^91/, ''))) {
       next.phone = 'Enter a valid 10-digit mobile number';
     }
-    if (form.numberOfDemoSessions && isNaN(parseInt(form.numberOfDemoSessions))) {
-      next.numberOfDemoSessions = 'Must be a number';
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      next.email = 'Enter a valid email address';
+    }
+    if (form.demoStartDate && form.demoEndDate && form.demoEndDate < form.demoStartDate) {
+      next.demoEndDate = 'End date must be after start date';
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -125,9 +137,13 @@ function DemoStudentModal({
     return {
       name: form.name.trim(),
       phone: form.phone || undefined,
+      email: form.email || undefined,
+      gender: form.gender || undefined,
+      dob: form.dob || undefined,
       sport: sportName || undefined,
       batchId: form.batchId || undefined,
-      numberOfDemoSessions: form.numberOfDemoSessions ? parseInt(form.numberOfDemoSessions) : 0,
+      demoStartDate: form.demoStartDate || undefined,
+      demoEndDate: form.demoEndDate || undefined,
     };
   };
 
@@ -177,7 +193,7 @@ function DemoStudentModal({
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold">{isEdit ? 'Edit Demo Student' : 'Add Demo Student'}</h3>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
@@ -208,6 +224,46 @@ function DemoStudentModal({
             {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
           </div>
 
+          <div>
+            <input
+              type="email"
+              placeholder="Email (Optional)"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              className={ef('email')}
+            />
+            {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-2">Gender</label>
+            <div className="flex gap-5">
+              {['Male', 'Female', 'Other'].map((g) => (
+                <label key={g} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    name="demoGender"
+                    value={g}
+                    checked={form.gender === g}
+                    onChange={() => setForm({ ...form, gender: g })}
+                    className="accent-blue-600"
+                  />
+                  {g}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Date of Birth</label>
+            <input
+              type="date"
+              value={form.dob}
+              onChange={(e) => setForm({ ...form, dob: e.target.value })}
+              className={f}
+            />
+          </div>
+
           <select
             value={form.sportId}
             onChange={(e) => setForm({ ...form, sportId: e.target.value, batchId: '' })}
@@ -222,16 +278,26 @@ function DemoStudentModal({
             {allBatches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
 
-          <div>
-            <input
-              type="number"
-              min="0"
-              placeholder="Number of Demo Sessions"
-              value={form.numberOfDemoSessions}
-              onChange={(e) => setForm({ ...form, numberOfDemoSessions: e.target.value })}
-              className={ef('numberOfDemoSessions')}
-            />
-            {errors.numberOfDemoSessions && <p className="text-red-500 text-xs mt-1">{errors.numberOfDemoSessions}</p>}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Demo Start Date</label>
+              <input
+                type="date"
+                value={form.demoStartDate}
+                onChange={(e) => setForm({ ...form, demoStartDate: e.target.value })}
+                className={f}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Demo End Date</label>
+              <input
+                type="date"
+                value={form.demoEndDate}
+                onChange={(e) => setForm({ ...form, demoEndDate: e.target.value })}
+                className={ef('demoEndDate')}
+              />
+              {errors.demoEndDate && <p className="text-red-500 text-xs mt-1">{errors.demoEndDate}</p>}
+            </div>
           </div>
         </div>
 
@@ -951,7 +1017,7 @@ export default function StudentsPage() {
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Phone</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Sport</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Batch</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Demo Sessions</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Demo Period</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Converted to Regular</th>
                     <th className="px-4 py-3" />
@@ -971,7 +1037,11 @@ export default function StudentsPage() {
                       <td className="px-4 py-3 text-gray-600">{d.phone || '—'}</td>
                       <td className="px-4 py-3 text-gray-600">{d.sport || d.batch?.sport?.name || '—'}</td>
                       <td className="px-4 py-3 text-gray-600">{d.batch?.name || '—'}</td>
-                      <td className="px-4 py-3 text-gray-600">{d.numberOfDemoSessions}</td>
+                      <td className="px-4 py-3 text-gray-600 text-xs">
+                        {d.demoStartDate || d.demoEndDate
+                          ? `${d.demoStartDate ? new Date(d.demoStartDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'} → ${d.demoEndDate ? new Date(d.demoEndDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}`
+                          : '—'}
+                      </td>
                       <td className="px-4 py-3">
                         {!d.convertedToRegular ? (
                           <button

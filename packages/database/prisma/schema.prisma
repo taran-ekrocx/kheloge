@@ -434,6 +434,11 @@ model DemoStudent {
   sport                String?
   batchId              String?
   numberOfDemoSessions Int               @default(0)
+  gender               String?
+  dob                  DateTime?
+  email                String?
+  demoStartDate        DateTime?
+  demoEndDate          DateTime?
   convertedToRegular   Boolean           @default(false)
   convertedStudentId   String?
   convertedAt          DateTime?
