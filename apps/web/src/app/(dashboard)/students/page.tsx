@@ -364,12 +364,23 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
 
   const validateStep = (step: number): boolean => {
     const next: Record<string, string> = {};
-    if (step === 1 && !form.name.trim()) next.name = 'Full name is required';
+    if (step === 1) {
+      if (!form.name.trim()) next.name = 'Full name is required';
+      if (!form.dob) next.dob = 'Date of birth is required';
+      if (!form.gender) next.gender = 'Gender is required';
+    }
     if (step === 2) {
+      if (!form.phone.trim()) next.phone = 'Student mobile number is required';
+      else if (!isValidPhone(form.phone)) next.phone = 'Enter a valid 10-digit mobile number';
+      if (!form.guardianName.trim()) next.guardianName = 'Parent/Guardian name is required';
       if (!form.guardianPhone.trim()) next.guardianPhone = 'Parent mobile is required';
       else if (!isValidPhone(form.guardianPhone)) next.guardianPhone = 'Enter a valid 10-digit mobile number';
-      if (form.phone && !isValidPhone(form.phone)) next.phone = 'Enter a valid 10-digit mobile number';
-      if (form.guardianEmail && !isValidEmail(form.guardianEmail)) next.guardianEmail = 'Enter a valid email address';
+      if (!form.guardianEmail.trim()) next.guardianEmail = 'Parent email is required';
+      else if (!isValidEmail(form.guardianEmail)) next.guardianEmail = 'Enter a valid email address';
+    }
+    if (step === 3) {
+      if (!form.sportId) next.sportId = 'Sport is required';
+      if (!form.batchId) next.batchId = 'Batch is required';
     }
     if (step === 4) {
       if (form.hasMedicalCondition === 'yes' && !form.medicalConditionDetails.trim()) next.medicalConditionDetails = 'Please describe the medical condition';
@@ -450,14 +461,15 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
                     {errors.name && <p className={err}>{errors.name}</p>}
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Date of Birth</label>
-                    <input type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} className={f} />
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Date of Birth *</label>
+                    <input type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} className={`${f} ${errors.dob ? 'border-red-400' : ''}`} />
+                    {errors.dob && <p className={err}>{errors.dob}</p>}
                   </div>
                   {age !== null && (
                     <p className="text-sm text-gray-500 bg-gray-50 rounded-lg px-3 py-2">Age: <span className="font-medium text-gray-700">{age} years</span></p>
                   )}
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-2">Gender</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-2">Gender *</label>
                     <div className="flex gap-5">
                       {['Male', 'Female', 'Other'].map((g) => (
                         <label key={g} className="flex items-center gap-1.5 text-sm cursor-pointer">
@@ -466,6 +478,7 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
                         </label>
                       ))}
                     </div>
+                    {errors.gender && <p className={err}>{errors.gender}</p>}
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">Blood Group</label>
@@ -482,19 +495,22 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
                 <>
                   <input placeholder="Address" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className={f} />
                   <div>
-                    <input placeholder="Student Mobile (Optional)" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className={`${f} ${errors.phone ? 'border-red-400' : ''}`} />
+                    <input placeholder="Student Mobile Number *" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className={`${f} ${errors.phone ? 'border-red-400' : ''}`} />
                     {errors.phone && <p className={err}>{errors.phone}</p>}
                   </div>
                   <div className="border-t pt-3">
                     <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Parent / Guardian</p>
                     <div className="space-y-3">
-                      <input placeholder="Parent/Guardian Name" value={form.guardianName} onChange={(e) => setForm({ ...form, guardianName: e.target.value })} className={f} />
+                      <div>
+                        <input placeholder="Parent/Guardian Name *" value={form.guardianName} onChange={(e) => setForm({ ...form, guardianName: e.target.value })} className={`${f} ${errors.guardianName ? 'border-red-400' : ''}`} />
+                        {errors.guardianName && <p className={err}>{errors.guardianName}</p>}
+                      </div>
                       <div>
                         <input placeholder="Parent Mobile *" value={form.guardianPhone} onChange={(e) => setForm({ ...form, guardianPhone: e.target.value })} className={`${f} ${errors.guardianPhone ? 'border-red-400' : ''}`} />
                         {errors.guardianPhone && <p className={err}>{errors.guardianPhone}</p>}
                       </div>
                       <div>
-                        <input type="email" placeholder="Parent Email ID" value={form.guardianEmail} onChange={(e) => setForm({ ...form, guardianEmail: e.target.value })} className={`${f} ${errors.guardianEmail ? 'border-red-400' : ''}`} />
+                        <input type="email" placeholder="Parent Email *" value={form.guardianEmail} onChange={(e) => setForm({ ...form, guardianEmail: e.target.value })} className={`${f} ${errors.guardianEmail ? 'border-red-400' : ''}`} />
                         {errors.guardianEmail && <p className={err}>{errors.guardianEmail}</p>}
                       </div>
                     </div>
@@ -507,11 +523,12 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
                 <>
                   {allSports.length > 0 && (
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Sport Applied For</label>
-                      <select value={form.sportId} onChange={(e) => setForm({ ...form, sportId: e.target.value, batchId: '' })} className={f}>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Sport Applied For *</label>
+                      <select value={form.sportId} onChange={(e) => setForm({ ...form, sportId: e.target.value, batchId: '' })} className={`${f} ${errors.sportId ? 'border-red-400' : ''}`}>
                         <option value="">Select Sport</option>
                         {allSports.map((sport) => <option key={sport.id} value={sport.id}>{sport.name}</option>)}
                       </select>
+                      {errors.sportId && <p className={err}>{errors.sportId}</p>}
                     </div>
                   )}
                   <div>
@@ -526,13 +543,14 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Batch</label>
-                    <select value={form.batchId} onChange={(e) => setForm({ ...form, batchId: e.target.value })} className={f}>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Batch *</label>
+                    <select value={form.batchId} onChange={(e) => setForm({ ...form, batchId: e.target.value })} className={`${f} ${errors.batchId ? 'border-red-400' : ''}`}>
                       <option value="">{form.sportId ? 'Select Batch' : 'Select Sport first'}</option>
                       {visibleBatches.map((batch) => (
                         <option key={batch.id} value={batch.id}>{batch.name}{!form.sportId && batch.sport?.name ? ` · ${batch.sport.name}` : ''}</option>
                       ))}
                     </select>
+                    {errors.batchId && <p className={err}>{errors.batchId}</p>}
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">Previous Experience (if any)</label>
