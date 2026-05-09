@@ -59,6 +59,13 @@ export class AttendanceGateway implements OnGatewayConnection, OnGatewayDisconne
   }
 
   /**
+   * Called by AttendanceService when a session is started so all coaches in the batch see it immediately.
+   */
+  emitSessionStart(batchId: string, sessionId: string) {
+    this.server.to(`batch:${batchId}`).emit('sessionStart', { batchId, sessionId });
+  }
+
+  /**
    * Called by AttendanceService when a session is ended so all coaches in the batch see the update.
    */
   emitSessionEnd(batchId: string) {

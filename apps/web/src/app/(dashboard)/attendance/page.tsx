@@ -123,7 +123,7 @@ function exportMonthlySummaryCSV(items: MonthlySummaryItem[], month: string, inc
 
 export default function AttendanceIndexPage() {
   const { venueId } = useVenue();
-  const { role } = useAuth();
+  const { role, userId } = useAuth();
   const queryClient = useQueryClient();
   const isCoach = role === 'COACH';
   const isSuperAdmin = role === 'SUPER_ADMIN';
@@ -131,6 +131,7 @@ export default function AttendanceIndexPage() {
   const router = useRouter();
   const today = dayjs().format('YYYY-MM-DD');
   const [startingSession, setStartingSession] = useState<string | null>(null);
+  const [batchActiveSessions, setBatchActiveSessions] = useState<Record<string, string>>({});
   const [tab, setTab] = useState<Tab>('daily');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [historyBatchId, setHistoryBatchId] = useState<string | null>(null);
@@ -299,7 +300,26 @@ export default function AttendanceIndexPage() {
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
   const otherBatches = batches.filter(b => !b.days?.includes(TODAY_DOW));
 
-  // Real-time session-end sync: when any coach ends a batch session, invalidate our cache immediately
+  // Fetch current active session state for today's batches on mount so the UI reflects any
+  // session already started by another coach before this coach logged in or navigated here.
+  const todayBatchIdListKey = todayBatches.map(b => b.id).join(',');
+  useEffect(() => {
+    if (!isCoach || todayBatches.length === 0) return;
+    Promise.all(
+      todayBatches.map(b =>
+        api.get(`/attendance/sessions/active?batchId=${b.id}`)
+          .then((r: any) => r.data ? { batchId: b.id, sessionId: r.data.id } : null)
+          .catch(() => null)
+      )
+    ).then(results => {
+      const map: Record<string, string> = {};
+      results.forEach(r => { if (r) map[r.batchId] = r.sessionId; });
+      setBatchActiveSessions(map);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCoach, todayBatchIdListKey]);
+
+  // Real-time session sync: when any coach starts or ends a batch session, update immediately
   const batchIdListKey = batches.map(b => b.id).join(',');
   const socketRef = useRef<Socket | null>(null);
   useEffect(() => {
@@ -308,9 +328,17 @@ export default function AttendanceIndexPage() {
     const socket = io(`${API_URL}/attendance`, { auth: { token } });
     socketRef.current = socket;
     batches.forEach(b => socket.emit('joinBatch', b.id));
-    socket.on('sessionEnd', () => {
+    socket.on('sessionStart', ({ batchId, sessionId }: { batchId: string; sessionId: string }) => {
+      setBatchActiveSessions(prev => ({ ...prev, [batchId]: sessionId }));
+    });
+    socket.on('sessionEnd', ({ batchId }: { batchId: string }) => {
       queryClient.invalidateQueries({ queryKey: ['coach-today-sessions'] });
       queryClient.invalidateQueries({ queryKey: ['my-active-session'] });
+      setBatchActiveSessions(prev => {
+        const next = { ...prev };
+        delete next[batchId];
+        return next;
+      });
     });
     return () => {
       batches.forEach(b => socket.emit('leaveBatch', b.id));
@@ -435,20 +463,25 @@ export default function AttendanceIndexPage() {
                     Today&apos;s Batches
                   </h3>
                   <div className="space-y-2">
-                    {displayedTodayBatches.map((batch) => (
-                      <BatchRow
-                        key={batch.id} batch={batch} highlight
-                        isCoach={isCoach}
-                        canNavigate={!isSuperAdmin}
-                        startingSession={startingSession}
-                        activeSessionBatchId={myActiveSession?.batchId ?? null}
-                        activeSessionId={myActiveSession?.id ?? null}
-                        withinTime={isWithinBatchTime(batch.startTime, batch.endTime)}
-                        sessionEndedToday={endedTodayBatchIds.has(batch.id)}
-                        noStudents={(batch._count?.enrollments ?? 0) === 0}
-                        onStartSession={(id) => { setStartingSession(id); startSessionMutation.mutate(id); }}
-                      />
-                    ))}
+                    {displayedTodayBatches.map((batch) => {
+                      const activeSessionForBatch = batchActiveSessions[batch.id] ?? null;
+                      const isMySession = myActiveSession?.batchId === batch.id;
+                      return (
+                        <BatchRow
+                          key={batch.id} batch={batch} highlight
+                          isCoach={isCoach}
+                          canNavigate={!isSuperAdmin}
+                          startingSession={startingSession}
+                          activeSessionBatchId={myActiveSession?.batchId ?? null}
+                          activeSessionId={myActiveSession?.id ?? null}
+                          otherActiveSession={!isMySession && activeSessionForBatch ? activeSessionForBatch : null}
+                          withinTime={isWithinBatchTime(batch.startTime, batch.endTime)}
+                          sessionEndedToday={endedTodayBatchIds.has(batch.id)}
+                          noStudents={(batch._count?.enrollments ?? 0) === 0}
+                          onStartSession={(id) => { setStartingSession(id); startSessionMutation.mutate(id); }}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1053,7 +1086,7 @@ function SessionList({
 
 function BatchRow({
   batch, highlight, isCoach, canNavigate = true, startingSession, activeSessionBatchId, activeSessionId, onStartSession,
-  withinTime = true, sessionEndedToday = false, noStudents = false,
+  withinTime = true, sessionEndedToday = false, noStudents = false, otherActiveSession = null,
 }: {
   batch: Batch;
   highlight?: boolean;
@@ -1066,6 +1099,7 @@ function BatchRow({
   withinTime?: boolean;
   sessionEndedToday?: boolean;
   noStudents?: boolean;
+  otherActiveSession?: string | null;
 }) {
   const hasOtherActiveSession = !!activeSessionBatchId && activeSessionBatchId !== batch.id;
   const thisSessionActive = activeSessionBatchId === batch.id;
@@ -1124,6 +1158,11 @@ function BatchRow({
                 <Play size={12} />
                 Resume
               </Link>
+            ) : otherActiveSession ? (
+              <span className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                Session Active
+              </span>
             ) : (
               <button
                 onClick={(e) => { e.preventDefault(); onStartSession?.(batch.id); }}

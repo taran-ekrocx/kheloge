@@ -214,6 +214,7 @@ export class AttendanceService {
       },
     });
 
+    this.gateway.emitSessionStart(session.batchId, session.id);
     return session;
   }
 
