@@ -28,7 +28,7 @@ function extractApiError(err: unknown, fallback: string): string {
   return fallback;
 }
 
-type Tab = 'overview' | 'students';
+type Tab = 'overview' | 'regular-students' | 'demo-students';
 
 interface Coach {
   id: string;
@@ -275,11 +275,13 @@ function ManageStudentsModal({
   batch,
   currentEnrollments,
   isCoach,
+  mode,
   onClose,
 }: {
   batch: BatchDetail;
   currentEnrollments: Enrollment[];
   isCoach: boolean;
+  mode: 'regular' | 'demo';
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -294,6 +296,7 @@ function ManageStudentsModal({
       ? () => api.get('/coaches/me/org-students?status=ACTIVE').then(r => r.data)
       : () => api.get('/students?status=ACTIVE').then(r => r.data),
     staleTime: 5 * 60 * 1000,
+    enabled: mode === 'regular',
   });
 
   const { data: allDemoStudents = [], isLoading: loadingDemoStudents } = useQuery<DemoStudentOption[]>({
@@ -302,9 +305,9 @@ function ManageStudentsModal({
       ? () => api.get('/coaches/me/demo-students').then(r => r.data)
       : () => api.get('/demo-students').then(r => r.data),
     staleTime: 5 * 60 * 1000,
+    enabled: mode === 'demo',
   });
 
-  // Pre-populate demo students already assigned to this batch
   useEffect(() => {
     if (allDemoStudents.length > 0) {
       setDemoStudentIds(allDemoStudents.filter(d => d.batchId === batch.id).map(d => d.id));
@@ -326,45 +329,51 @@ function ManageStudentsModal({
     },
   });
 
+  const isLoading = mode === 'regular' ? loadingStudents : loadingDemoStudents;
+
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
         <h3 className="text-lg font-bold mb-1">Manage Students</h3>
         <p className="text-sm text-gray-500 mb-4">{batch.name}</p>
 
-        <div className="mb-4">
-          <p className="text-xs font-medium text-gray-600 mb-2">
-            Assign Students
-            <span className="ml-2 text-gray-400 font-normal">
-              {studentIds.length} selected / {batch.capacity} capacity
-            </span>
-          </p>
-          {loadingStudents ? (
-            <p className="text-xs text-gray-400 py-4 text-center">Loading students...</p>
-          ) : (
-            <StudentMultiSelect
-              students={students}
-              selected={studentIds}
-              onChange={setStudentIds}
-            />
-          )}
-        </div>
+        {mode === 'regular' && (
+          <div className="mb-4">
+            <p className="text-xs font-medium text-gray-600 mb-2">
+              Assign Students
+              <span className="ml-2 text-gray-400 font-normal">
+                {studentIds.length} selected / {batch.capacity} capacity
+              </span>
+            </p>
+            {loadingStudents ? (
+              <p className="text-xs text-gray-400 py-4 text-center">Loading students...</p>
+            ) : (
+              <StudentMultiSelect
+                students={students}
+                selected={studentIds}
+                onChange={setStudentIds}
+              />
+            )}
+          </div>
+        )}
 
-        <div className="mb-2">
-          <p className="text-xs font-medium text-gray-600 mb-1">
-            Assign Demo Students
-            <span className="ml-2 text-gray-400 font-normal text-[11px]">Does not count toward capacity</span>
-          </p>
-          {loadingDemoStudents ? (
-            <p className="text-xs text-gray-400 py-4 text-center">Loading demo students...</p>
-          ) : (
-            <DemoStudentMultiSelect
-              demoStudents={unconvertedDemoStudents}
-              selected={demoStudentIds}
-              onChange={setDemoStudentIds}
-            />
-          )}
-        </div>
+        {mode === 'demo' && (
+          <div className="mb-2">
+            <p className="text-xs font-medium text-gray-600 mb-1">
+              Assign Demo Students
+              <span className="ml-2 text-gray-400 font-normal text-[11px]">Does not count toward capacity</span>
+            </p>
+            {loadingDemoStudents ? (
+              <p className="text-xs text-gray-400 py-4 text-center">Loading demo students...</p>
+            ) : (
+              <DemoStudentMultiSelect
+                demoStudents={unconvertedDemoStudents}
+                selected={demoStudentIds}
+                onChange={setDemoStudentIds}
+              />
+            )}
+          </div>
+        )}
 
         {mutation.isError && (
           <p className="text-red-500 text-xs mb-3">
@@ -383,7 +392,7 @@ function ManageStudentsModal({
           <button
             type="button"
             onClick={() => mutation.mutate()}
-            disabled={mutation.isPending || loadingStudents || loadingDemoStudents}
+            disabled={mutation.isPending || isLoading}
             className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
           >
             {mutation.isPending ? 'Saving...' : 'Save Changes'}
@@ -402,6 +411,7 @@ export default function BatchDetailPage() {
   const canViewPayments = isCoach || isSuperAdmin;
   const [tab, setTab] = useState<Tab>('overview');
   const [showManageStudents, setShowManageStudents] = useState(false);
+  const [manageStudentsMode, setManageStudentsMode] = useState<'regular' | 'demo'>('regular');
   const [period, setPeriod] = useState(dayjs().format('YYYY-MM'));
 
   const { data: batch, isLoading } = useQuery<BatchDetail>({
@@ -432,7 +442,8 @@ export default function BatchDetailPage() {
 
   const tabs = [
     { key: 'overview' as Tab, label: 'Overview', icon: Trophy },
-    { key: 'students' as Tab, label: `Students (${activeEnrollments.length + demoBatchStudents.length})`, icon: Users },
+    { key: 'regular-students' as Tab, label: `Regular Students (${activeEnrollments.length})`, icon: Users },
+    { key: 'demo-students' as Tab, label: `Demo Students (${demoBatchStudents.length})`, icon: Users },
   ];
 
   return (
@@ -573,19 +584,13 @@ export default function BatchDetailPage() {
           </div>
         )}
 
-        {/* Students tab */}
-        {tab === 'students' && (
+        {/* Regular Students tab */}
+        {tab === 'regular-students' && (
           <div>
             <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-sm font-medium text-gray-700">
-                  Regular Students: <span className="text-blue-600">{activeEnrollments.length}</span>
-                </span>
-                <span className="text-gray-300">|</span>
-                <span className="text-sm font-medium text-gray-700">
-                  Demo Students: <span className="text-orange-500">{demoBatchStudents.length}</span>
-                </span>
-              </div>
+              <span className="text-sm font-medium text-gray-700">
+                Total: <span className="text-blue-600">{activeEnrollments.length}</span>
+              </span>
               <div className="flex items-center gap-2">
                 {canViewPayments && (
                   <div className="flex items-center gap-1.5">
@@ -599,7 +604,7 @@ export default function BatchDetailPage() {
                   </div>
                 )}
                 <button
-                  onClick={() => setShowManageStudents(true)}
+                  onClick={() => { setManageStudentsMode('regular'); setShowManageStudents(true); }}
                   className="flex items-center gap-1.5 bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
                 >
                   <UserPlus size={14} />
@@ -608,12 +613,10 @@ export default function BatchDetailPage() {
               </div>
             </div>
 
-            {/* Regular Students */}
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Regular Students</p>
             {activeEnrollments.length === 0 ? (
-              <p className="text-gray-400 text-sm mb-4">No students enrolled in this batch.</p>
+              <p className="text-gray-400 text-sm">No students enrolled in this batch.</p>
             ) : (
-              <div className="space-y-2 mb-5">
+              <div className="space-y-2">
                 {activeEnrollments.map((enrollment) => {
                   const student = enrollment.student;
                   const paymentStatus = paymentStatusMap.get(student.id);
@@ -666,9 +669,25 @@ export default function BatchDetailPage() {
                 })}
               </div>
             )}
+          </div>
+        )}
 
-            {/* Demo Students */}
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Demo Students</p>
+        {/* Demo Students tab */}
+        {tab === 'demo-students' && (
+          <div>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <span className="text-sm font-medium text-gray-700">
+                Total: <span className="text-orange-500">{demoBatchStudents.length}</span>
+              </span>
+              <button
+                onClick={() => { setManageStudentsMode('demo'); setShowManageStudents(true); }}
+                className="flex items-center gap-1.5 bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+              >
+                <UserPlus size={14} />
+                Manage Students
+              </button>
+            </div>
+
             {demoBatchStudents.length === 0 ? (
               <p className="text-gray-400 text-sm">No demo students assigned to this batch.</p>
             ) : (
@@ -709,6 +728,7 @@ export default function BatchDetailPage() {
           batch={batch}
           currentEnrollments={batch.enrollments ?? []}
           isCoach={isCoach}
+          mode={manageStudentsMode}
           onClose={() => setShowManageStudents(false)}
         />
       )}
