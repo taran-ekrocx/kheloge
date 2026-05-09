@@ -361,12 +361,15 @@ export default function StudentDetailPage() {
                 <div><p className="text-xs text-gray-400">State</p><p className="font-medium">{student.state || '—'}</p></div>
                 <div><p className="text-xs text-gray-400">District</p><p className="font-medium">{student.district || '—'}</p></div>
                 <div><p className="text-xs text-gray-400">Region</p><p className="font-medium">{student.region || '—'}</p></div>
-                <div><p className="text-xs text-gray-400">Training Level</p><p className="font-medium">{student.trainingLevel || '—'}</p></div>
-                <div><p className="text-xs text-gray-400">Sports Interested In</p><p className="font-medium">{student.sportsInterestedIn || '—'}</p></div>
-                <div><p className="text-xs text-gray-400">Sport Applied For</p><p className="font-medium">{student.sportInterest || '—'}</p></div>
                 <div className="col-span-2">
                   <p className="text-xs text-gray-400">Medical Notes</p>
                   <p className="font-medium">{student.medicalNotes || '—'}</p>
+                </div>
+                <div><p className="text-xs text-gray-400">Training Level</p><p className="font-medium">{student.trainingLevel || '—'}</p></div>
+                <div><p className="text-xs text-gray-400">Sport Applied For</p><p className="font-medium">{student.sportInterest || '—'}</p></div>
+                <div className="col-span-2">
+                  <p className="text-xs text-gray-400">Sports Interested In</p>
+                  <p className="font-medium">{student.sportsInterestedIn || '—'}</p>
                 </div>
               </div>
             ) : (
