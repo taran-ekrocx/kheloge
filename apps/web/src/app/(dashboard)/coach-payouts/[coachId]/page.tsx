@@ -57,6 +57,7 @@ export default function CoachPayoutDetailPage() {
   const isSuperAdmin = role === 'SUPER_ADMIN';
 
   const [sportFilter, setSportFilter] = useState('');
+  const [venueFilter, setVenueFilter] = useState('');
   const [batchFilter, setBatchFilter] = useState('');
 
   const { data, isLoading } = useQuery<CoachPayoutsData>({
@@ -80,10 +81,14 @@ export default function CoachPayoutDetailPage() {
   if (!coach) return <div className="p-8 text-gray-400 text-sm">Coach payout data not found.</div>;
 
   const sports = Array.from(new Set(coach.batches.map((b) => b.sport?.name).filter(Boolean))) as string[];
+  const venues = Array.from(
+    new Map(coach.batches.filter((b) => b.venue?.id).map((b) => [b.venue.id, b.venue.name])).entries()
+  ).map(([id, name]) => ({ id, name }));
   const allBatches = coach.batches.map((b) => ({ id: b.id, name: b.name }));
 
   const filtered = coach.batches.filter((b) => {
     if (sportFilter && b.sport?.name !== sportFilter) return false;
+    if (venueFilter && b.venue?.id !== venueFilter) return false;
     if (batchFilter && b.id !== batchFilter) return false;
     return true;
   });
@@ -115,6 +120,19 @@ export default function CoachPayoutDetailPage() {
             >
               <option value="">All Sports</option>
               {sports.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </>
+        )}
+        {venues.length > 1 && (
+          <>
+            <label className="text-sm text-gray-500">Venue</label>
+            <select
+              value={venueFilter}
+              onChange={(e) => setVenueFilter(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Venues</option>
+              {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
             </select>
           </>
         )}
