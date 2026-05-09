@@ -1163,8 +1163,9 @@ export default function StudentsPage() {
                         ) : (isCoach || isSuperAdmin) ? (
                           <button
                             onClick={() => demoConvertMutation.mutate({ id: d.id, convertedToRegular: true })}
-                            disabled={demoConvertMutation.isPending}
-                            className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-blue-100 hover:text-blue-700 transition-colors disabled:opacity-50"
+                            disabled={demoConvertMutation.isPending || (d.status ?? 'ACTIVE') === 'INACTIVE'}
+                            title={(d.status ?? 'ACTIVE') === 'INACTIVE' ? 'Activate the student to mark as converted' : undefined}
+                            className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-blue-100 hover:text-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-gray-100 disabled:hover:text-gray-600"
                           >
                             No — Mark as Converted
                           </button>
