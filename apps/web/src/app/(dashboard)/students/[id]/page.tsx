@@ -487,7 +487,7 @@ export default function StudentDetailPage() {
                     ))}
                   </select>
                 </div>
-                <div className="col-span-2">
+                <div>
                   <label className="text-xs text-gray-500 mb-1 block">Sports Interested In</label>
                   <div className="relative">
                     <div
@@ -655,7 +655,6 @@ export default function StudentDetailPage() {
                     .map((e: { id: string; batchId: string; batch: { id: string; name: string; sport: { name: string } } }) => (
                       <li key={e.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
                         <span className="font-medium text-sm">{e.batch?.name}</span>
-                        <span className="text-xs text-gray-400">{e.batch?.sport?.name}</span>
                         {editingProfile && (
                           <button
                             onClick={() => unenrollMutation.mutate(e.batch?.id ?? e.batchId)}
