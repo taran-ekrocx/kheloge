@@ -203,17 +203,6 @@ export class AttendanceService {
       },
     });
 
-    // Auto-record coach attendance as PRESENT
-    await this.prisma.coachAttendance.create({
-      data: {
-        sessionId: session.id,
-        coachId,
-        batchId,
-        date: today,
-        status: CoachAttendanceStatus.PRESENT,
-      },
-    });
-
     this.gateway.emitSessionStart(session.batchId, session.id);
     return session;
   }
@@ -234,7 +223,7 @@ export class AttendanceService {
           },
         },
         coach: { select: { id: true, name: true } },
-        coachAttendance: true,
+        coachAttendances: true,
       },
     });
     if (!session) throw new NotFoundException('Session not found');
@@ -300,7 +289,7 @@ export class AttendanceService {
       include: {
         coach: { select: { id: true, name: true } },
         batch: { select: { id: true, name: true, sport: { select: { name: true } } } },
-        coachAttendance: { select: { status: true } },
+        coachAttendances: { select: { coachId: true, status: true } },
         _count: { select: { attendances: true } },
       },
       orderBy: { startedAt: 'desc' },
@@ -332,7 +321,7 @@ export class AttendanceService {
       where,
       include: {
         coach: { select: { id: true, name: true } },
-        coachAttendance: { select: { status: true } },
+        coachAttendances: { select: { coachId: true, status: true } },
         _count: { select: { attendances: true } },
       },
       orderBy: { startedAt: 'desc' },
@@ -567,5 +556,62 @@ export class AttendanceService {
         percentage: s.totalSessions > 0 ? Math.round((s.present / s.totalSessions) * 100) : 0,
       }))
       .sort((a, b) => a.studentName.localeCompare(b.studentName));
+  }
+
+  async getBatchCoachesAttendance(batchId: string, sessionId?: string) {
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
+
+    const batchCoaches = await this.prisma.batchCoach.findMany({
+      where: { batchId },
+      include: { coach: { select: { id: true, name: true, photoUrl: true, phone: true } } },
+      orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+    });
+
+    const attendanceRecords = await this.prisma.coachAttendance.findMany({
+      where: { batchId, date: { gte: today, lt: tomorrow } },
+    });
+
+    const attendanceByCoach = new Map(attendanceRecords.map((r) => [r.coachId, r]));
+
+    return batchCoaches.map(({ coach, isPrimary }) => ({
+      ...coach,
+      isPrimary,
+      attendance: attendanceByCoach.get(coach.id) ?? null,
+    }));
+  }
+
+  async markCoachAttendance(
+    batchId: string,
+    records: Array<{ coachId: string; status: CoachAttendanceStatus; notes?: string }>,
+    markedById: string,
+    sessionId?: string,
+  ) {
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    const ops = records.map((r) =>
+      this.prisma.coachAttendance.upsert({
+        where: { batchId_coachId_date: { batchId, coachId: r.coachId, date: today } },
+        create: {
+          batchId,
+          coachId: r.coachId,
+          date: today,
+          status: r.status,
+          notes: r.notes,
+          sessionId: sessionId ?? null,
+          markedAt: new Date(),
+        },
+        update: {
+          status: r.status,
+          notes: r.notes,
+          sessionId: sessionId ?? undefined,
+          markedAt: new Date(),
+        },
+      }),
+    );
+
+    return this.prisma.$transaction(ops);
   }
 }

@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Patch, Param, Body, Query, UseGuards, Request, ForbiddenException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
-import { UserRole } from '@kheloge/database';
+import { UserRole, CoachAttendanceStatus } from '@kheloge/database';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AttendanceService, MarkAttendanceDto, QrCheckinDto, StartSessionDto } from './attendance.service';
@@ -16,6 +16,39 @@ export class AttendanceController {
   @Get('batches/:batchId')
   getForBatch(@Param('batchId') batchId: string, @Query('date') date: string) {
     return this.attendance.getForBatch(batchId, date || new Date().toISOString().split('T')[0]);
+  }
+
+  @Get('batches/:batchId/coaches')
+  @Roles(UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER, UserRole.COACH)
+  async getBatchCoachesAttendance(
+    @Param('batchId') batchId: string,
+    @Query('sessionId') sessionId?: string,
+    @Request() req?,
+  ) {
+    if (req.user.role === UserRole.COACH) {
+      const hasAccess = await this.attendance.verifyCoachBatch(req.user.id, batchId);
+      if (!hasAccess) throw new ForbiddenException('You are not assigned to this batch');
+    }
+    return this.attendance.getBatchCoachesAttendance(batchId, sessionId);
+  }
+
+  @Post('batches/:batchId/coaches/mark')
+  @Roles(UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER, UserRole.COACH)
+  async markCoachAttendance(
+    @Param('batchId') batchId: string,
+    @Body() dto: { records: Array<{ coachId: string; status: string; notes?: string }>; sessionId?: string },
+    @Request() req,
+  ) {
+    if (req.user.role === UserRole.COACH) {
+      const hasAccess = await this.attendance.verifyCoachBatch(req.user.id, batchId);
+      if (!hasAccess) throw new ForbiddenException('You are not assigned to this batch');
+    }
+    const records = dto.records.map((r) => ({
+      coachId: r.coachId,
+      status: r.status as any,
+      notes: r.notes,
+    }));
+    return this.attendance.markCoachAttendance(batchId, records, req.user.id, dto.sessionId);
   }
 
   @Get('batches/:batchId/sessions')

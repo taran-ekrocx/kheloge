@@ -495,14 +495,14 @@ model AttendanceSession {
   batch           Batch              @relation(fields: [batchId], references: [id], onDelete: Cascade)
   coach           User               @relation("CoachSessions", fields: [coachId], references: [id])
   attendances     Attendance[]
-  coachAttendance CoachAttendance?
+  coachAttendances CoachAttendance[]
 
   @@map("attendance_sessions")
 }
 
 model CoachAttendance {
   id        String                @id @default(cuid())
-  sessionId String?               @unique
+  sessionId String?
   coachId   String
   batchId   String
   date      DateTime              @db.Date
@@ -516,6 +516,7 @@ model CoachAttendance {
   coach     User               @relation("CoachAttendances", fields: [coachId], references: [id])
   batch     Batch              @relation(fields: [batchId], references: [id], onDelete: Cascade)
 
+  @@unique([batchId, coachId, date])
   @@map("coach_attendances")
 }
 

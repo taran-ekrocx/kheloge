@@ -61,7 +61,7 @@ interface SessionHistoryItem {
   startedAt: string;
   endedAt: string | null;
   coach: { id: string; name: string };
-  coachAttendance: { status: string } | null;
+  coachAttendances: { coachId: string; status: string }[];
   attendanceStats: { total: number; present: number; absent: number };
 }
 
