@@ -153,6 +153,21 @@ export class AttendanceController {
     return this.attendance.getMonthlySummary(y, m, batchId, venueId, coachId, req.user.id, req.user.role);
   }
 
+  @Get('monthly-coach-summary')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER, UserRole.COACH)
+  getMonthlyCoachSummary(
+    @Request() req,
+    @Query('year') year: string,
+    @Query('month') month: string,
+    @Query('batchId') batchId?: string,
+    @Query('venueId') venueId?: string,
+    @Query('coachId') coachId?: string,
+  ) {
+    const y = parseInt(year) || new Date().getFullYear();
+    const m = parseInt(month) || new Date().getMonth() + 1;
+    return this.attendance.getMonthlyCoachSummary(y, m, batchId, venueId, coachId, req.user.id, req.user.role);
+  }
+
   // Must come before :sessionId route to avoid route conflict
   @Get('coach-attendance')
   @Roles(UserRole.SUPER_ADMIN, UserRole.CITY_MANAGER, UserRole.VENUE_MANAGER, UserRole.COACH)

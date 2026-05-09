@@ -567,6 +567,82 @@ export class AttendanceService {
       .sort((a, b) => a.studentName.localeCompare(b.studentName));
   }
 
+  async getMonthlyCoachSummary(
+    year: number,
+    month: number,
+    batchId: string | undefined,
+    venueId: string | undefined,
+    coachId: string | undefined,
+    requesterId: string,
+    requesterRole: UserRole,
+  ) {
+    const startDate = new Date(Date.UTC(year, month - 1, 1));
+    const endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+
+    const where: any = { date: { gte: startDate, lte: endDate } };
+
+    if (requesterRole === UserRole.COACH) {
+      where.coachId = requesterId;
+    } else if (coachId) {
+      where.coachId = coachId;
+    }
+
+    if (batchId) {
+      where.batchId = batchId;
+    } else if (venueId) {
+      where.batch = { venueId };
+    }
+
+    const records = await this.prisma.coachAttendance.findMany({
+      where,
+      include: {
+        coach: { select: { id: true, name: true } },
+        batch: { select: { id: true, name: true, sport: { select: { name: true } } } },
+      },
+    });
+
+    const summaryMap = new Map<
+      string,
+      {
+        coachId: string;
+        coachName: string;
+        batchId: string;
+        batchName: string;
+        sportName: string;
+        totalSessions: number;
+        present: number;
+        absent: number;
+      }
+    >();
+
+    records.forEach((r) => {
+      const key = `${r.coachId}:${r.batchId}`;
+      if (!summaryMap.has(key)) {
+        summaryMap.set(key, {
+          coachId: r.coachId,
+          coachName: r.coach.name,
+          batchId: r.batchId,
+          batchName: r.batch.name,
+          sportName: r.batch.sport?.name ?? '',
+          totalSessions: 0,
+          present: 0,
+          absent: 0,
+        });
+      }
+      const entry = summaryMap.get(key)!;
+      entry.totalSessions++;
+      if (r.status === CoachAttendanceStatus.PRESENT) entry.present++;
+      else entry.absent++;
+    });
+
+    return Array.from(summaryMap.values())
+      .map((s) => ({
+        ...s,
+        percentage: s.totalSessions > 0 ? Math.round((s.present / s.totalSessions) * 100) : 0,
+      }))
+      .sort((a, b) => a.coachName.localeCompare(b.coachName) || a.batchName.localeCompare(b.batchName));
+  }
+
   async getBatchCoachesAttendance(batchId: string, sessionId?: string) {
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
