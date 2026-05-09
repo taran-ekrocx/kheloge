@@ -25,7 +25,7 @@ const PAYMENT_TYPES = [
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-type Tab = 'overview' | 'attendance';
+type Tab = 'overview' | 'batches' | 'attendance';
 
 interface EducationDetail {
   qualification: string; institute: string; year: string;
@@ -303,6 +303,7 @@ export default function CoachDetailPage() {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'overview', label: 'Overview' },
+    { key: 'batches', label: 'Batches' },
     { key: 'attendance', label: 'Attendance' },
   ];
 
@@ -450,21 +451,6 @@ export default function CoachDetailPage() {
                 <InfoRow label="Payment Value" value={(coach.profile as any)?.paymentValue != null ? `₹${Number((coach.profile as any).paymentValue).toLocaleString()}` : undefined} />
               </SectionCard>
 
-              {coach.batches && coach.batches.length > 0 && (
-                <SectionCard title="Assigned Batches">
-                  <div className="space-y-2">
-                    {coach.batches.map((b) => (
-                      <div key={b.batchId} className="flex items-center justify-between py-1 border-b border-gray-50 last:border-0">
-                        <div>
-                          <span className="text-sm font-medium text-gray-900">{b.name}</span>
-                          <span className="text-xs text-gray-400 ml-2">{b.sport.name}</span>
-                        </div>
-                        {b.isPrimary && <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">Primary</span>}
-                      </div>
-                    ))}
-                  </div>
-                </SectionCard>
-              )}
             </div>
           )}
 
@@ -619,6 +605,27 @@ export default function CoachDetailPage() {
                 )}
               </SectionCard>
             </div>
+          )}
+
+          {/* ── Batches Tab ──────────────────────────────────────────────── */}
+          {tab === 'batches' && (
+            <SectionCard title="Assigned Batches">
+              {coach.batches && coach.batches.length > 0 ? (
+                <div className="space-y-2">
+                  {coach.batches.map((b) => (
+                    <div key={b.batchId} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                      <div>
+                        <span className="text-sm font-medium text-gray-900">{b.name}</span>
+                        <span className="text-xs text-gray-400 ml-2">{b.sport.name}</span>
+                      </div>
+                      {b.isPrimary && <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">Primary</span>}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-sm text-gray-400">No batches assigned.</span>
+              )}
+            </SectionCard>
           )}
 
           {/* ── Attendance Tab ───────────────────────────────────────────── */}
