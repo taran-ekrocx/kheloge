@@ -966,12 +966,14 @@ export class CoachesService {
           return { ...base, sessionCount, perSessionAmount: paymentValue, revenue, totalPayment: revenue };
         }
 
-        // FIXED_PAYMENT (default)
-        return { ...base, monthlyPayout: paymentValue, revenue: paymentValue, totalPayment: paymentValue };
+        // FIXED_PAYMENT (default) — earnings are per month, not per batch
+        return { ...base, totalPayment: 0 };
       }),
     );
 
-    const totalEarnings = batches.reduce((sum, b) => sum + b.totalPayment, 0);
+    const totalEarnings = paymentType === 'FIXED_PAYMENT'
+      ? paymentValue
+      : batches.reduce((sum, b) => sum + b.totalPayment, 0);
     return {
       paymentType,
       paymentValue,

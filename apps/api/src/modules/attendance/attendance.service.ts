@@ -591,6 +591,13 @@ export class AttendanceService {
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
 
+    const endedSession = await this.prisma.attendanceSession.findFirst({
+      where: { batchId, date: today, endedAt: { not: null } },
+    });
+    if (endedSession) {
+      throw new ForbiddenException('Session has ended. Coach attendance can no longer be modified.');
+    }
+
     const ops = records.map((r) =>
       this.prisma.coachAttendance.upsert({
         where: { batchId_coachId_date: { batchId, coachId: r.coachId, date: today } },

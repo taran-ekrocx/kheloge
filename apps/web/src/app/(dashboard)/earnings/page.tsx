@@ -17,6 +17,7 @@ interface EarningsBatch {
   totalIncome: number;
   revenue: number;
   totalPayment: number;
+  sessionCount?: number;
 }
 
 interface EarningsData {
@@ -236,8 +237,15 @@ export default function EarningsPage() {
                   <th className="text-left px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wider">Batch Name</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wider">Venue</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wider">Sport</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wider">Total Income</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wider">Revenue</th>
+                  {paymentType === 'REVENUE_PERCENTAGE' && (
+                    <th className="text-right px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wider">Total Income</th>
+                  )}
+                  {paymentType === 'PER_SESSION_PAYOUT' && (
+                    <th className="text-right px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wider">No. of Sessions</th>
+                  )}
+                  {paymentType !== 'FIXED_PAYMENT' && (
+                    <th className="text-right px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wider">Revenue</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -247,20 +255,36 @@ export default function EarningsPage() {
                     <td className="px-4 py-3 font-medium text-gray-900">{batch.name}</td>
                     <td className="px-4 py-3 text-gray-600">{batch.venue?.name ?? '—'}</td>
                     <td className="px-4 py-3 text-gray-600">{batch.sport.name}</td>
-                    <td className="px-4 py-3 text-gray-700 text-right">₹{batch.totalIncome.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-green-700 font-semibold text-right">₹{batch.revenue.toLocaleString()}</td>
+                    {paymentType === 'REVENUE_PERCENTAGE' && (
+                      <td className="px-4 py-3 text-gray-700 text-right">₹{batch.totalIncome.toLocaleString()}</td>
+                    )}
+                    {paymentType === 'PER_SESSION_PAYOUT' && (
+                      <td className="px-4 py-3 text-gray-700 text-right">{batch.sessionCount ?? 0}</td>
+                    )}
+                    {paymentType !== 'FIXED_PAYMENT' && (
+                      <td className="px-4 py-3 text-green-700 font-semibold text-right">₹{batch.revenue.toLocaleString()}</td>
+                    )}
                   </tr>
                 ))}
               </tbody>
               <tfoot className="bg-gray-50 border-t border-gray-200">
                 <tr>
                   <td colSpan={4} className="px-4 py-3 font-semibold text-gray-700 text-sm">Total</td>
-                  <td className="px-4 py-3 font-semibold text-gray-700 text-right">
-                    ₹{batches.reduce((s, b) => s + b.totalIncome, 0).toLocaleString()}
-                  </td>
-                  <td className="px-4 py-3 font-bold text-green-700 text-right">
-                    ₹{(data?.totalEarnings ?? 0).toLocaleString()}
-                  </td>
+                  {paymentType === 'REVENUE_PERCENTAGE' && (
+                    <td className="px-4 py-3 font-semibold text-gray-700 text-right">
+                      ₹{batches.reduce((s, b) => s + b.totalIncome, 0).toLocaleString()}
+                    </td>
+                  )}
+                  {paymentType === 'PER_SESSION_PAYOUT' && (
+                    <td className="px-4 py-3 font-semibold text-gray-700 text-right">
+                      {batches.reduce((s, b) => s + (b.sessionCount ?? 0), 0)}
+                    </td>
+                  )}
+                  {paymentType !== 'FIXED_PAYMENT' && (
+                    <td className="px-4 py-3 font-bold text-green-700 text-right">
+                      ₹{(data?.totalEarnings ?? 0).toLocaleString()}
+                    </td>
+                  )}
                 </tr>
               </tfoot>
             </table>

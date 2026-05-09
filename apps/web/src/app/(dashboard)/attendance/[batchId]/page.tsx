@@ -114,7 +114,6 @@ export default function AttendancePage() {
       api.get(`/attendance/batches/${batchId}/coaches`, {
         params: session?.id ? { sessionId: session.id } : {},
       }).then(r => r.data),
-    enabled: activeTab === 'coaches',
   });
 
   useEffect(() => {
@@ -268,8 +267,14 @@ export default function AttendancePage() {
           {!sessionEnded && (
             <button
               onClick={() => endSessionMutation.mutate()}
-              disabled={endSessionMutation.isPending || !saved}
-              title={!saved ? 'Save student attendance before ending the session' : undefined}
+              disabled={endSessionMutation.isPending || !saved || (coachesData.length > 0 && !coachSaved)}
+              title={
+                !saved
+                  ? 'Save student attendance before ending the session'
+                  : coachesData.length > 0 && !coachSaved
+                  ? 'Save coach attendance before ending the session'
+                  : undefined
+              }
               className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 text-white rounded-lg text-xs font-medium hover:bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Square size={12} />
