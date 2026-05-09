@@ -522,7 +522,7 @@ export default function CoachDetailPage() {
                     {formErrors.name && <p className="text-red-500 text-xs mt-1">{formErrors.name}</p>}
                   </div>
                   <div>
-                    <input placeholder="Mobile Number *" value={form.phone} onChange={(e) => setField('phone', e.target.value)} className={`${inputCls}${formErrors.phone ? ' border-red-400' : ''}`} />
+                    <input placeholder="Mobile Number *" value={form.phone} onChange={(e) => setField('phone', e.target.value)} maxLength={10} className={`${inputCls}${formErrors.phone ? ' border-red-400' : ''}`} />
                     {formErrors.phone && <p className="text-red-500 text-xs mt-1">{formErrors.phone}</p>}
                   </div>
                   <div>

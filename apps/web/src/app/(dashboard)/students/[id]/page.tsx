@@ -377,6 +377,7 @@ export default function StudentDetailPage() {
                   <input
                     value={editForm.phone}
                     onChange={e => { setEditForm(f => ({ ...f, phone: e.target.value })); setEditErrors(p => ({ ...p, phone: '' })); }}
+                    maxLength={10}
                     className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${editErrors.phone ? 'border-red-400' : ''}`}
                   />
                   {editErrors.phone && <p className="text-red-500 text-xs mt-1">{editErrors.phone}</p>}
@@ -656,6 +657,7 @@ export default function StudentDetailPage() {
                               placeholder="Phone"
                               value={editGuardianForm.phone}
                               onChange={e => setEditGuardianForm(f => ({ ...f, phone: e.target.value }))}
+                              maxLength={10}
                               className="border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
                             <input
@@ -721,6 +723,7 @@ export default function StudentDetailPage() {
                           placeholder="Phone *"
                           value={guardianForm.phone}
                           onChange={e => { setGuardianForm(f => ({ ...f, phone: e.target.value })); setGuardianErrors(p => ({ ...p, phone: '' })); }}
+                          maxLength={10}
                           className={`w-full border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${guardianErrors.phone ? 'border-red-400' : ''}`}
                         />
                         {guardianErrors.phone && <p className="text-red-500 text-xs mt-0.5">{guardianErrors.phone}</p>}

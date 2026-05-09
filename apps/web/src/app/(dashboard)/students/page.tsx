@@ -239,6 +239,7 @@ function DemoStudentModal({
               placeholder="Phone Number *"
               value={form.phone}
               onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              maxLength={10}
               className={ef('phone')}
             />
             {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
@@ -570,7 +571,7 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
                 <>
                   <input placeholder="Address" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className={f} />
                   <div>
-                    <input placeholder="Student Mobile Number *" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className={`${f} ${errors.phone ? 'border-red-400' : ''}`} />
+                    <input placeholder="Student Mobile Number *" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} maxLength={10} className={`${f} ${errors.phone ? 'border-red-400' : ''}`} />
                     {errors.phone && <p className={err}>{errors.phone}</p>}
                   </div>
                   <div className="border-t pt-3">
@@ -581,7 +582,7 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
                         {errors.guardianName && <p className={err}>{errors.guardianName}</p>}
                       </div>
                       <div>
-                        <input placeholder="Parent Mobile *" value={form.guardianPhone} onChange={(e) => setForm({ ...form, guardianPhone: e.target.value })} className={`${f} ${errors.guardianPhone ? 'border-red-400' : ''}`} />
+                        <input placeholder="Parent Mobile *" value={form.guardianPhone} onChange={(e) => setForm({ ...form, guardianPhone: e.target.value })} maxLength={10} className={`${f} ${errors.guardianPhone ? 'border-red-400' : ''}`} />
                         {errors.guardianPhone && <p className={err}>{errors.guardianPhone}</p>}
                       </div>
                       <div>
@@ -668,7 +669,7 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
                     <div className="space-y-3">
                       <input placeholder="Emergency Contact Person" value={form.emergencyContactName} onChange={(e) => setForm({ ...form, emergencyContactName: e.target.value })} className={f} />
                       <div>
-                        <input placeholder="Emergency Contact Number" value={form.emergencyContactPhone} onChange={(e) => setForm({ ...form, emergencyContactPhone: e.target.value })} className={`${f} ${errors.emergencyContactPhone ? 'border-red-400' : ''}`} />
+                        <input placeholder="Emergency Contact Number" value={form.emergencyContactPhone} onChange={(e) => setForm({ ...form, emergencyContactPhone: e.target.value })} maxLength={10} className={`${f} ${errors.emergencyContactPhone ? 'border-red-400' : ''}`} />
                         {errors.emergencyContactPhone && <p className={err}>{errors.emergencyContactPhone}</p>}
                       </div>
                     </div>

@@ -359,6 +359,7 @@ function CoachModal({
                 placeholder="Mobile Number *"
                 value={form.phone}
                 onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))}
+                maxLength={10}
                 className={`${inputCls}${errors.phone ? ' border-red-400' : ''}`}
               />
               {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
