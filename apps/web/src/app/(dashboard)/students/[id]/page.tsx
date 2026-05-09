@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
 import { useAuth } from '@/hooks/useAuth';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, User, Calendar, CreditCard, Camera, FileText, Download, Pencil, X, Check } from 'lucide-react';
+import { ArrowLeft, User, Calendar, CreditCard, Camera, FileText, Download, Pencil, X, Check, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
 import dayjs from 'dayjs';
 
@@ -38,7 +38,11 @@ export default function StudentDetailPage() {
   const [tab, setTab] = useState<Tab>('profile');
   const [editingProfile, setEditingProfile] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', phone: '', email: '', dob: '', address: '', city: '', state: '', district: '', region: '', medicalNotes: '', status: '', sportsInterestedIn: '', sportInterest: '', trainingLevel: '' });
-  const [selectedVenueIds, setSelectedVenueIds] = useState<string[]>([]);
+  const [selectedVenueId, setSelectedVenueId] = useState('');
+  const [sportsSearch, setSportsSearch] = useState('');
+  const [sportsDropdownOpen, setSportsDropdownOpen] = useState(false);
+  const [venueSearch, setVenueSearch] = useState('');
+  const [venueDropdownOpen, setVenueDropdownOpen] = useState(false);
   const [addBatchId, setAddBatchId] = useState('');
   const [editErrors, setEditErrors] = useState<Record<string, string>>({});
   const [guardianErrors, setGuardianErrors] = useState<Record<string, string>>({});
@@ -186,7 +190,11 @@ export default function StudentDetailPage() {
       sportInterest: student?.sportInterest || '',
       trainingLevel: student?.trainingLevel || '',
     });
-    setSelectedVenueIds([]);
+    setSelectedVenueId('');
+    setSportsSearch('');
+    setSportsDropdownOpen(false);
+    setVenueSearch('');
+    setVenueDropdownOpen(false);
     setEditingProfile(true);
   }
 
@@ -478,37 +486,67 @@ export default function StudentDetailPage() {
                 </div>
                 <div className="col-span-2">
                   <label className="text-xs text-gray-500 mb-1 block">Sports Interested In</label>
-                  <div className="border rounded-lg px-3 py-2 flex flex-wrap gap-x-4 gap-y-1 max-h-32 overflow-y-auto">
-                    {sports.map(s => {
-                      const selected = editForm.sportsInterestedIn.split(',').map(v => v.trim()).filter(Boolean).includes(s.name);
-                      return (
-                        <label key={s.id} className="flex items-center gap-1.5 cursor-pointer py-0.5">
-                          <input
-                            type="checkbox"
-                            checked={selected}
-                            onChange={() => {
-                              const current = editForm.sportsInterestedIn.split(',').map(v => v.trim()).filter(Boolean);
-                              const next = selected ? current.filter(v => v !== s.name) : [...current, s.name];
-                              const nextStr = next.join(', ');
-                              // If Sport Applied For is no longer in the new selection, clear it
-                              const sportAppliedStillValid = next.length === 0 || next.includes(editForm.sportInterest);
-                              setEditForm(f => ({
-                                ...f,
-                                sportsInterestedIn: nextStr,
-                                sportInterest: sportAppliedStillValid ? f.sportInterest : '',
-                              }));
-                              if (!sportAppliedStillValid) {
-                                setSelectedVenueIds([]);
-                                setAddBatchId('');
-                              }
-                              setEditErrors(p => ({ ...p, sportInterest: '' }));
-                            }}
-                            className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600"
-                          />
-                          <span className="text-sm text-gray-700">{s.name}</span>
-                        </label>
-                      );
-                    })}
+                  <div className="relative">
+                    <div
+                      className="border rounded-lg px-3 py-2 text-sm cursor-pointer flex items-center justify-between min-h-[38px]"
+                      onClick={() => setSportsDropdownOpen(o => !o)}
+                    >
+                      <span className="text-gray-700 truncate">
+                        {editForm.sportsInterestedIn || <span className="text-gray-400">Select sports...</span>}
+                      </span>
+                      <ChevronDown size={14} className="text-gray-400 flex-shrink-0 ml-2" />
+                    </div>
+                    {sportsDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-[9]" onClick={() => setSportsDropdownOpen(false)} />
+                        <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg overflow-hidden">
+                          <div className="p-2 border-b">
+                            <input
+                              autoFocus
+                              placeholder="Search sports..."
+                              value={sportsSearch}
+                              onChange={e => setSportsSearch(e.target.value)}
+                              onClick={e => e.stopPropagation()}
+                              className="w-full border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                          </div>
+                          <div className="overflow-y-auto max-h-36">
+                            {sports
+                              .filter(s => s.name.toLowerCase().includes(sportsSearch.toLowerCase()))
+                              .map(s => {
+                                const selected = editForm.sportsInterestedIn.split(',').map(v => v.trim()).filter(Boolean).includes(s.name);
+                                return (
+                                  <label key={s.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={selected}
+                                      onChange={() => {
+                                        const current = editForm.sportsInterestedIn.split(',').map(v => v.trim()).filter(Boolean);
+                                        const next = selected ? current.filter(v => v !== s.name) : [...current, s.name];
+                                        const nextStr = next.join(', ');
+                                        const sportAppliedStillValid = next.length === 0 || next.includes(editForm.sportInterest);
+                                        setEditForm(f => ({
+                                          ...f,
+                                          sportsInterestedIn: nextStr,
+                                          sportInterest: sportAppliedStillValid ? f.sportInterest : '',
+                                        }));
+                                        if (!sportAppliedStillValid) {
+                                          setSelectedVenueId('');
+                                          setAddBatchId('');
+                                        }
+                                        setEditErrors(p => ({ ...p, sportInterest: '' }));
+                                      }}
+                                      onClick={e => e.stopPropagation()}
+                                      className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600"
+                                    />
+                                    <span className="text-sm text-gray-700">{s.name}</span>
+                                  </label>
+                                );
+                              })}
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
                 <div>
@@ -517,7 +555,7 @@ export default function StudentDetailPage() {
                     value={editForm.sportInterest}
                     onChange={e => {
                       setEditForm(f => ({ ...f, sportInterest: e.target.value }));
-                      setSelectedVenueIds([]);
+                      setSelectedVenueId('');
                       setAddBatchId('');
                       setEditErrors(p => ({ ...p, sportInterest: '' }));
                     }}
@@ -546,26 +584,53 @@ export default function StudentDetailPage() {
                   return (
                     <div>
                       <label className="text-xs text-gray-500 mb-1 block">Venue</label>
-                      <div className="border rounded-lg px-3 py-2 flex flex-wrap gap-x-4 gap-y-1 max-h-28 overflow-y-auto">
-                        {availableVenues.map(v => {
-                          const checked = selectedVenueIds.includes(v.id);
-                          return (
-                            <label key={v.id} className="flex items-center gap-1.5 cursor-pointer py-0.5">
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() => {
-                                  setSelectedVenueIds(prev =>
-                                    checked ? prev.filter(vid => vid !== v.id) : [...prev, v.id]
-                                  );
-                                  setAddBatchId('');
-                                }}
-                                className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600"
-                              />
-                              <span className="text-sm text-gray-700">{v.name}</span>
-                            </label>
-                          );
-                        })}
+                      <div className="relative">
+                        <div
+                          className="border rounded-lg px-3 py-2 text-sm cursor-pointer flex items-center justify-between min-h-[38px]"
+                          onClick={() => setVenueDropdownOpen(o => !o)}
+                        >
+                          <span className={selectedVenueId ? 'text-gray-700' : 'text-gray-400'}>
+                            {selectedVenueId
+                              ? availableVenues.find(v => v.id === selectedVenueId)?.name ?? 'Select venue...'
+                              : 'Select venue...'}
+                          </span>
+                          <ChevronDown size={14} className="text-gray-400 flex-shrink-0 ml-2" />
+                        </div>
+                        {venueDropdownOpen && (
+                          <>
+                            <div className="fixed inset-0 z-[9]" onClick={() => setVenueDropdownOpen(false)} />
+                            <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg overflow-hidden">
+                              <div className="p-2 border-b">
+                                <input
+                                  autoFocus
+                                  placeholder="Search venues..."
+                                  value={venueSearch}
+                                  onChange={e => setVenueSearch(e.target.value)}
+                                  onClick={e => e.stopPropagation()}
+                                  className="w-full border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                />
+                              </div>
+                              <div className="overflow-y-auto max-h-36">
+                                {availableVenues
+                                  .filter(v => v.name.toLowerCase().includes(venueSearch.toLowerCase()))
+                                  .map(v => (
+                                    <div
+                                      key={v.id}
+                                      className={`px-3 py-1.5 text-sm cursor-pointer hover:bg-gray-50 ${selectedVenueId === v.id ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'}`}
+                                      onClick={() => {
+                                        setSelectedVenueId(v.id === selectedVenueId ? '' : v.id);
+                                        setAddBatchId('');
+                                        setVenueDropdownOpen(false);
+                                        setVenueSearch('');
+                                      }}
+                                    >
+                                      {v.name}
+                                    </div>
+                                  ))}
+                              </div>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   );
@@ -610,7 +675,7 @@ export default function StudentDetailPage() {
                 const available = allBatches.filter(b => {
                   if (enrolledBatchIds.has(b.id)) return false;
                   if (editForm.sportInterest && b.sport?.name !== editForm.sportInterest) return false;
-                  if (selectedVenueIds.length > 0 && (!b.venue || !selectedVenueIds.includes(b.venue.id))) return false;
+                  if (selectedVenueId && (!b.venue || b.venue.id !== selectedVenueId)) return false;
                   return true;
                 });
                 if (!available.length) return null;
@@ -623,7 +688,7 @@ export default function StudentDetailPage() {
                     >
                       <option value="" disabled>Add to batch…</option>
                       {available.map(b => (
-                        <option key={b.id} value={b.id}>{b.name} ({b.sport?.name})</option>
+                        <option key={b.id} value={b.id}>{b.name}</option>
                       ))}
                     </select>
                     <button
