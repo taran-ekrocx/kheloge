@@ -37,7 +37,7 @@ export default function StudentDetailPage() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>('profile');
   const [editingProfile, setEditingProfile] = useState(false);
-  const [editForm, setEditForm] = useState({ name: '', phone: '', email: '', dob: '', address: '', city: '', state: '', district: '', region: '', medicalNotes: '', status: '', sportsInterestedIn: '', sportInterest: '', trainingLevel: '' });
+  const [editForm, setEditForm] = useState({ name: '', phone: '', email: '', dob: '', address: '', state: '', district: '', region: '', medicalNotes: '', status: '', sportsInterestedIn: '', sportInterest: '', trainingLevel: '' });
   const [selectedVenueId, setSelectedVenueId] = useState('');
   const [sportsSearch, setSportsSearch] = useState('');
   const [sportsDropdownOpen, setSportsDropdownOpen] = useState(false);
@@ -105,8 +105,19 @@ export default function StudentDetailPage() {
     if (!editForm.dob) errs.dob = 'Date of birth is required';
     if (!editForm.phone.trim()) errs.phone = 'Student mobile number is required';
     else if (!isValidPhone(editForm.phone)) errs.phone = 'Enter a valid 10-digit mobile number';
-    if (editForm.email && !isValidEmail(editForm.email)) errs.email = 'Enter a valid email address';
+    if (!editForm.email.trim()) errs.email = 'Email is required';
+    else if (!isValidEmail(editForm.email)) errs.email = 'Enter a valid email address';
+    if (!editForm.status) errs.status = 'Status is required';
+    if (!editForm.address.trim()) errs.address = 'Address is required';
+    if (!editForm.state.trim()) errs.state = 'State is required';
+    if (!editForm.district.trim()) errs.district = 'District is required';
+    if (!editForm.sportsInterestedIn.trim()) errs.sportsInterestedIn = 'Sports Interested In is required';
     if (!editForm.sportInterest) errs.sportInterest = 'Sport applied for is required';
+    if (editForm.sportInterest) {
+      const venueMap = new Map<string, string>();
+      allBatches.filter(b => b.sport?.name === editForm.sportInterest && b.venue).forEach(b => { if (b.venue) venueMap.set(b.venue.id, b.venue.name); });
+      if (venueMap.size > 0 && !selectedVenueId) errs.venue = 'Venue is required';
+    }
     const activeEnrollments = student?.enrollments?.filter((e: { isActive: boolean }) => e.isActive) ?? [];
     if (activeEnrollments.length === 0) errs.batch = 'Student must be enrolled in at least one batch';
     setEditErrors(errs);
@@ -180,7 +191,6 @@ export default function StudentDetailPage() {
       email: student?.email || '',
       dob: student?.dob ? dayjs(student.dob).format('YYYY-MM-DD') : '',
       address: student?.address || '',
-      city: student?.city || '',
       state: student?.state || '',
       district: student?.district || '',
       region: student?.region || '',
@@ -357,7 +367,6 @@ export default function StudentDetailPage() {
                   <p className="text-xs text-gray-400">Address</p>
                   <p className="font-medium">{student.address || '—'}</p>
                 </div>
-                <div><p className="text-xs text-gray-400">City</p><p className="font-medium">{student.city || '—'}</p></div>
                 <div><p className="text-xs text-gray-400">State</p><p className="font-medium">{student.state || '—'}</p></div>
                 <div><p className="text-xs text-gray-400">District</p><p className="font-medium">{student.district || '—'}</p></div>
                 <div><p className="text-xs text-gray-400">Region</p><p className="font-medium">{student.region || '—'}</p></div>
@@ -394,7 +403,7 @@ export default function StudentDetailPage() {
                   {editErrors.phone && <p className="text-red-500 text-xs mt-1">{editErrors.phone}</p>}
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Email</label>
+                  <label className="text-xs text-gray-500 mb-1 block">Email *</label>
                   <input
                     type="email"
                     value={editForm.email}
@@ -414,48 +423,45 @@ export default function StudentDetailPage() {
                   {editErrors.dob && <p className="text-red-500 text-xs mt-1">{editErrors.dob}</p>}
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Status</label>
+                  <label className="text-xs text-gray-500 mb-1 block">Status *</label>
                   <select
                     value={editForm.status}
-                    onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    onChange={e => { setEditForm(f => ({ ...f, status: e.target.value })); setEditErrors(p => ({ ...p, status: '' })); }}
+                    className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white ${editErrors.status ? 'border-red-400' : ''}`}
                   >
+                    <option value="">— Select —</option>
                     {['ENQUIRY', 'TRIAL', 'ACTIVE', 'INACTIVE', 'GRADUATED', 'ON_HOLD'].map(s => (
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
+                  {editErrors.status && <p className="text-red-500 text-xs mt-1">{editErrors.status}</p>}
                 </div>
                 <div className="col-span-2">
-                  <label className="text-xs text-gray-500 mb-1 block">Address</label>
+                  <label className="text-xs text-gray-500 mb-1 block">Address *</label>
                   <input
                     value={editForm.address}
-                    onChange={e => setEditForm(f => ({ ...f, address: e.target.value }))}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={e => { setEditForm(f => ({ ...f, address: e.target.value })); setEditErrors(p => ({ ...p, address: '' })); }}
+                    className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${editErrors.address ? 'border-red-400' : ''}`}
                   />
+                  {editErrors.address && <p className="text-red-500 text-xs mt-1">{editErrors.address}</p>}
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">City</label>
-                  <input
-                    value={editForm.city}
-                    onChange={e => setEditForm(f => ({ ...f, city: e.target.value }))}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">State</label>
+                  <label className="text-xs text-gray-500 mb-1 block">State *</label>
                   <input
                     value={editForm.state}
-                    onChange={e => setEditForm(f => ({ ...f, state: e.target.value }))}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={e => { setEditForm(f => ({ ...f, state: e.target.value })); setEditErrors(p => ({ ...p, state: '' })); }}
+                    className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${editErrors.state ? 'border-red-400' : ''}`}
                   />
+                  {editErrors.state && <p className="text-red-500 text-xs mt-1">{editErrors.state}</p>}
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">District</label>
+                  <label className="text-xs text-gray-500 mb-1 block">District *</label>
                   <input
                     value={editForm.district}
-                    onChange={e => setEditForm(f => ({ ...f, district: e.target.value }))}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={e => { setEditForm(f => ({ ...f, district: e.target.value })); setEditErrors(p => ({ ...p, district: '' })); }}
+                    className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${editErrors.district ? 'border-red-400' : ''}`}
                   />
+                  {editErrors.district && <p className="text-red-500 text-xs mt-1">{editErrors.district}</p>}
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">Region</label>
@@ -488,11 +494,11 @@ export default function StudentDetailPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Sports Interested In</label>
+                  <label className="text-xs text-gray-500 mb-1 block">Sports Interested In *</label>
                   <div className="relative">
                     <div
-                      className="border rounded-lg px-3 py-2 text-sm cursor-pointer flex items-center justify-between min-h-[38px]"
-                      onClick={() => setSportsDropdownOpen(o => !o)}
+                      className={`border rounded-lg px-3 py-2 text-sm cursor-pointer flex items-center justify-between min-h-[38px] ${editErrors.sportsInterestedIn ? 'border-red-400' : ''}`}
+                      onClick={() => { setSportsDropdownOpen(o => !o); setEditErrors(p => ({ ...p, sportsInterestedIn: '' })); }}
                     >
                       <span className="text-gray-700 truncate">
                         {editForm.sportsInterestedIn || <span className="text-gray-400">Select sports...</span>}
@@ -551,6 +557,7 @@ export default function StudentDetailPage() {
                       </>
                     )}
                   </div>
+                  {editErrors.sportsInterestedIn && <p className="text-red-500 text-xs mt-1">{editErrors.sportsInterestedIn}</p>}
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">Sport Applied For *</label>
@@ -586,11 +593,11 @@ export default function StudentDetailPage() {
                   if (!availableVenues.length) return null;
                   return (
                     <div>
-                      <label className="text-xs text-gray-500 mb-1 block">Venue</label>
+                      <label className="text-xs text-gray-500 mb-1 block">Venue *</label>
                       <div className="relative">
                         <div
-                          className="border rounded-lg px-3 py-2 text-sm cursor-pointer flex items-center justify-between min-h-[38px]"
-                          onClick={() => setVenueDropdownOpen(o => !o)}
+                          className={`border rounded-lg px-3 py-2 text-sm cursor-pointer flex items-center justify-between min-h-[38px] ${editErrors.venue ? 'border-red-400' : ''}`}
+                          onClick={() => { setVenueDropdownOpen(o => !o); setEditErrors(p => ({ ...p, venue: '' })); }}
                         >
                           <span className={selectedVenueId ? 'text-gray-700' : 'text-gray-400'}>
                             {selectedVenueId
@@ -625,6 +632,7 @@ export default function StudentDetailPage() {
                                         setAddBatchId('');
                                         setVenueDropdownOpen(false);
                                         setVenueSearch('');
+                                        setEditErrors(p => ({ ...p, venue: '' }));
                                       }}
                                     >
                                       {v.name}
@@ -635,6 +643,7 @@ export default function StudentDetailPage() {
                           </>
                         )}
                       </div>
+                      {editErrors.venue && <p className="text-red-500 text-xs mt-1">{editErrors.venue}</p>}
                     </div>
                   );
                 })()}
