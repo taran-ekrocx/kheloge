@@ -14,7 +14,7 @@ export class CitiesService {
     return this.prisma.city.findMany({
       where: { organizationId, isActive: true },
       include: { _count: { select: { venues: true } } },
-      orderBy: { name: 'asc' },
+      orderBy: { createdAt: 'desc' },
     });
   }
 

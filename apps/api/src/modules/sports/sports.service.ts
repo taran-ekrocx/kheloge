@@ -13,7 +13,7 @@ export class SportsService {
   async findAll(organizationId: string) {
     return this.prisma.sport.findMany({
       where: { organizationId, isActive: true },
-      orderBy: { name: 'asc' },
+      orderBy: { createdAt: 'desc' },
     });
   }
 

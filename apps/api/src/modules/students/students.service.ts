@@ -112,7 +112,7 @@ export class StudentsService {
             : {}),
       },
       include: { guardians: true, enrollments: { include: { batch: { include: { sport: true } } } } },
-      orderBy: { name: 'asc' },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
@@ -144,7 +144,7 @@ export class StudentsService {
         },
       },
       include: { guardians: true, enrollments: { include: { batch: { include: { sport: true } } } } },
-      orderBy: { name: 'asc' },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
@@ -174,7 +174,7 @@ export class StudentsService {
           : {}),
       },
       include: { guardians: true, enrollments: { include: { batch: { include: { sport: true } } } } },
-      orderBy: { name: 'asc' },
+      orderBy: { createdAt: 'desc' },
     });
   }
 

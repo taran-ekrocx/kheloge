@@ -16,6 +16,7 @@ export class VenuesService {
     return this.prisma.venue.findMany({
       where: { organizationId, isActive: true },
       include: { sports: { where: { isActive: true }, include: { sport: true } }, city: true },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
