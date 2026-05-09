@@ -6,11 +6,11 @@ import { api } from '@/lib/api';
 import { useVenue } from '@/hooks/useVenue';
 import { useAuth } from '@/hooks/useAuth';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, User, Calendar, CreditCard, Camera, FileText, Download, Pencil, X, Check, ChevronDown } from 'lucide-react';
+import { ArrowLeft, User, Calendar, CreditCard, Camera, FileText, Download, Pencil, X, Check, ChevronDown, Layers } from 'lucide-react';
 import Link from 'next/link';
 import dayjs from 'dayjs';
 
-type Tab = 'profile' | 'attendance' | 'payments';
+type Tab = 'profile' | 'batches' | 'attendance' | 'payments';
 
 async function downloadPdf(url: string, filename: string) {
   const token = typeof window !== 'undefined' ? localStorage.getItem('kheloge_access_token') : '';
@@ -37,6 +37,7 @@ export default function StudentDetailPage() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>('profile');
   const [editingProfile, setEditingProfile] = useState(false);
+  const [editingBatches, setEditingBatches] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', phone: '', email: '', dob: '', address: '', state: '', district: '', region: '', medicalNotes: '', status: '', sportsInterestedIn: '', sportInterest: '', trainingLevel: '' });
   const [selectedVenueId, setSelectedVenueId] = useState('');
   const [sportsSearch, setSportsSearch] = useState('');
@@ -85,13 +86,13 @@ export default function StudentDetailPage() {
       : isSuperAdmin
         ? () => api.get('/batches?status=active').then((r) => r.data)
         : () => api.get(`/venues/${venueId}/batches`).then((r) => r.data),
-    enabled: editingProfile && (isCoach || isSuperAdmin || !!venueId),
+    enabled: (editingProfile || editingBatches) && (isCoach || isSuperAdmin || !!venueId),
   });
 
   const { data: sports = [] } = useQuery<{ id: string; name: string }[]>({
     queryKey: ['sports'],
     queryFn: () => api.get('/sports').then((r) => r.data),
-    enabled: editingProfile,
+    enabled: editingProfile || editingBatches,
   });
 
   const coachEnrollBase = `/coaches/me/students/${id}`;
@@ -112,14 +113,6 @@ export default function StudentDetailPage() {
     if (!editForm.state.trim()) errs.state = 'State is required';
     if (!editForm.district.trim()) errs.district = 'District is required';
     if (!editForm.sportsInterestedIn.trim()) errs.sportsInterestedIn = 'Sports Interested In is required';
-    if (!editForm.sportInterest) errs.sportInterest = 'Sport applied for is required';
-    if (editForm.sportInterest) {
-      const venueMap = new Map<string, string>();
-      allBatches.filter(b => b.sport?.name === editForm.sportInterest && b.venue).forEach(b => { if (b.venue) venueMap.set(b.venue.id, b.venue.name); });
-      if (venueMap.size > 0 && !selectedVenueId) errs.venue = 'Venue is required';
-    }
-    const activeEnrollments = student?.enrollments?.filter((e: { isActive: boolean }) => e.isActive) ?? [];
-    if (activeEnrollments.length === 0) errs.batch = 'Student must be enrolled in at least one batch';
     setEditErrors(errs);
     return Object.keys(errs).length === 0;
   }
@@ -135,11 +128,26 @@ export default function StudentDetailPage() {
     return Object.keys(errs).length === 0;
   }
 
+  function validateBatchesForm(): boolean {
+    const errs: Record<string, string> = {};
+    if (!editForm.sportInterest) errs.sportInterest = 'Sport applied for is required';
+    if (editForm.sportInterest) {
+      const venueMap = new Map<string, string>();
+      allBatches.filter(b => b.sport?.name === editForm.sportInterest && b.venue).forEach(b => { if (b.venue) venueMap.set(b.venue.id, b.venue.name); });
+      if (venueMap.size > 0 && !selectedVenueId) errs.venue = 'Venue is required';
+    }
+    const activeEnrollments = student?.enrollments?.filter((e: { isActive: boolean }) => e.isActive) ?? [];
+    if (activeEnrollments.length === 0) errs.batch = 'Student must be enrolled in at least one batch';
+    setEditErrors(errs);
+    return Object.keys(errs).length === 0;
+  }
+
   const updateMutation = useMutation({
     mutationFn: (data: Record<string, string>) => api.patch(studentPatchBase, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['student', id] });
       setEditingProfile(false);
+      setEditingBatches(false);
     },
   });
 
@@ -205,7 +213,32 @@ export default function StudentDetailPage() {
     setSportsDropdownOpen(false);
     setVenueSearch('');
     setVenueDropdownOpen(false);
+    setEditingBatches(false);
     setEditingProfile(true);
+  }
+
+  function startEditBatches() {
+    setEditForm({
+      name: student?.name || '',
+      phone: student?.phone || '',
+      email: student?.email || '',
+      dob: student?.dob ? dayjs(student.dob).format('YYYY-MM-DD') : '',
+      address: student?.address || '',
+      state: student?.state || '',
+      district: student?.district || '',
+      region: student?.region || '',
+      medicalNotes: student?.medicalNotes || '',
+      status: student?.status || '',
+      sportsInterestedIn: student?.sportsInterestedIn || '',
+      sportInterest: student?.sportInterest || '',
+      trainingLevel: student?.trainingLevel || '',
+    });
+    setSelectedVenueId('');
+    setVenueSearch('');
+    setVenueDropdownOpen(false);
+    setEditErrors({});
+    setEditingProfile(false);
+    setEditingBatches(true);
   }
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -248,6 +281,7 @@ export default function StudentDetailPage() {
 
   const tabs = [
     { key: 'profile', label: 'Profile', icon: User },
+    { key: 'batches', label: 'Batches', icon: Layers },
     { key: 'attendance', label: 'Attendance', icon: Calendar },
     { key: 'payments', label: 'Payments', icon: CreditCard },
   ] as const;
@@ -374,8 +408,6 @@ export default function StudentDetailPage() {
                   <p className="text-xs text-gray-400">Medical Notes</p>
                   <p className="font-medium">{student.medicalNotes || '—'}</p>
                 </div>
-                <div><p className="text-xs text-gray-400">Training Level</p><p className="font-medium">{student.trainingLevel || '—'}</p></div>
-                <div><p className="text-xs text-gray-400">Sport Applied For</p><p className="font-medium">{student.sportInterest || '—'}</p></div>
                 <div className="col-span-2">
                   <p className="text-xs text-gray-400">Sports Interested In</p>
                   <p className="font-medium">{student.sportsInterestedIn || '—'}</p>
@@ -481,19 +513,6 @@ export default function StudentDetailPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Training Level</label>
-                  <select
-                    value={editForm.trainingLevel}
-                    onChange={e => setEditForm(f => ({ ...f, trainingLevel: e.target.value }))}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                  >
-                    <option value="">— Select —</option>
-                    {['Beginner', 'Intermediate', 'Advanced'].map(l => (
-                      <option key={l} value={l}>{l}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
                   <label className="text-xs text-gray-500 mb-1 block">Sports Interested In *</label>
                   <div className="relative">
                     <div
@@ -559,160 +578,12 @@ export default function StudentDetailPage() {
                   </div>
                   {editErrors.sportsInterestedIn && <p className="text-red-500 text-xs mt-1">{editErrors.sportsInterestedIn}</p>}
                 </div>
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Sport Applied For *</label>
-                  <select
-                    value={editForm.sportInterest}
-                    onChange={e => {
-                      setEditForm(f => ({ ...f, sportInterest: e.target.value }));
-                      setSelectedVenueId('');
-                      setAddBatchId('');
-                      setEditErrors(p => ({ ...p, sportInterest: '' }));
-                    }}
-                    className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white ${editErrors.sportInterest ? 'border-red-400' : ''}`}
-                  >
-                    <option value="">— Select sport —</option>
-                    {(() => {
-                      const interestedNames = editForm.sportsInterestedIn.split(',').map(v => v.trim()).filter(Boolean);
-                      const filtered = interestedNames.length > 0
-                        ? sports.filter(s => interestedNames.includes(s.name))
-                        : sports;
-                      return filtered.map(s => (
-                        <option key={s.id} value={s.name}>{s.name}</option>
-                      ));
-                    })()}
-                  </select>
-                  {editErrors.sportInterest && <p className="text-red-500 text-xs mt-1">{editErrors.sportInterest}</p>}
-                </div>
-                {editForm.sportInterest && (() => {
-                  const venueMap = new Map<string, { id: string; name: string }>();
-                  allBatches
-                    .filter(b => b.sport?.name === editForm.sportInterest && b.venue)
-                    .forEach(b => { if (b.venue) venueMap.set(b.venue.id, b.venue); });
-                  const availableVenues = Array.from(venueMap.values());
-                  if (!availableVenues.length) return null;
-                  return (
-                    <div>
-                      <label className="text-xs text-gray-500 mb-1 block">Venue *</label>
-                      <div className="relative">
-                        <div
-                          className={`border rounded-lg px-3 py-2 text-sm cursor-pointer flex items-center justify-between min-h-[38px] ${editErrors.venue ? 'border-red-400' : ''}`}
-                          onClick={() => { setVenueDropdownOpen(o => !o); setEditErrors(p => ({ ...p, venue: '' })); }}
-                        >
-                          <span className={selectedVenueId ? 'text-gray-700' : 'text-gray-400'}>
-                            {selectedVenueId
-                              ? availableVenues.find(v => v.id === selectedVenueId)?.name ?? 'Select venue...'
-                              : 'Select venue...'}
-                          </span>
-                          <ChevronDown size={14} className="text-gray-400 flex-shrink-0 ml-2" />
-                        </div>
-                        {venueDropdownOpen && (
-                          <>
-                            <div className="fixed inset-0 z-[9]" onClick={() => setVenueDropdownOpen(false)} />
-                            <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg overflow-hidden">
-                              <div className="p-2 border-b">
-                                <input
-                                  autoFocus
-                                  placeholder="Search venues..."
-                                  value={venueSearch}
-                                  onChange={e => setVenueSearch(e.target.value)}
-                                  onClick={e => e.stopPropagation()}
-                                  className="w-full border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                />
-                              </div>
-                              <div className="overflow-y-auto max-h-36">
-                                {availableVenues
-                                  .filter(v => v.name.toLowerCase().includes(venueSearch.toLowerCase()))
-                                  .map(v => (
-                                    <div
-                                      key={v.id}
-                                      className={`px-3 py-1.5 text-sm cursor-pointer hover:bg-gray-50 ${selectedVenueId === v.id ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'}`}
-                                      onClick={() => {
-                                        setSelectedVenueId(v.id === selectedVenueId ? '' : v.id);
-                                        setAddBatchId('');
-                                        setVenueDropdownOpen(false);
-                                        setVenueSearch('');
-                                        setEditErrors(p => ({ ...p, venue: '' }));
-                                      }}
-                                    >
-                                      {v.name}
-                                    </div>
-                                  ))}
-                              </div>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                      {editErrors.venue && <p className="text-red-500 text-xs mt-1">{editErrors.venue}</p>}
-                    </div>
-                  );
-                })()}
                 {updateMutation.isError && (
                   <p className="col-span-2 text-xs text-red-500">Failed to save. Please try again.</p>
                 )}
               </div>
             )}
 
-            <hr className="border-gray-100" />
-            <div>
-              <p className="text-sm font-medium text-gray-700 mb-2">Enrolled Batches {editingProfile && <span className="text-red-500">*</span>}</p>
-              {editErrors.batch && <p className="text-red-500 text-xs mb-2">{editErrors.batch}</p>}
-              {student.enrollments?.filter((e: { isActive: boolean }) => e.isActive).length > 0 ? (
-                <ul className="space-y-2">
-                  {student.enrollments
-                    .filter((e: { isActive: boolean }) => e.isActive)
-                    .map((e: { id: string; batchId: string; batch: { id: string; name: string; sport: { name: string } } }) => (
-                      <li key={e.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
-                        <span className="font-medium text-sm">{e.batch?.name}</span>
-                        {editingProfile && (
-                          <button
-                            onClick={() => unenrollMutation.mutate(e.batch?.id ?? e.batchId)}
-                            disabled={unenrollMutation.isPending}
-                            className="ml-auto text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
-                          >
-                            Remove
-                          </button>
-                        )}
-                      </li>
-                    ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-gray-400">Not enrolled in any batch.</p>
-              )}
-              {editingProfile && allBatches.length > 0 && (() => {
-                const enrolledBatchIds = new Set(
-                  student.enrollments?.filter((e: { isActive: boolean }) => e.isActive).map((e: { batchId: string }) => e.batchId) ?? []
-                );
-                const available = allBatches.filter(b => {
-                  if (enrolledBatchIds.has(b.id)) return false;
-                  if (editForm.sportInterest && b.sport?.name !== editForm.sportInterest) return false;
-                  if (selectedVenueId && (!b.venue || b.venue.id !== selectedVenueId)) return false;
-                  return true;
-                });
-                if (!available.length) return null;
-                return (
-                  <div className="mt-2 flex gap-2">
-                    <select
-                      value={addBatchId}
-                      onChange={e => setAddBatchId(e.target.value)}
-                      className="flex-1 border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                    >
-                      <option value="" disabled>Add to batch…</option>
-                      {available.map(b => (
-                        <option key={b.id} value={b.id}>{b.name}</option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={() => { if (addBatchId) { enrollMutation.mutate(addBatchId); setAddBatchId(''); } }}
-                      disabled={enrollMutation.isPending || !addBatchId}
-                      className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      Add
-                    </button>
-                  </div>
-                );
-              })()}
-            </div>
             {(student.guardians?.length > 0 || (editingProfile && !isCoach)) && (
               <div>
                 <hr className="border-gray-100 mb-4" />
@@ -833,6 +704,218 @@ export default function StudentDetailPage() {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Batches tab */}
+        {tab === 'batches' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-gray-700">Batch & Training Info</p>
+              {editingBatches ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setEditingBatches(false)}
+                    className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
+                  >
+                    <X size={13} /> Cancel
+                  </button>
+                  <button
+                    onClick={() => { if (validateBatchesForm()) updateMutation.mutate(editForm); }}
+                    disabled={updateMutation.isPending}
+                    className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50"
+                  >
+                    <Check size={13} /> {updateMutation.isPending ? 'Saving...' : 'Save'}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={startEditBatches}
+                  className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  <Pencil size={13} /> Edit
+                </button>
+              )}
+            </div>
+
+            {!editingBatches ? (
+              <div className="grid grid-cols-2 gap-4">
+                <div><p className="text-xs text-gray-400">Training Level</p><p className="font-medium">{student.trainingLevel || '—'}</p></div>
+                <div><p className="text-xs text-gray-400">Sport Applied For</p><p className="font-medium">{student.sportInterest || '—'}</p></div>
+                <div className="col-span-2">
+                  <p className="text-xs text-gray-400">Sports Interested In</p>
+                  <p className="font-medium">{student.sportsInterestedIn || '—'}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Training Level</label>
+                  <select
+                    value={editForm.trainingLevel}
+                    onChange={e => setEditForm(f => ({ ...f, trainingLevel: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="">— Select —</option>
+                    {['Beginner', 'Intermediate', 'Advanced'].map(l => (
+                      <option key={l} value={l}>{l}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Sport Applied For *</label>
+                  <select
+                    value={editForm.sportInterest}
+                    onChange={e => {
+                      setEditForm(f => ({ ...f, sportInterest: e.target.value }));
+                      setSelectedVenueId('');
+                      setAddBatchId('');
+                      setEditErrors(p => ({ ...p, sportInterest: '' }));
+                    }}
+                    className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white ${editErrors.sportInterest ? 'border-red-400' : ''}`}
+                  >
+                    <option value="">— Select sport —</option>
+                    {(() => {
+                      const interestedNames = editForm.sportsInterestedIn.split(',').map(v => v.trim()).filter(Boolean);
+                      const filtered = interestedNames.length > 0
+                        ? sports.filter(s => interestedNames.includes(s.name))
+                        : sports;
+                      return filtered.map(s => (
+                        <option key={s.id} value={s.name}>{s.name}</option>
+                      ));
+                    })()}
+                  </select>
+                  {editErrors.sportInterest && <p className="text-red-500 text-xs mt-1">{editErrors.sportInterest}</p>}
+                </div>
+                {editForm.sportInterest && (() => {
+                  const venueMap = new Map<string, { id: string; name: string }>();
+                  allBatches
+                    .filter(b => b.sport?.name === editForm.sportInterest && b.venue)
+                    .forEach(b => { if (b.venue) venueMap.set(b.venue.id, b.venue); });
+                  const availableVenues = Array.from(venueMap.values());
+                  if (!availableVenues.length) return null;
+                  return (
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Venue *</label>
+                      <div className="relative">
+                        <div
+                          className={`border rounded-lg px-3 py-2 text-sm cursor-pointer flex items-center justify-between min-h-[38px] ${editErrors.venue ? 'border-red-400' : ''}`}
+                          onClick={() => { setVenueDropdownOpen(o => !o); setEditErrors(p => ({ ...p, venue: '' })); }}
+                        >
+                          <span className={selectedVenueId ? 'text-gray-700' : 'text-gray-400'}>
+                            {selectedVenueId
+                              ? availableVenues.find(v => v.id === selectedVenueId)?.name ?? 'Select venue...'
+                              : 'Select venue...'}
+                          </span>
+                          <ChevronDown size={14} className="text-gray-400 flex-shrink-0 ml-2" />
+                        </div>
+                        {venueDropdownOpen && (
+                          <>
+                            <div className="fixed inset-0 z-[9]" onClick={() => setVenueDropdownOpen(false)} />
+                            <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg overflow-hidden">
+                              <div className="p-2 border-b">
+                                <input
+                                  autoFocus
+                                  placeholder="Search venues..."
+                                  value={venueSearch}
+                                  onChange={e => setVenueSearch(e.target.value)}
+                                  onClick={e => e.stopPropagation()}
+                                  className="w-full border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                />
+                              </div>
+                              <div className="overflow-y-auto max-h-36">
+                                {availableVenues
+                                  .filter(v => v.name.toLowerCase().includes(venueSearch.toLowerCase()))
+                                  .map(v => (
+                                    <div
+                                      key={v.id}
+                                      className={`px-3 py-1.5 text-sm cursor-pointer hover:bg-gray-50 ${selectedVenueId === v.id ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'}`}
+                                      onClick={() => {
+                                        setSelectedVenueId(v.id === selectedVenueId ? '' : v.id);
+                                        setAddBatchId('');
+                                        setVenueDropdownOpen(false);
+                                        setVenueSearch('');
+                                        setEditErrors(p => ({ ...p, venue: '' }));
+                                      }}
+                                    >
+                                      {v.name}
+                                    </div>
+                                  ))}
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      {editErrors.venue && <p className="text-red-500 text-xs mt-1">{editErrors.venue}</p>}
+                    </div>
+                  );
+                })()}
+                {updateMutation.isError && (
+                  <p className="col-span-2 text-xs text-red-500">Failed to save. Please try again.</p>
+                )}
+              </div>
+            )}
+
+            <hr className="border-gray-100" />
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-2">Enrolled Batches {editingBatches && <span className="text-red-500">*</span>}</p>
+              {editErrors.batch && <p className="text-red-500 text-xs mb-2">{editErrors.batch}</p>}
+              {student.enrollments?.filter((e: { isActive: boolean }) => e.isActive).length > 0 ? (
+                <ul className="space-y-2">
+                  {student.enrollments
+                    .filter((e: { isActive: boolean }) => e.isActive)
+                    .map((e: { id: string; batchId: string; batch: { id: string; name: string; sport: { name: string } } }) => (
+                      <li key={e.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
+                        <span className="font-medium text-sm">{e.batch?.name}</span>
+                        {editingBatches && (
+                          <button
+                            onClick={() => unenrollMutation.mutate(e.batch?.id ?? e.batchId)}
+                            disabled={unenrollMutation.isPending}
+                            className="ml-auto text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-gray-400">Not enrolled in any batch.</p>
+              )}
+              {editingBatches && allBatches.length > 0 && (() => {
+                const enrolledBatchIds = new Set(
+                  student.enrollments?.filter((e: { isActive: boolean }) => e.isActive).map((e: { batchId: string }) => e.batchId) ?? []
+                );
+                const available = allBatches.filter(b => {
+                  if (enrolledBatchIds.has(b.id)) return false;
+                  if (editForm.sportInterest && b.sport?.name !== editForm.sportInterest) return false;
+                  if (selectedVenueId && (!b.venue || b.venue.id !== selectedVenueId)) return false;
+                  return true;
+                });
+                if (!available.length) return null;
+                return (
+                  <div className="mt-2 flex gap-2">
+                    <select
+                      value={addBatchId}
+                      onChange={e => setAddBatchId(e.target.value)}
+                      className="flex-1 border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    >
+                      <option value="" disabled>Add to batch…</option>
+                      {available.map(b => (
+                        <option key={b.id} value={b.id}>{b.name}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => { if (addBatchId) { enrollMutation.mutate(addBatchId); setAddBatchId(''); } }}
+                      disabled={enrollMutation.isPending || !addBatchId}
+                      className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      Add
+                    </button>
+                  </div>
+                );
+              })()}
+            </div>
           </div>
         )}
 
