@@ -95,6 +95,7 @@ function DemoStudentModal({
     gender: editData?.gender ?? '',
     dob: editData?.dob ? editData.dob.slice(0, 10) : '',
     sportId: '',
+    demoVenueId: '',
     batchId: editData?.batchId ?? '',
     demoStartDate: editData?.demoStartDate ? editData.demoStartDate.slice(0, 10) : '',
     demoEndDate: editData?.demoEndDate ? editData.demoEndDate.slice(0, 10) : '',
@@ -117,6 +118,12 @@ function DemoStudentModal({
     enabled: isCoach ? true : isSuperAdmin ? true : !!venueId,
   });
 
+  const sportBatches = allBatches.filter((b) => !form.sportId || b.sport?.id === form.sportId);
+  const availableVenues = Array.from(
+    new Map(sportBatches.filter((b) => b.venue).map((b) => [b.venue!.id, b.venue!])).values()
+  );
+  const filteredBatches = sportBatches.filter((b) => !form.demoVenueId || b.venue?.id === form.demoVenueId);
+
   const validate = () => {
     const next: Record<string, string> = {};
     if (!form.name.trim()) next.name = 'Full name is required';
@@ -133,6 +140,7 @@ function DemoStudentModal({
     if (!form.gender) next.gender = 'Gender is required';
     if (!form.dob) next.dob = 'Date of birth is required';
     if (!form.sportId) next.sportId = 'Sport is required';
+    if (!form.demoVenueId) next.demoVenueId = 'Venue is required';
     if (!form.batchId) next.batchId = 'Batch is required';
     if (!form.demoStartDate) next.demoStartDate = 'Demo start date is required';
     if (!form.demoEndDate) {
@@ -281,7 +289,7 @@ function DemoStudentModal({
           <div>
             <select
               value={form.sportId}
-              onChange={(e) => setForm({ ...form, sportId: e.target.value, batchId: '' })}
+              onChange={(e) => setForm({ ...form, sportId: e.target.value, demoVenueId: '', batchId: '' })}
               className={ef('sportId')}
             >
               <option value="">Select Sport *</option>
@@ -291,9 +299,27 @@ function DemoStudentModal({
           </div>
 
           <div>
-            <select value={form.batchId} onChange={(e) => setForm({ ...form, batchId: e.target.value })} className={ef('batchId')}>
+            <select
+              value={form.demoVenueId}
+              onChange={(e) => setForm({ ...form, demoVenueId: e.target.value, batchId: '' })}
+              className={ef('demoVenueId')}
+              disabled={!form.sportId}
+            >
+              <option value="">Select Venue *</option>
+              {availableVenues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+            </select>
+            {errors.demoVenueId && <p className="text-red-500 text-xs mt-1">{errors.demoVenueId}</p>}
+          </div>
+
+          <div>
+            <select
+              value={form.batchId}
+              onChange={(e) => setForm({ ...form, batchId: e.target.value })}
+              className={ef('batchId')}
+              disabled={!form.demoVenueId}
+            >
               <option value="">Select Batch *</option>
-              {allBatches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              {filteredBatches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
             {errors.batchId && <p className="text-red-500 text-xs mt-1">{errors.batchId}</p>}
           </div>
