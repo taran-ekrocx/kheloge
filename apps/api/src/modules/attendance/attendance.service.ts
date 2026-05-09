@@ -355,11 +355,20 @@ export class AttendanceService {
       throw new ForbiddenException('You can only view attendance for your own sessions');
     }
 
-    return this.prisma.attendance.findMany({
-      where: { sessionId },
-      include: { student: { select: { id: true, name: true, photoUrl: true } } },
-      orderBy: { student: { name: 'asc' } },
-    });
+    const [students, coaches] = await Promise.all([
+      this.prisma.attendance.findMany({
+        where: { sessionId },
+        include: { student: { select: { id: true, name: true, photoUrl: true } } },
+        orderBy: { student: { name: 'asc' } },
+      }),
+      this.prisma.coachAttendance.findMany({
+        where: { sessionId },
+        include: { coach: { select: { id: true, name: true, photoUrl: true } } },
+        orderBy: { coach: { name: 'asc' } },
+      }),
+    ]);
+
+    return { students, coaches };
   }
 
   async getCoachSessionSummary(venueId?: string) {

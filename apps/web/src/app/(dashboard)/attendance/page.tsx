@@ -89,11 +89,23 @@ interface MonthlySummaryItem {
   percentage: number;
 }
 
-interface SessionAttendanceRecord {
+interface SessionStudentAttendanceRecord {
   id: string;
   studentId: string;
   status: 'PRESENT' | 'ABSENT' | 'LATE';
   student: { id: string; name: string; photoUrl: string | null };
+}
+
+interface SessionCoachAttendanceRecord {
+  id: string;
+  coachId: string;
+  status: 'PRESENT' | 'ABSENT';
+  coach: { id: string; name: string; photoUrl: string | null };
+}
+
+interface SessionAttendanceRecord {
+  students: SessionStudentAttendanceRecord[];
+  coaches: SessionCoachAttendanceRecord[];
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -277,7 +289,7 @@ export default function AttendanceIndexPage() {
     enabled: isAdmin && tab === 'daily' && !!filterDate,
   });
 
-  const { data: expandedAttendance } = useQuery<SessionAttendanceRecord[]>({
+  const { data: expandedAttendance } = useQuery<SessionAttendanceRecord>({
     queryKey: ['session-attendance', expandedSession],
     queryFn: () => api.get(`/attendance/sessions/${expandedSession}/attendance`).then(r => r.data),
     enabled: !!expandedSession,
@@ -987,7 +999,7 @@ function SessionList({
 }: {
   sessions: (SessionHistoryItem & { batch?: { id: string; name: string; sport: { name: string } } })[];
   expandedSession?: string | null;
-  expandedAttendance?: SessionAttendanceRecord[] | undefined;
+  expandedAttendance?: SessionAttendanceRecord | undefined;
   onToggleSession?: (id: string) => void;
   showBatch?: boolean;
   hideCoachName?: boolean;
@@ -1054,26 +1066,58 @@ function SessionList({
             </button>
 
             {!onNavigate && isExpanded && (
-              <div className="border-t border-gray-100 divide-y divide-gray-50">
+              <div className="border-t border-gray-100">
                 {!expandedAttendance ? (
                   <div className="px-4 py-4 text-center text-gray-400 text-sm">Loading...</div>
-                ) : expandedAttendance.length === 0 ? (
+                ) : expandedAttendance.students.length === 0 && expandedAttendance.coaches.length === 0 ? (
                   <div className="px-4 py-4 text-center text-gray-400 text-sm">No attendance records for this session.</div>
                 ) : (
-                  expandedAttendance.map((record) => (
-                    <div key={record.id} className="flex items-center justify-between px-4 py-2.5">
-                      <p className="text-sm text-gray-800">{record.student.name}</p>
-                      <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${
-                        record.status === 'PRESENT'
-                          ? 'bg-green-100 text-green-700'
-                          : record.status === 'LATE'
-                          ? 'bg-yellow-100 text-yellow-700'
-                          : 'bg-red-100 text-red-700'
-                      }`}>
-                        {record.status.charAt(0) + record.status.slice(1).toLowerCase()}
-                      </span>
-                    </div>
-                  ))
+                  <>
+                    {expandedAttendance.students.length > 0 && (
+                      <>
+                        <div className="px-4 py-1.5 bg-gray-50 border-b border-gray-100">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Students</p>
+                        </div>
+                        <div className="divide-y divide-gray-50">
+                          {expandedAttendance.students.map((record) => (
+                            <div key={record.id} className="flex items-center justify-between px-4 py-2.5">
+                              <p className="text-sm text-gray-800">{record.student.name}</p>
+                              <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${
+                                record.status === 'PRESENT'
+                                  ? 'bg-green-100 text-green-700'
+                                  : record.status === 'LATE'
+                                  ? 'bg-yellow-100 text-yellow-700'
+                                  : 'bg-red-100 text-red-700'
+                              }`}>
+                                {record.status.charAt(0) + record.status.slice(1).toLowerCase()}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                    {expandedAttendance.coaches.length > 0 && (
+                      <>
+                        <div className="px-4 py-1.5 bg-gray-50 border-t border-b border-gray-100">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Coaches</p>
+                        </div>
+                        <div className="divide-y divide-gray-50">
+                          {expandedAttendance.coaches.map((record) => (
+                            <div key={record.id} className="flex items-center justify-between px-4 py-2.5">
+                              <p className="text-sm text-gray-800">{record.coach.name}</p>
+                              <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${
+                                record.status === 'PRESENT'
+                                  ? 'bg-green-100 text-green-700'
+                                  : 'bg-red-100 text-red-700'
+                              }`}>
+                                {record.status.charAt(0) + record.status.slice(1).toLowerCase()}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </>
                 )}
               </div>
             )}
