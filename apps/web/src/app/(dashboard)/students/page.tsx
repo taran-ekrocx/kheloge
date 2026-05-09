@@ -70,7 +70,7 @@ interface DemoStudent {
   batch?: { id: string; name: string; sport?: { name: string } };
 }
 
-const STEP_LABELS = ['Student Details', 'Contact Info', 'Sports Enrollment', 'Medical Info'];
+const STEP_LABELS = ['Student Details', 'Contact Info', 'Medical Info'];
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
 function DemoStudentModal({
@@ -374,56 +374,8 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
   const [form, setForm] = useState({
     name: '', dob: '', gender: '', bloodGroup: '',
     address: '', phone: '', guardianName: '', guardianPhone: '', guardianEmail: '',
-    sportId: '', venueId: '', trainingLevel: '', batchId: '', previousExperience: '',
     hasMedicalCondition: 'no', medicalConditionDetails: '', emergencyContactName: '', emergencyContactPhone: '',
   });
-
-  const { data: allSports = [] } = useQuery<Sport[]>({
-    queryKey: ['sports'],
-    queryFn: () => api.get('/sports').then((r) => r.data),
-  });
-
-  const { data: allVenues = [] } = useQuery<{ id: string; name: string; sports: { sportId: string }[] }[]>({
-    queryKey: ['venues-list'],
-    queryFn: () => api.get('/venues').then((r) => r.data),
-    enabled: isSuperAdmin,
-  });
-
-  const { data: allBatches = [] } = useQuery<BatchOption[]>({
-    queryKey: isCoach ? ['coach-batches'] : isSuperAdmin ? ['batches-global', form.sportId, form.venueId] : ['batches', venueId],
-    queryFn: isCoach
-      ? () => api.get('/coaches/me/batches?status=active').then((r) => r.data)
-      : isSuperAdmin
-        ? () => api.get('/batches', { params: { status: 'active', ...(form.sportId ? { sportId: form.sportId } : {}), ...(form.venueId ? { venueId: form.venueId } : {}) } }).then((r) => r.data)
-        : () => api.get(`/venues/${venueId}/batches`).then((r) => r.data),
-    enabled: isCoach ? true : isSuperAdmin ? true : !!venueId,
-  });
-
-  // Venues available for the selected sport
-  const venuesForSport = useMemo(() => {
-    if (isSuperAdmin) {
-      return form.sportId
-        ? allVenues.filter((v) => v.sports?.some((s) => s.sportId === form.sportId))
-        : allVenues;
-    }
-    if (isCoach) {
-      const seen = new Set<string>();
-      return allBatches
-        .filter((b) => !form.sportId || b.sportId === form.sportId)
-        .reduce<{ id: string; name: string }[]>((acc, b) => {
-          if (b.venue && !seen.has(b.venue.id)) { seen.add(b.venue.id); acc.push(b.venue); }
-          return acc;
-        }, []);
-    }
-    return [];
-  }, [isSuperAdmin, isCoach, allVenues, allBatches, form.sportId]);
-
-  const visibleBatches = useMemo(() => {
-    let batches = allBatches;
-    if (!isSuperAdmin && form.sportId) batches = batches.filter((b) => b.sportId === form.sportId);
-    if (isCoach && form.venueId) batches = batches.filter((b) => b.venue?.id === form.venueId);
-    return batches;
-  }, [isSuperAdmin, isCoach, allBatches, form.sportId, form.venueId]);
 
   const age = useMemo(() => {
     if (!form.dob) return null;
@@ -455,10 +407,6 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
       else if (!isValidEmail(form.guardianEmail)) next.guardianEmail = 'Enter a valid email address';
     }
     if (step === 3) {
-      if (!form.sportId) next.sportId = 'Sport is required';
-      if (!form.batchId) next.batchId = 'Batch is required';
-    }
-    if (step === 4) {
       if (form.hasMedicalCondition === 'yes' && !form.medicalConditionDetails.trim()) next.medicalConditionDetails = 'Please describe the medical condition';
       if (form.emergencyContactPhone && !isValidPhone(form.emergencyContactPhone)) next.emergencyContactPhone = 'Enter a valid 10-digit mobile number';
     }
@@ -483,10 +431,7 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
         dob: form.dob || undefined,
         phone: form.phone || undefined,
         address: form.address || undefined,
-        sportInterest: form.previousExperience || undefined,
-        trainingLevel: form.trainingLevel || undefined,
         medicalNotes: form.hasMedicalCondition === 'yes' ? (form.medicalConditionDetails || 'Yes') : undefined,
-        batchIds: form.batchId ? [form.batchId] : [],
         guardians: guardians.length > 0 ? guardians : undefined,
         status: 'ACTIVE',
       };
@@ -518,7 +463,7 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
         {/* Progress indicator */}
         <div className="mb-5">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-gray-500">Step {currentStep} of 4</span>
+            <span className="text-xs text-gray-500">Step {currentStep} of 3</span>
             <span className="text-xs font-medium text-blue-600">{STEP_LABELS[currentStep - 1]}</span>
           </div>
           <div className="flex gap-1">
@@ -594,58 +539,8 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
                 </>
               )}
 
-              {/* Step 3: Sports Enrollment */}
+              {/* Step 3: Medical Information */}
               {currentStep === 3 && (
-                <>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-2">Training Level</label>
-                    <div className="flex gap-4">
-                      {['Beginner', 'Intermediate', 'Advanced'].map((level) => (
-                        <label key={level} className="flex items-center gap-1.5 text-sm cursor-pointer">
-                          <input type="radio" name="trainingLevel" value={level} checked={form.trainingLevel === level} onChange={() => setForm({ ...form, trainingLevel: level })} className="accent-blue-600" />
-                          {level}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                  {allSports.length > 0 && (
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Sport Applied For *</label>
-                      <select value={form.sportId} onChange={(e) => setForm({ ...form, sportId: e.target.value, venueId: '', batchId: '' })} className={`${f} ${errors.sportId ? 'border-red-400' : ''}`}>
-                        <option value="">Select Sport</option>
-                        {allSports.map((sport) => <option key={sport.id} value={sport.id}>{sport.name}</option>)}
-                      </select>
-                      {errors.sportId && <p className={err}>{errors.sportId}</p>}
-                    </div>
-                  )}
-                  {(isSuperAdmin || isCoach) && venuesForSport.length > 0 && (
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Venue</label>
-                      <select value={form.venueId} onChange={(e) => setForm({ ...form, venueId: e.target.value, batchId: '' })} className={f} disabled={!form.sportId}>
-                        <option value="">{form.sportId ? 'All Venues' : 'Select Sport first'}</option>
-                        {venuesForSport.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-                      </select>
-                    </div>
-                  )}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Batch *</label>
-                    <select value={form.batchId} onChange={(e) => setForm({ ...form, batchId: e.target.value })} className={`${f} ${errors.batchId ? 'border-red-400' : ''}`}>
-                      <option value="">{form.sportId ? 'Select Batch' : 'Select Sport first'}</option>
-                      {visibleBatches.map((batch) => (
-                        <option key={batch.id} value={batch.id}>{batch.name}{!form.sportId && batch.sport?.name ? ` · ${batch.sport.name}` : ''}</option>
-                      ))}
-                    </select>
-                    {errors.batchId && <p className={err}>{errors.batchId}</p>}
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Previous Experience (if any)</label>
-                    <textarea placeholder="Describe any previous sports experience..." value={form.previousExperience} onChange={(e) => setForm({ ...form, previousExperience: e.target.value })} className={`${f} resize-none`} rows={3} />
-                  </div>
-                </>
-              )}
-
-              {/* Step 4: Medical Information */}
-              {currentStep === 4 && (
                 <>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-2">Any Medical Condition?</label>
@@ -688,12 +583,12 @@ function AddStudentModal({ onClose, venueId, isSuperAdmin, isCoach }: { onClose:
           >
             {currentStep === 1 ? 'Cancel' : 'Back'}
           </button>
-          {currentStep < 4 ? (
+          {currentStep < 3 ? (
             <button type="button" onClick={handleNext} className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700">
               Next
             </button>
           ) : (
-            <button type="button" onClick={() => { if (validateStep(4)) mutation.mutate(); }} disabled={mutation.isPending} className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+            <button type="button" onClick={() => { if (validateStep(3)) mutation.mutate(); }} disabled={mutation.isPending} className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
               {mutation.isPending ? 'Submitting...' : 'Submit'}
             </button>
           )}
