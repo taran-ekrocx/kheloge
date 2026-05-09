@@ -53,7 +53,7 @@ interface Coach {
   createdAt: string;
   venue?: { id: string; name: string };
   sports?: { id: string; name: string; icon?: string }[];
-  batches?: { batchId: string; isPrimary: boolean; id: string; name: string; sport: { name: string } }[];
+  batches?: { batchId: string; isPrimary: boolean; id: string; name: string; sport: { name: string }; venue?: { id: string; name: string } }[];
   profile?: CoachProfile | null;
 }
 interface Sport { id: string; name: string; icon?: string; }
@@ -617,6 +617,7 @@ export default function CoachDetailPage() {
                       <div>
                         <span className="text-sm font-medium text-gray-900">{b.name}</span>
                         <span className="text-xs text-gray-400 ml-2">{b.sport.name}</span>
+                        {b.venue && <span className="text-xs text-gray-400 ml-2">· {b.venue.name}</span>}
                       </div>
                       {b.isPrimary && <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">Primary</span>}
                     </div>

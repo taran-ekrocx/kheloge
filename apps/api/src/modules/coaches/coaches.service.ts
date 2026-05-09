@@ -187,7 +187,7 @@ const VENUE_COACH_INCLUDE = {
     select: {
       id: true, name: true, phone: true, email: true, photoUrl: true,
       coachSports: { include: { sport: { select: { id: true, name: true, icon: true } } } },
-      coachBatches: { include: { batch: { select: { id: true, name: true, sport: { select: { id: true, name: true } } } } } },
+      coachBatches: { include: { batch: { select: { id: true, name: true, sport: { select: { id: true, name: true } }, venue: { select: { id: true, name: true } } } } } },
     },
   },
   venue: { select: { id: true, name: true } },
