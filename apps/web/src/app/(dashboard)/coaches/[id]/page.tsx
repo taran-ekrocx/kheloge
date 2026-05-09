@@ -155,6 +155,8 @@ export default function CoachDetailPage() {
   const [attVenueId, setAttVenueId] = useState('');
   const [attSportName, setAttSportName] = useState('');
   const [attBatchId, setAttBatchId] = useState('');
+  const [attDateFrom, setAttDateFrom] = useState('');
+  const [attDateTo, setAttDateTo] = useState('');
 
   // role starts null on first render (useAuth reads localStorage in useEffect)
   const authLoading = role === null;
@@ -183,9 +185,11 @@ export default function CoachDetailPage() {
       if (attVenueId && r.batch?.venue?.id !== attVenueId) return false;
       if (attSportName && r.batch?.sport?.name !== attSportName) return false;
       if (attBatchId && r.batchId !== attBatchId) return false;
+      if (attDateFrom && r.date < attDateFrom) return false;
+      if (attDateTo && r.date > attDateTo) return false;
       return true;
     });
-  }, [attendance, attVenueId, attSportName, attBatchId]);
+  }, [attendance, attVenueId, attSportName, attBatchId, attDateFrom, attDateTo]);
 
   const saveMutation = useMutation({
     mutationFn: (currentForm: NonNullable<typeof form>) => {
@@ -666,6 +670,26 @@ export default function CoachDetailPage() {
                           <option key={b.id} value={b.id}>{b.name}</option>
                         ))}
                       </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Date From</label>
+                      <input
+                        type="date"
+                        value={attDateFrom}
+                        onChange={e => setAttDateFrom(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Date To</label>
+                      <input
+                        type="date"
+                        value={attDateTo}
+                        onChange={e => setAttDateTo(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
                     </div>
                   </div>
 
