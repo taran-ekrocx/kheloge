@@ -120,13 +120,24 @@ function DemoStudentModal({
   const validate = () => {
     const next: Record<string, string> = {};
     if (!form.name.trim()) next.name = 'Full name is required';
-    if (form.phone && !/^[6-9]\d{9}$/.test(form.phone.replace(/[\s\-+]/g, '').replace(/^91/, ''))) {
+    if (!form.phone.trim()) {
+      next.phone = 'Phone number is required';
+    } else if (!/^[6-9]\d{9}$/.test(form.phone.replace(/[\s\-+]/g, '').replace(/^91/, ''))) {
       next.phone = 'Enter a valid 10-digit mobile number';
     }
-    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+    if (!form.email.trim()) {
+      next.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
       next.email = 'Enter a valid email address';
     }
-    if (form.demoStartDate && form.demoEndDate && form.demoEndDate < form.demoStartDate) {
+    if (!form.gender) next.gender = 'Gender is required';
+    if (!form.dob) next.dob = 'Date of birth is required';
+    if (!form.sportId) next.sportId = 'Sport is required';
+    if (!form.batchId) next.batchId = 'Batch is required';
+    if (!form.demoStartDate) next.demoStartDate = 'Demo start date is required';
+    if (!form.demoEndDate) {
+      next.demoEndDate = 'Demo end date is required';
+    } else if (form.demoStartDate && form.demoEndDate < form.demoStartDate) {
       next.demoEndDate = 'End date must be after start date';
     }
     setErrors(next);
@@ -217,7 +228,7 @@ function DemoStudentModal({
 
           <div>
             <input
-              placeholder="Phone Number"
+              placeholder="Phone Number *"
               value={form.phone}
               onChange={(e) => setForm({ ...form, phone: e.target.value })}
               className={ef('phone')}
@@ -228,7 +239,7 @@ function DemoStudentModal({
           <div>
             <input
               type="email"
-              placeholder="Email (Optional)"
+              placeholder="Email *"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               className={ef('email')}
@@ -237,7 +248,7 @@ function DemoStudentModal({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-2">Gender</label>
+            <label className="block text-xs font-medium text-gray-500 mb-2">Gender *</label>
             <div className="flex gap-5">
               {['Male', 'Female', 'Other'].map((g) => (
                 <label key={g} className="flex items-center gap-1.5 text-sm cursor-pointer">
@@ -253,44 +264,53 @@ function DemoStudentModal({
                 </label>
               ))}
             </div>
+            {errors.gender && <p className="text-red-500 text-xs mt-1">{errors.gender}</p>}
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Date of Birth</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Date of Birth *</label>
             <input
               type="date"
               value={form.dob}
               onChange={(e) => setForm({ ...form, dob: e.target.value })}
-              className={f}
+              className={ef('dob')}
             />
+            {errors.dob && <p className="text-red-500 text-xs mt-1">{errors.dob}</p>}
           </div>
 
-          <select
-            value={form.sportId}
-            onChange={(e) => setForm({ ...form, sportId: e.target.value, batchId: '' })}
-            className={f}
-          >
-            <option value="">Select Sport (Optional)</option>
-            {allSports.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
+          <div>
+            <select
+              value={form.sportId}
+              onChange={(e) => setForm({ ...form, sportId: e.target.value, batchId: '' })}
+              className={ef('sportId')}
+            >
+              <option value="">Select Sport *</option>
+              {allSports.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            {errors.sportId && <p className="text-red-500 text-xs mt-1">{errors.sportId}</p>}
+          </div>
 
-          <select value={form.batchId} onChange={(e) => setForm({ ...form, batchId: e.target.value })} className={f}>
-            <option value="">Select Batch (Optional)</option>
-            {allBatches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-          </select>
+          <div>
+            <select value={form.batchId} onChange={(e) => setForm({ ...form, batchId: e.target.value })} className={ef('batchId')}>
+              <option value="">Select Batch *</option>
+              {allBatches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+            {errors.batchId && <p className="text-red-500 text-xs mt-1">{errors.batchId}</p>}
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Demo Start Date</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Demo Start Date *</label>
               <input
                 type="date"
                 value={form.demoStartDate}
                 onChange={(e) => setForm({ ...form, demoStartDate: e.target.value })}
-                className={f}
+                className={ef('demoStartDate')}
               />
+              {errors.demoStartDate && <p className="text-red-500 text-xs mt-1">{errors.demoStartDate}</p>}
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Demo End Date</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Demo End Date *</label>
               <input
                 type="date"
                 value={form.demoEndDate}
