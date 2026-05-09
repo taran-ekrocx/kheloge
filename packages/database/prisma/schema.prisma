@@ -375,6 +375,7 @@ model Student {
   district       String?
   city           String?
   region         String?
+  sportsInterestedIn String?
   sportInterest  String?
   trainingLevel  String?
   status         StudentStatus @default(ACTIVE)

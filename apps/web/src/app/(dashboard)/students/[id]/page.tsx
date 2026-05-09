@@ -37,7 +37,8 @@ export default function StudentDetailPage() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>('profile');
   const [editingProfile, setEditingProfile] = useState(false);
-  const [editForm, setEditForm] = useState({ name: '', phone: '', email: '', dob: '', address: '', city: '', state: '', district: '', region: '', medicalNotes: '', status: '', sportInterest: '', trainingLevel: '' });
+  const [editForm, setEditForm] = useState({ name: '', phone: '', email: '', dob: '', address: '', city: '', state: '', district: '', region: '', medicalNotes: '', status: '', sportsInterestedIn: '', sportInterest: '', trainingLevel: '' });
+  const [selectedVenueIds, setSelectedVenueIds] = useState<string[]>([]);
   const [addBatchId, setAddBatchId] = useState('');
   const [editErrors, setEditErrors] = useState<Record<string, string>>({});
   const [guardianErrors, setGuardianErrors] = useState<Record<string, string>>({});
@@ -73,7 +74,7 @@ export default function StudentDetailPage() {
     ? `/coaches/me/students/${id}`
     : studentBase;
 
-  const { data: allBatches = [] } = useQuery<{ id: string; name: string; sport: { id: string; name: string } }[]>({
+  const { data: allBatches = [] } = useQuery<{ id: string; name: string; sport: { id: string; name: string }; venue?: { id: string; name: string } }[]>({
     queryKey: isCoach ? ['coach-batches'] : isSuperAdmin ? ['batches-global'] : ['batches', venueId],
     queryFn: isCoach
       ? () => api.get('/coaches/me/batches?status=active').then((r) => r.data)
@@ -181,9 +182,11 @@ export default function StudentDetailPage() {
       region: student?.region || '',
       medicalNotes: student?.medicalNotes || '',
       status: student?.status || '',
+      sportsInterestedIn: student?.sportsInterestedIn || '',
       sportInterest: student?.sportInterest || '',
       trainingLevel: student?.trainingLevel || '',
     });
+    setSelectedVenueIds([]);
     setEditingProfile(true);
   }
 
@@ -350,8 +353,9 @@ export default function StudentDetailPage() {
                 <div><p className="text-xs text-gray-400">State</p><p className="font-medium">{student.state || '—'}</p></div>
                 <div><p className="text-xs text-gray-400">District</p><p className="font-medium">{student.district || '—'}</p></div>
                 <div><p className="text-xs text-gray-400">Region</p><p className="font-medium">{student.region || '—'}</p></div>
-                <div><p className="text-xs text-gray-400">Sport Interest</p><p className="font-medium">{student.sportInterest || '—'}</p></div>
                 <div><p className="text-xs text-gray-400">Training Level</p><p className="font-medium">{student.trainingLevel || '—'}</p></div>
+                <div><p className="text-xs text-gray-400">Sports Interested In</p><p className="font-medium">{student.sportsInterestedIn || '—'}</p></div>
+                <div><p className="text-xs text-gray-400">Sport Applied For</p><p className="font-medium">{student.sportInterest || '—'}</p></div>
                 <div className="col-span-2">
                   <p className="text-xs text-gray-400">Medical Notes</p>
                   <p className="font-medium">{student.medicalNotes || '—'}</p>
@@ -459,20 +463,6 @@ export default function StudentDetailPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Sport Applied For *</label>
-                  <select
-                    value={editForm.sportInterest}
-                    onChange={e => { setEditForm(f => ({ ...f, sportInterest: e.target.value })); setAddBatchId(''); setEditErrors(p => ({ ...p, sportInterest: '' })); }}
-                    className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white ${editErrors.sportInterest ? 'border-red-400' : ''}`}
-                  >
-                    <option value="">— Select sport —</option>
-                    {sports.map(s => (
-                      <option key={s.id} value={s.name}>{s.name}</option>
-                    ))}
-                  </select>
-                  {editErrors.sportInterest && <p className="text-red-500 text-xs mt-1">{editErrors.sportInterest}</p>}
-                </div>
-                <div>
                   <label className="text-xs text-gray-500 mb-1 block">Training Level</label>
                   <select
                     value={editForm.trainingLevel}
@@ -485,6 +475,100 @@ export default function StudentDetailPage() {
                     ))}
                   </select>
                 </div>
+                <div className="col-span-2">
+                  <label className="text-xs text-gray-500 mb-1 block">Sports Interested In</label>
+                  <div className="border rounded-lg px-3 py-2 flex flex-wrap gap-x-4 gap-y-1 max-h-32 overflow-y-auto">
+                    {sports.map(s => {
+                      const selected = editForm.sportsInterestedIn.split(',').map(v => v.trim()).filter(Boolean).includes(s.name);
+                      return (
+                        <label key={s.id} className="flex items-center gap-1.5 cursor-pointer py-0.5">
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => {
+                              const current = editForm.sportsInterestedIn.split(',').map(v => v.trim()).filter(Boolean);
+                              const next = selected ? current.filter(v => v !== s.name) : [...current, s.name];
+                              const nextStr = next.join(', ');
+                              // If Sport Applied For is no longer in the new selection, clear it
+                              const sportAppliedStillValid = next.length === 0 || next.includes(editForm.sportInterest);
+                              setEditForm(f => ({
+                                ...f,
+                                sportsInterestedIn: nextStr,
+                                sportInterest: sportAppliedStillValid ? f.sportInterest : '',
+                              }));
+                              if (!sportAppliedStillValid) {
+                                setSelectedVenueIds([]);
+                                setAddBatchId('');
+                              }
+                              setEditErrors(p => ({ ...p, sportInterest: '' }));
+                            }}
+                            className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600"
+                          />
+                          <span className="text-sm text-gray-700">{s.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Sport Applied For *</label>
+                  <select
+                    value={editForm.sportInterest}
+                    onChange={e => {
+                      setEditForm(f => ({ ...f, sportInterest: e.target.value }));
+                      setSelectedVenueIds([]);
+                      setAddBatchId('');
+                      setEditErrors(p => ({ ...p, sportInterest: '' }));
+                    }}
+                    className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white ${editErrors.sportInterest ? 'border-red-400' : ''}`}
+                  >
+                    <option value="">— Select sport —</option>
+                    {(() => {
+                      const interestedNames = editForm.sportsInterestedIn.split(',').map(v => v.trim()).filter(Boolean);
+                      const filtered = interestedNames.length > 0
+                        ? sports.filter(s => interestedNames.includes(s.name))
+                        : sports;
+                      return filtered.map(s => (
+                        <option key={s.id} value={s.name}>{s.name}</option>
+                      ));
+                    })()}
+                  </select>
+                  {editErrors.sportInterest && <p className="text-red-500 text-xs mt-1">{editErrors.sportInterest}</p>}
+                </div>
+                {editForm.sportInterest && (() => {
+                  const venueMap = new Map<string, { id: string; name: string }>();
+                  allBatches
+                    .filter(b => b.sport?.name === editForm.sportInterest && b.venue)
+                    .forEach(b => { if (b.venue) venueMap.set(b.venue.id, b.venue); });
+                  const availableVenues = Array.from(venueMap.values());
+                  if (!availableVenues.length) return null;
+                  return (
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Venue</label>
+                      <div className="border rounded-lg px-3 py-2 flex flex-wrap gap-x-4 gap-y-1 max-h-28 overflow-y-auto">
+                        {availableVenues.map(v => {
+                          const checked = selectedVenueIds.includes(v.id);
+                          return (
+                            <label key={v.id} className="flex items-center gap-1.5 cursor-pointer py-0.5">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => {
+                                  setSelectedVenueIds(prev =>
+                                    checked ? prev.filter(vid => vid !== v.id) : [...prev, v.id]
+                                  );
+                                  setAddBatchId('');
+                                }}
+                                className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600"
+                              />
+                              <span className="text-sm text-gray-700">{v.name}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
                 {updateMutation.isError && (
                   <p className="col-span-2 text-xs text-red-500">Failed to save. Please try again.</p>
                 )}
@@ -524,7 +608,8 @@ export default function StudentDetailPage() {
                 );
                 const available = allBatches.filter(b => {
                   if (enrolledBatchIds.has(b.id)) return false;
-                  if (editForm.sportInterest) return b.sport?.name === editForm.sportInterest;
+                  if (editForm.sportInterest && b.sport?.name !== editForm.sportInterest) return false;
+                  if (selectedVenueIds.length > 0 && (!b.venue || !selectedVenueIds.includes(b.venue.id))) return false;
                   return true;
                 });
                 if (!available.length) return null;

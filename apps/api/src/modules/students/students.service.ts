@@ -20,6 +20,7 @@ export interface CreateStudentDto {
   city?: string;
   region?: string;
   cityId?: string;
+  sportsInterestedIn?: string;
   sportInterest?: string;
   trainingLevel?: string;
   status?: StudentStatus;
