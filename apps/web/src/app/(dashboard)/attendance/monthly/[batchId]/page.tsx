@@ -27,6 +27,18 @@ interface MonthlySummaryItem {
   percentage: number;
 }
 
+interface MonthlyCoachSummaryItem {
+  coachId: string;
+  coachName: string;
+  batchId: string;
+  batchName: string;
+  sportName: string;
+  totalSessions: number;
+  present: number;
+  absent: number;
+  percentage: number;
+}
+
 function pctColor(pct: number) {
   if (pct >= 75) return 'bg-green-100 text-green-700';
   if (pct >= 50) return 'bg-yellow-100 text-yellow-700';
@@ -55,6 +67,18 @@ export default function BatchMonthlySummaryPage() {
         batchId,
       });
       return api.get(`/attendance/monthly-summary?${params.toString()}`).then(r => r.data);
+    },
+  });
+
+  const { data: coaches = [], isLoading: coachesLoading } = useQuery<MonthlyCoachSummaryItem[]>({
+    queryKey: ['monthly-coach-summary', year, monthNum, batchId],
+    queryFn: () => {
+      const params = new URLSearchParams({
+        year: String(year),
+        month: String(monthNum),
+        batchId,
+      });
+      return api.get(`/attendance/monthly-coach-summary?${params.toString()}`).then(r => r.data);
     },
   });
 
@@ -164,6 +188,46 @@ export default function BatchMonthlySummaryPage() {
           </div>
         )}
       </div>
+
+      {!coachesLoading && coaches.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-gray-700">Coach Attendance</h3>
+          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50">
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Coach</th>
+                    <th className="text-center px-4 py-3 font-medium text-gray-600">Total Sessions</th>
+                    <th className="text-center px-4 py-3 font-medium text-gray-600">Present</th>
+                    <th className="text-center px-4 py-3 font-medium text-gray-600">Absent</th>
+                    <th className="text-center px-4 py-3 font-medium text-gray-600">Attendance %</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {coaches.map(coach => (
+                    <tr key={`${coach.coachId}:${coach.batchId}`} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 font-medium text-gray-900">{coach.coachName}</td>
+                      <td className="px-4 py-3 text-center text-gray-700">{coach.totalSessions}</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">{coach.present}</span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-medium">{coach.absent}</span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${pctColor(coach.percentage)}`}>
+                          {coach.percentage}%
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

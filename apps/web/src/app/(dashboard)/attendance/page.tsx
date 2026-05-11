@@ -89,18 +89,6 @@ interface MonthlySummaryItem {
   percentage: number;
 }
 
-interface MonthlyCoachSummaryItem {
-  coachId: string;
-  coachName: string;
-  batchId: string;
-  batchName: string;
-  sportName: string;
-  totalSessions: number;
-  present: number;
-  absent: number;
-  percentage: number;
-}
-
 interface SessionStudentAttendanceRecord {
   id: string;
   studentId: string;
@@ -200,19 +188,6 @@ export default function AttendanceIndexPage() {
       if (monthlyVenueId) params.set('venueId', monthlyVenueId);
       if (monthlyCoachId) params.set('coachId', monthlyCoachId);
       return api.get(`/attendance/monthly-summary?${params.toString()}`).then(r => r.data);
-    },
-    enabled: tab === 'monthly',
-    staleTime: 2 * 60 * 1000,
-  });
-
-  const { data: monthlyCoachSummary = [], isLoading: monthlyCoachSummaryLoading } = useQuery<MonthlyCoachSummaryItem[]>({
-    queryKey: ['monthly-coach-summary', monthlyYear, monthlyMonthNum, monthlyBatchId, monthlyVenueId, monthlyCoachId],
-    queryFn: () => {
-      const params = new URLSearchParams({ year: String(monthlyYear), month: String(monthlyMonthNum) });
-      if (monthlyBatchId) params.set('batchId', monthlyBatchId);
-      if (monthlyVenueId) params.set('venueId', monthlyVenueId);
-      if (monthlyCoachId) params.set('coachId', monthlyCoachId);
-      return api.get(`/attendance/monthly-coach-summary?${params.toString()}`).then(r => r.data);
     },
     enabled: tab === 'monthly',
     staleTime: 2 * 60 * 1000,
@@ -712,12 +687,6 @@ export default function AttendanceIndexPage() {
             <MonthlySummaryTable items={monthlySummary} showBatch={!monthlyBatchId} month={monthlyMonth} />
           )}
 
-          {!monthlyCoachSummaryLoading && monthlyCoachSummary.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-gray-700">Coach Attendance</h3>
-              <MonthlyCoachSummaryTable items={monthlyCoachSummary} showBatch={!monthlyBatchId} />
-            </div>
-          )}
         </div>
       )}
 
@@ -786,58 +755,6 @@ export default function AttendanceIndexPage() {
           </div>
         );
       })()}
-    </div>
-  );
-}
-
-function MonthlyCoachSummaryTable({ items, showBatch }: { items: MonthlyCoachSummaryItem[]; showBatch?: boolean }) {
-  return (
-    <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-100 bg-gray-50">
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Coach</th>
-              {showBatch && <th className="text-left px-4 py-3 font-medium text-gray-600">Batch</th>}
-              <th className="text-center px-4 py-3 font-medium text-gray-600">Total Sessions</th>
-              <th className="text-center px-4 py-3 font-medium text-gray-600">Present</th>
-              <th className="text-center px-4 py-3 font-medium text-gray-600">Absent</th>
-              <th className="text-center px-4 py-3 font-medium text-gray-600">Attendance %</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {items.map((item) => (
-              <tr key={`${item.coachId}:${item.batchId}`} className="hover:bg-gray-50 transition-colors">
-                <td className="px-4 py-3 font-medium text-gray-900">{item.coachName}</td>
-                {showBatch && (
-                  <td className="px-4 py-3 text-gray-600">
-                    {item.batchName}
-                    {item.sportName && <span className="ml-1.5 text-xs text-gray-400">{item.sportName}</span>}
-                  </td>
-                )}
-                <td className="px-4 py-3 text-center text-gray-700">{item.totalSessions}</td>
-                <td className="px-4 py-3 text-center">
-                  <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">{item.present}</span>
-                </td>
-                <td className="px-4 py-3 text-center">
-                  <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-medium">{item.absent}</span>
-                </td>
-                <td className="px-4 py-3 text-center">
-                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                    item.percentage >= 75
-                      ? 'bg-green-100 text-green-700'
-                      : item.percentage >= 50
-                      ? 'bg-yellow-100 text-yellow-700'
-                      : 'bg-red-100 text-red-700'
-                  }`}>
-                    {item.percentage}%
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }
