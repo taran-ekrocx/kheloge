@@ -864,14 +864,19 @@ export default function StudentDetailPage() {
                 <ul className="space-y-2">
                   {student.enrollments
                     .filter((e: { isActive: boolean }) => e.isActive)
-                    .map((e: { id: string; batchId: string; batch: { id: string; name: string; sport: { name: string } } }) => (
-                      <li key={e.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
-                        <span className="font-medium text-sm">{e.batch?.name}</span>
+                    .map((e: { id: string; batchId: string; batch: { id: string; name: string; sport: { name: string }; venue?: { id: string; name: string } } }) => (
+                      <li key={e.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm text-gray-900">{e.batch?.name}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {[e.batch?.venue?.name, e.batch?.sport?.name].filter(Boolean).join(' · ')}
+                          </p>
+                        </div>
                         {editingBatches && (
                           <button
                             onClick={() => unenrollMutation.mutate(e.batch?.id ?? e.batchId)}
                             disabled={unenrollMutation.isPending}
-                            className="ml-auto text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
+                            className="ml-auto text-xs text-red-500 hover:text-red-700 disabled:opacity-50 shrink-0"
                           >
                             Remove
                           </button>
@@ -902,7 +907,9 @@ export default function StudentDetailPage() {
                     >
                       <option value="" disabled>Add to batch…</option>
                       {available.map(b => (
-                        <option key={b.id} value={b.id}>{b.name}</option>
+                        <option key={b.id} value={b.id}>
+                          {[b.name, b.venue?.name, b.sport?.name].filter(Boolean).join(' · ')}
+                        </option>
                       ))}
                     </select>
                     <button

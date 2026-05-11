@@ -183,7 +183,7 @@ export class StudentsService {
       where: { id },
       include: {
         guardians: true,
-        enrollments: { include: { batch: { include: { sport: true } } } },
+        enrollments: { include: { batch: { include: { sport: true, venue: { select: { id: true, name: true } } } } } },
         attendances: { orderBy: { date: 'desc' }, take: 30, include: { batch: { select: { name: true, sport: { select: { name: true } } } } } },
         payments: { orderBy: { createdAt: 'desc' }, take: 10 },
         invoices: { orderBy: { createdAt: 'desc' }, take: 10 },
