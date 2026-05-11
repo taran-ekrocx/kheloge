@@ -742,10 +742,6 @@ export default function StudentDetailPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div><p className="text-xs text-gray-400">Training Level</p><p className="font-medium">{student.trainingLevel || '—'}</p></div>
                 <div><p className="text-xs text-gray-400">Sport Applied For</p><p className="font-medium">{student.sportInterest || '—'}</p></div>
-                <div className="col-span-2">
-                  <p className="text-xs text-gray-400">Sports Interested In</p>
-                  <p className="font-medium">{student.sportsInterestedIn || '—'}</p>
-                </div>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3">
