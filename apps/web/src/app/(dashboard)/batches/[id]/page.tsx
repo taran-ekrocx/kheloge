@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { ArrowLeft, Users, Clock, Calendar, User, Trophy, UserPlus, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Users, Clock, Calendar, User, Trophy, UserPlus, CheckCircle, Star } from 'lucide-react';
 import Link from 'next/link';
 import dayjs from 'dayjs';
 
@@ -28,7 +28,7 @@ function extractApiError(err: unknown, fallback: string): string {
   return fallback;
 }
 
-type Tab = 'overview' | 'regular-students' | 'demo-students';
+type Tab = 'overview' | 'regular-students' | 'demo-students' | 'coaches';
 
 interface Coach {
   id: string;
@@ -42,6 +42,13 @@ interface BatchCoach {
   name?: string;
   photoUrl?: string | null;
   isPrimary?: boolean;
+}
+
+interface OrgCoach {
+  id: string;
+  userId?: string;
+  name: string;
+  photoUrl?: string | null;
 }
 
 interface Student {
@@ -403,6 +410,212 @@ function ManageStudentsModal({
   );
 }
 
+function CoachMultiSelect({ coaches, selected, onChange }: {
+  coaches: OrgCoach[];
+  selected: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const filtered = coaches.filter(c => c.name.toLowerCase().includes(search.toLowerCase()));
+  const selectedCoaches = coaches.filter(c => selected.includes(c.id));
+
+  function toggle(id: string) {
+    onChange(selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id]);
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <div
+        onClick={() => setOpen(o => !o)}
+        className="w-full min-h-[38px] border rounded-lg px-3 py-2 text-sm cursor-pointer flex flex-wrap gap-1 items-center bg-white hover:border-blue-400 transition-colors"
+      >
+        {selectedCoaches.length === 0 ? (
+          <span className="text-gray-400">Search and assign coaches...</span>
+        ) : (
+          selectedCoaches.map(c => (
+            <span key={c.id} className="flex items-center gap-1 bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full">
+              {c.name}
+              <button type="button" onClick={(e) => { e.stopPropagation(); toggle(c.id); }} className="hover:text-blue-900 font-medium">×</button>
+            </span>
+          ))
+        )}
+      </div>
+      {open && (
+        <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg flex flex-col" style={{ maxHeight: 220 }}>
+          <div className="p-2 border-b border-gray-100">
+            <input
+              autoFocus
+              type="text"
+              placeholder="Search coaches..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              onClick={e => e.stopPropagation()}
+              className="w-full text-sm px-2 py-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-400"
+            />
+          </div>
+          <div className="overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="text-xs text-gray-400 p-3 text-center">No coaches found</p>
+            ) : (
+              filtered.map(c => (
+                <div
+                  key={c.id}
+                  onClick={() => toggle(c.id)}
+                  className={`flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 transition-colors ${selected.includes(c.id) ? 'bg-blue-50' : ''}`}
+                >
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${selected.includes(c.id) ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
+                    {selected.includes(c.id) && <span className="text-white text-[10px] leading-none">✓</span>}
+                  </div>
+                  <span>{c.name}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ManageCoachesModal({
+  batch,
+  isSuperAdmin,
+  onClose,
+}: {
+  batch: BatchDetail;
+  isSuperAdmin: boolean;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [primaryId, setPrimaryId] = useState<string | null>(null);
+  const [initialized, setInitialized] = useState(false);
+
+  const { data: allCoaches = [], isLoading: loadingCoaches } = useQuery<OrgCoach[]>({
+    queryKey: isSuperAdmin ? ['coaches-all'] : ['coaches', batch.venue.id],
+    queryFn: isSuperAdmin
+      ? () => api.get('/coaches?status=ACTIVE').then(r => r.data)
+      : () => api.get(`/venues/${batch.venue.id}/coaches?status=ACTIVE`).then(r => r.data),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  useEffect(() => {
+    if (allCoaches.length === 0 || initialized) return;
+    const existingUserIds = new Set(batch.coaches.map(bc => (bc.coach ?? (bc as unknown as Coach)).id));
+    const preSelected = allCoaches.filter(c => existingUserIds.has(c.userId ?? '')).map(c => c.id);
+    const primaryUserId = batch.coaches.find(bc => bc.isPrimary)?.coach?.id;
+    const prePrimary = primaryUserId
+      ? (allCoaches.find(c => c.userId === primaryUserId)?.id ?? preSelected[0] ?? null)
+      : preSelected[0] ?? null;
+    setSelectedIds(preSelected.length ? preSelected : batch.coaches.map(bc => (bc.coach ?? (bc as unknown as Coach)).id ?? '').filter(Boolean));
+    setPrimaryId(prePrimary);
+    setInitialized(true);
+  }, [allCoaches, batch.coaches, initialized]);
+
+  const selectedCoaches = allCoaches.filter(c => selectedIds.includes(c.id));
+
+  const mutation = useMutation({
+    mutationFn: () => {
+      const orderedIds = primaryId
+        ? [primaryId, ...selectedIds.filter(id => id !== primaryId)]
+        : selectedIds;
+      return api.patch(`/venues/${batch.venue.id}/batches/${batch.id}`, { coachIds: orderedIds });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['batch', batch.id] });
+      onClose();
+    },
+  });
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+        <h3 className="text-lg font-bold mb-1">Assign Coaches</h3>
+        <p className="text-sm text-gray-500 mb-4">{batch.name}</p>
+
+        <div className="mb-4">
+          <p className="text-xs font-medium text-gray-600 mb-2">Select Coaches</p>
+          {loadingCoaches ? (
+            <p className="text-xs text-gray-400 py-4 text-center">Loading coaches...</p>
+          ) : (
+            <CoachMultiSelect
+              coaches={allCoaches}
+              selected={selectedIds}
+              onChange={(ids) => {
+                setSelectedIds(ids);
+                if (primaryId && !ids.includes(primaryId)) setPrimaryId(ids[0] ?? null);
+                if (!primaryId && ids.length > 0) setPrimaryId(ids[0]);
+              }}
+            />
+          )}
+        </div>
+
+        {selectedCoaches.length > 0 && (
+          <div className="mb-4">
+            <p className="text-xs font-medium text-gray-600 mb-2">Primary Coach</p>
+            <div className="space-y-1">
+              {selectedCoaches.map(c => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setPrimaryId(c.id)}
+                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors text-left ${
+                    primaryId === c.id ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 hover:bg-gray-100'
+                  }`}
+                >
+                  <Star
+                    size={14}
+                    className={primaryId === c.id ? 'text-blue-600 fill-blue-600' : 'text-gray-300'}
+                  />
+                  <span className={primaryId === c.id ? 'font-medium text-blue-700' : 'text-gray-700'}>{c.name}</span>
+                  {primaryId === c.id && (
+                    <span className="ml-auto text-xs text-blue-500">Primary</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {mutation.isError && (
+          <p className="text-red-500 text-xs mb-3">
+            {extractApiError(mutation.error, 'Failed to save. Please try again.')}
+          </p>
+        )}
+
+        <div className="flex gap-3 mt-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 border rounded-lg py-2 text-sm font-medium hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending || loadingCoaches}
+            className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+          >
+            {mutation.isPending ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function BatchDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { role, userId } = useAuth();
@@ -412,6 +625,7 @@ export default function BatchDetailPage() {
   const [tab, setTab] = useState<Tab>('overview');
   const [showManageStudents, setShowManageStudents] = useState(false);
   const [manageStudentsMode, setManageStudentsMode] = useState<'regular' | 'demo'>('regular');
+  const [showManageCoaches, setShowManageCoaches] = useState(false);
   const [period, setPeriod] = useState(dayjs().format('YYYY-MM'));
 
   const { data: batch, isLoading } = useQuery<BatchDetail>({
@@ -442,6 +656,7 @@ export default function BatchDetailPage() {
 
   const tabs = [
     { key: 'overview' as Tab, label: 'Overview', icon: Trophy },
+    { key: 'coaches' as Tab, label: `Coaches (${batch.coaches?.length ?? 0})`, icon: User },
     { key: 'regular-students' as Tab, label: `Regular Students (${activeEnrollments.length})`, icon: Users },
     { key: 'demo-students' as Tab, label: `Demo Students (${demoBatchStudents.length})`, icon: Users },
   ];
@@ -544,42 +759,64 @@ export default function BatchDetailPage() {
               )}
             </div>
 
-            {batch.coaches?.length > 0 && (
-              <>
-                <hr className="border-gray-100" />
-                <div>
-                  <p className="text-sm font-medium text-gray-700 mb-3">Coaches</p>
-                  <div className="space-y-2">
-                    {batch.coaches.map((bc, idx) => {
-                      const coach = bc.coach ?? (bc as unknown as Coach);
-                      const isPrimary = bc.isPrimary;
-                      return (
-                        <div key={coach.id ?? idx} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
-                          {coach.photoUrl ? (
-                            <img
-                              src={coach.photoUrl}
-                              alt={coach.name}
-                              className="w-8 h-8 rounded-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
-                              <User size={14} className="text-gray-400" />
-                            </div>
-                          )}
-                          <span className="text-sm font-medium text-gray-900 flex-1">
-                            {isCoach && coach.id === userId ? 'You' : coach.name}
-                          </span>
-                          {isPrimary && (
-                            <span className="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
-                              Primary
-                            </span>
-                          )}
+          </div>
+        )}
+
+        {/* Coaches tab */}
+        {tab === 'coaches' && (
+          <div>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <span className="text-sm font-medium text-gray-700">
+                Total: <span className="text-blue-600">{batch.coaches?.length ?? 0}</span>
+              </span>
+              {!isCoach && (
+                <button
+                  onClick={() => setShowManageCoaches(true)}
+                  className="flex items-center gap-1.5 bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                >
+                  <UserPlus size={14} />
+                  Assign Coaches
+                </button>
+              )}
+            </div>
+
+            {!batch.coaches?.length ? (
+              <p className="text-gray-400 text-sm">No coaches assigned to this batch.</p>
+            ) : (
+              <div className="space-y-2">
+                {batch.coaches.map((bc, idx) => {
+                  const coach = bc.coach ?? (bc as unknown as Coach);
+                  const isPrimary = bc.isPrimary;
+                  return (
+                    <Link
+                      key={coach.id ?? idx}
+                      href={`/coaches/${coach.id}`}
+                      className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                    >
+                      {coach.photoUrl ? (
+                        <img
+                          src={coach.photoUrl}
+                          alt={coach.name}
+                          className="w-9 h-9 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center shrink-0">
+                          <User size={15} className="text-gray-400" />
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </>
+                      )}
+                      <span className="text-sm font-medium text-gray-900 flex-1">
+                        {isCoach && coach.id === userId ? 'You' : coach.name}
+                      </span>
+                      {isPrimary && (
+                        <span className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                          <Star size={10} className="fill-blue-600" />
+                          Primary
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
             )}
           </div>
         )}
@@ -730,6 +967,14 @@ export default function BatchDetailPage() {
           isCoach={isCoach}
           mode={manageStudentsMode}
           onClose={() => setShowManageStudents(false)}
+        />
+      )}
+
+      {showManageCoaches && (
+        <ManageCoachesModal
+          batch={batch}
+          isSuperAdmin={isSuperAdmin}
+          onClose={() => setShowManageCoaches(false)}
         />
       )}
     </div>
